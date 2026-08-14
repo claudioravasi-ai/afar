@@ -8,9 +8,10 @@ let borradorRegistro = {};
 function pintarAuth(){
   const c = $('#authCuerpo');
   const tab = $('.auth-tabs button.on').dataset.tab;
-  if(tab === 'ingresar')      c.innerHTML = htmlIngresar();
-  else if(tab === 'registro') c.innerHTML = htmlRegistro();
-  else                        c.innerHTML = htmlCoordinador();
+  if(tab === 'ingresar')        c.innerHTML = htmlIngresar();
+  else if(tab === 'registro')   c.innerHTML = htmlRegistro();
+  else if(tab === 'contable')   c.innerHTML = htmlContable();
+  else                          c.innerHTML = htmlCoordinador();
   cablearAuth(tab);
 }
 
@@ -90,8 +91,24 @@ function htmlCoordinador(){
   '<button class="btn aqua full grande" id="btnCoord">'+ico('escudo')+' Ingresar como coordinador</button>';
 }
 
+/* ------------------------------------------------------------- Contable */
+function htmlContable(){
+  return ''+
+  '<div class="aviso warn">'+ico('dinero')+'<div><b>Acceso exclusivo del contador</b><br>'+
+    'Portal económico de la AFAR. Sin acceso a historias clínicas ni a datos de pacientes.</div></div>'+
+  '<div class="campo"><label>Clave del contable</label>'+
+    '<input type="password" id="inCont" inputmode="numeric" placeholder="••••" autocomplete="off"></div>'+
+  '<button class="btn pri full grande" id="btnCont">'+ico('dinero')+' Ingresar como contable</button>'+
+  '<p class="mini txt-c mt14" style="line-height:1.6">Este acceso ve importes, financiadores, '+
+    'instituciones y profesionales. No ve pacientes, cirugías ni diagnósticos.</p>';
+}
+
 /* ------------------------------------------------------------ Cableado */
 function cablearAuth(tab){
+  if(tab === 'contable'){
+    $('#btnCont').onclick = intentarContable;
+    $('#inCont').onkeydown = e => { if(e.key === 'Enter') intentarContable(); };
+  }
   if(tab === 'ingresar'){
     $('#btnIngresar').onclick = intentarIngreso;
     $('#inClave').onkeydown = e => { if(e.key === 'Enter') intentarIngreso(); };
@@ -176,6 +193,20 @@ function intentarCoordinador(){
   abrirSesion('coordinador', 'coordinador');
 }
 
+function intentarContable(){
+  const c = $('#inCont').value.trim();
+  if(c !== CLAVE_CONTABLE) return toast('Clave del contable incorrecta.', 'err');
+  if(!DB.usuarios['contable']){
+    escribir('usuarios', 'contable', {
+      uid:'contable', rol:'contable', estado:'aprobado',
+      email:'contable@afar.org.ar', nombre:'Contable', apellido:'AFAR',
+      titulo:'Contador de la Asociación', matriculaProvincial:'—',
+      instituciones:[], creado:new Date().toISOString(), salt:'cont', passHash:''
+    });
+  }
+  abrirSesion('contable', 'contable');
+}
+
 async function enviarRegistro(){
   const g = id => ($('#'+id) ? $('#'+id).value.trim() : '');
   const insts = $$('#rgInsts input:checked').map(i => i.value);
@@ -233,6 +264,7 @@ function restaurarSesion(){
     if(!s) return false;
     const u = DB.usuarios[s.uid];
     if(!u) return false;
+    if(s.rol !== u.rol) return false;      /* el rol no se altera desde el dispositivo */
     if(s.rol === 'socio' && u.estado !== 'aprobado') return false;
     SESION = s; USUARIO = u;
     return true;

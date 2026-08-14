@@ -54,6 +54,33 @@ function cuandoTexto(d){
 function calcularAvisos(){
   const av = [];
   const hoy = hoyISO();
+
+  /* --- 0. Comunicación interna: reclamos sin responder --- */
+  misHilos().forEach(h => {
+    const u = ultimoMensaje(h) || {};
+    const hs = Math.floor(horasDesde(u.cuando));
+    if(hiloVencido(h)){
+      av.push({ nivel:'danger', icono:'correo', orden:1,
+        titulo:'Sin responder hace ' + hs + ' h — ' + h.asunto,
+        detalle: nombreParticipante(u.uid) + ' escribió y todavía no contestaste.' +
+                 '\n«' + String(u.texto||'').slice(0,160) + '»',
+        accion: () => abrirHilo(h.id) });
+    } else if(miReclamoSinRespuesta(h)){
+      av.push({ nivel:'warn', icono:'reloj', orden:2,
+        titulo:'Tu reclamo lleva ' + hs + ' h sin respuesta — ' + h.asunto,
+        detalle:'Nadie contestó desde tu último mensaje. Podés insistir o darlo por resuelto.',
+        accion: () => abrirHilo(h.id) });
+    } else if(hiloNoLeido(h)){
+      av.push({ nivel:'info', icono:'correo', orden:3,
+        titulo:'Mensaje nuevo — ' + h.asunto,
+        detalle: nombreParticipante(u.uid) + ': «' + String(u.texto||'').slice(0,160) + '»',
+        accion: () => abrirHilo(h.id) });
+    }
+  });
+
+  /* El contable no accede a información clínica: sus avisos terminan acá. */
+  if(!verDatosClinicos()) return av.sort((a,b) => a.orden - b.orden);
+
   const fichas = misFichas();
 
   /* --- 1. Solicitudes de acceso (coordinación) --- */

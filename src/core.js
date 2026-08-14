@@ -6,6 +6,7 @@
 'use strict';
 
 const CLAVE_COORDINADOR = '0112';
+const CLAVE_CONTABLE    = '2358';
 const LS_DB   = 'afar_db_v1';
 const LS_SES  = 'afar_sesion_v1';
 const LS_FB   = 'afar_firebase_v1';
@@ -15,7 +16,7 @@ const LS_NUBE_LOG = 'afar_nube_log_v1';
 /* ---------------------------------------------------------------- Estado */
 const DB = {
   usuarios:{}, pacientes:{}, fichas:{}, instituciones:{}, obrasSociales:{},
-  catalogoExtra:{}, config:{}, auditoria:{}
+  catalogoExtra:{}, config:{}, auditoria:{}, mensajes:{}, fiscal:{}
 };
 const COLECCIONES = Object.keys(DB);
 
@@ -1005,6 +1006,9 @@ function montarFirma(canvas, onCambio){
 
 /* ------------------------------------------------------------ Permisos */
 function esCoordinador(){ return SESION && SESION.rol === 'coordinador'; }
+function esContable(){ return SESION && SESION.rol === 'contable'; }
+/* El contable NO es personal de salud: no accede a datos clinicos (Ley 25.326) */
+function verDatosClinicos(){ return !!SESION && !esContable(); }
 
 /* En una ficha intervienen dos actos medicos que se facturan por separado:
      - la VALORACION prequirurgica, que es una consulta y corresponde a quien
@@ -1083,6 +1087,51 @@ function montoQueMeCorresponde(f){
     .filter(p => esCoordinador() || p.uid === SESION.uid)
     .reduce((a,p) => a + p.monto, 0);
 }
+/* ================= PRESTACIONES PARA EL CONTADOR =================
+   Proyeccion ANONIMIZADA de las prestaciones. El contador de la asociacion
+   no es personal de salud: la Ley 25.326 no lo habilita a acceder a datos
+   sensibles. Esta funcion construye registros NUEVOS con una lista blanca
+   de campos economicos, de modo que ningun dato clinico pueda llegar a su
+   portal aunque se agreguen campos a la ficha mas adelante.
+
+   Deliberadamente NO viajan: paciente, DNI, cirugia, diagnostico CIE-10,
+   valoracion, plan, acto, eventos adversos ni consentimiento.
+   De los adicionales del nomenclador se pasa SOLO el porcentaje total
+   (pctAdicional): permite auditar la aritmetica de la factura sin revelar
+   que el recargo vino de un ASA V, de una obesidad morbida o de la edad.
+   ================================================================= */
+function prestacionesContables(){
+  const out = [];
+  lista('fichas').forEach(f => {
+    const inst = nombreInstitucion(f.institucion).split('"')[0].trim();
+    const h = f.hon || {}, hc = f.honConsulta || {};
+    const agregar = (tipo, uidTit, datos) => {
+      const monto   = Number(datos.total || 0);
+      const cobrado = Number(datos.cobrado || 0);
+      out.push({
+        ref: f.id + ':' + tipo,
+        fecha: f.fecha || '', mes: mesDe(f.fecha || ''),
+        tipo: tipo, uid: uidTit || '',
+        institucionId: f.institucion || '', institucion: inst || 'Sin institución',
+        financiador: f.obraSocial || 'Sin cobertura',
+        modalidad: datos.modalidad || '',
+        ua: Number(datos.ua || 0), valorUnidad: Number(datos.valorUnidad || 0),
+        pctAdicional: Number(datos.pctAdicional || 0),
+        monto: monto, cobrado: cobrado,
+        saldo: Math.max(0, monto - cobrado),
+        estado: datos.estado || 'Pendiente',
+        comprobante: datos.comprobante || '',
+        fechaPresentacion: datos.fechaPresentacion || ''
+      });
+    };
+    if(hc.modalidad && hc.modalidad !== 'incluida' && hc.modalidad !== 'sincargo')
+      agregar('consulta', f.ownerUid, hc);
+    if(h.modalidad && h.modalidad !== 'sincargo' && h.modalidad !== 'salario')
+      agregar('acto', actorFicha(f), h);
+  });
+  return out;
+}
+
 /* Anestesiologos habilitados, para asignar el acto */
 function socios(){
   return lista('usuarios')

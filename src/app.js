@@ -5,50 +5,67 @@
 let vistaActual = 'panel';
 
 const NAV = [
-  { id:'panel',       ico:'panel',       txt:'Inicio',        nav:true  },
-  { id:'pacientes',   ico:'pacientes',   txt:'Pacientes',     nav:true  },
-  { id:'fichas',      ico:'ficha',       txt:'Fichas',        nav:true  },
-  { id:'ficha',       ico:'ficha',       txt:'Ficha',         nav:false, oculto:true },
-  { id:'stats',       ico:'stats',       txt:'Estadísticas',  nav:true, soloSocio:true },
-  { id:'coordinador', ico:'escudo',      txt:'Coordinación',  nav:true, soloCoord:true },
-  { id:'facturacion', ico:'dinero',      txt:'Facturación',   nav:false },
-  { id:'guias',       ico:'guias',       txt:'Guías',         nav:false },
+  { id:'panel',       ico:'panel',       txt:'Inicio',        nav:true,  clinico:true },
+  { id:'pacientes',   ico:'pacientes',   txt:'Pacientes',     nav:true,  clinico:true },
+  { id:'fichas',      ico:'ficha',       txt:'Fichas',        nav:true,  clinico:true },
+  { id:'ficha',       ico:'ficha',       txt:'Ficha',         nav:false, oculto:true, clinico:true },
+  { id:'stats',       ico:'stats',       txt:'Estadísticas',  nav:true,  clinico:true },
+  { id:'coordinador', ico:'escudo',      txt:'Coordinación',  nav:true,  soloCoord:true },
+  { id:'contable',    ico:'dinero',      txt:'Contable',      nav:true,  soloCont:true },
+  { id:'mensajes',    ico:'correo',      txt:'Mensajes',      nav:true  },
+  { id:'facturacion', ico:'dinero',      txt:'Facturación',   nav:false, clinico:true },
+  { id:'guias',       ico:'guias',       txt:'Guías',         nav:false, clinico:true },
   { id:'perfil',      ico:'usuario',     txt:'Mi perfil',     nav:true  }
 ];
 
-function itemsNav(){
-  return NAV.filter(n => !n.oculto && !(n.soloCoord && !esCoordinador()));
+/* El contable no accede a ninguna vista con datos clinicos (Ley 25.326) */
+function puedeVerVista(id){
+  const n = NAV.find(x => x.id === id);
+  if(!n) return false;
+  if(n.soloCoord && !esCoordinador()) return false;
+  if(n.soloCont  && !esContable())    return false;
+  if(n.clinico   && !verDatosClinicos()) return false;
+  return true;
 }
+function itemsNav(){
+  return NAV.filter(n => !n.oculto && puedeVerVista(n.id));
+}
+function vistaInicial(){ return esContable() ? 'contable' : 'panel'; }
 
 function pintarNavegacion(){
   const pend = esCoordinador() ? pendientes().length : 0;
+  const msg  = conteoMensajes();
   const items = itemsNav();
+  const badgeDe = n => {
+    if(n.id === 'coordinador' && pend) return '<span class="badge">'+pend+'</span>';
+    if(n.id === 'mensajes'){
+      const t = msg.noLeidos + msg.vencidos;
+      if(t) return '<span class="badge">'+(t > 99 ? '99+' : t)+'</span>';
+    }
+    return '';
+  };
+  const botonNav = n =>
+    '<button data-ir="'+n.id+'"'+(vistaActual===n.id?' class="on"':'')+'>'+ico(n.ico)+
+    '<span>'+esc(n.txt)+'</span>'+badgeDe(n)+'</button>';
+
+  const grupo = (titulo, ids) => {
+    const g = items.filter(n => ids.indexOf(n.id) >= 0);
+    return g.length ? '<div class="grupo">'+titulo+'</div>'+g.map(botonNav).join('') : '';
+  };
 
   $('#sidebar').innerHTML =
-    '<div class="grupo">Portal</div>'+
-    items.filter(n => ['panel','pacientes','fichas'].indexOf(n.id) >= 0).map(botonNav).join('')+
-    '<div class="grupo">Gestión</div>'+
-    items.filter(n => ['stats','facturacion','guias'].indexOf(n.id) >= 0).map(botonNav).join('')+
-    (esCoordinador() ? '<div class="grupo">Asociación</div>'+
-      items.filter(n => n.id === 'coordinador').map(botonNav).join('') : '')+
-    '<div class="grupo">Cuenta</div>'+
-    items.filter(n => n.id === 'perfil').map(botonNav).join('');
+    grupo('Portal',    ['panel','pacientes','fichas','contable'])+
+    grupo('Gestión',   ['stats','facturacion','guias'])+
+    grupo('Asociación',['coordinador','mensajes'])+
+    grupo('Cuenta',    ['perfil']);
 
-  const enNav = items.filter(n => n.nav);
-  $('#navbar').innerHTML = enNav.map(n =>
-    '<button data-ir="'+n.id+'"'+(vistaActual===n.id?' class="on"':'')+'>'+ico(n.ico)+
-    '<span>'+esc(n.txt)+'</span>'+
-    (n.id === 'coordinador' && pend ? '<span class="badge">'+pend+'</span>' : '')+'</button>').join('');
-
-  function botonNav(n){
-    return '<button data-ir="'+n.id+'"'+(vistaActual===n.id?' class="on"':'')+'>'+ico(n.ico)+
-      '<span>'+esc(n.txt)+'</span>'+
-      (n.id === 'coordinador' && pend ? '<span class="badge">'+pend+'</span>' : '')+'</button>';
-  }
+  $('#navbar').innerHTML = items.filter(n => n.nav).map(botonNav).join('');
   $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
 }
 
 function irA(v){
+  /* Guarda de acceso: nadie entra a una vista que su rol no habilita */
+  if(!puedeVerVista(v)) v = vistaInicial();
   vistaActual = v;
   $$('.vista').forEach(x => x.classList.remove('on'));
   const el = $('#v' + v.charAt(0).toUpperCase() + v.slice(1));
@@ -61,8 +78,11 @@ function irA(v){
 
 function refrescarVistaActual(){
   if(!SESION) return;
+  if(!puedeVerVista(vistaActual)) return;
   switch(vistaActual){
     case 'panel':       vistaPanel(); break;
+    case 'contable':    vistaContable(); break;
+    case 'mensajes':    vistaMensajes(); break;
     case 'pacientes':   vistaPacientes(); break;
     case 'fichas':      vistaFichas(); break;
     case 'ficha':       break;   /* se pinta sola al abrir */
@@ -79,7 +99,9 @@ function pintarEncabezado(){
   const u = USUARIO || {};
   $('#tbCtx').innerHTML = esCoordinador()
     ? 'Portal del coordinador'
-    : esc((u.apellido||'') + ', ' + (u.nombre||'')) + ' · M.P. ' + esc(u.matriculaProvincial||'—');
+    : (esContable()
+       ? 'Contable AFAR · portal económico'
+       : esc((u.apellido||'') + ', ' + (u.nombre||'')) + ' · M.P. ' + esc(u.matriculaProvincial||'—'));
   pintarNavegacion();
   pintarBadgeAvisos();
 }
@@ -208,14 +230,22 @@ function arrancarApp(){
   $('#pantallaAuth').style.display = 'none';
   $('#app').classList.add('on');
   pintarEncabezado();
-  irA('panel');
-  notificarCirugias();
-  /* Refresco de avisos cada 10 minutos, para turnos largos con la app abierta */
+  irA(vistaInicial());
+  if(verDatosClinicos()) notificarCirugias();
+  /* Refresco periodico: avisos clinicos cada 10 min y, para que el umbral de
+     2 h de los reclamos se note sin recargar, los mensajes cada 2 minutos. */
   clearInterval(window.__tAvisos);
   window.__tAvisos = setInterval(() => {
     pintarBadgeAvisos();
+    pintarNavegacion();
     if(vistaActual === 'panel') vistaPanel();
   }, 600000);
+  clearInterval(window.__tMensajes);
+  window.__tMensajes = setInterval(() => {
+    pintarNavegacion();
+    pintarBadgeAvisos();
+    if(vistaActual === 'mensajes') vistaMensajes();
+  }, 120000);
 }
 
 function aplicarTema(t){
