@@ -41,7 +41,7 @@ function vistaFacturacion(){
     '</div></div>'+
 
   '<div class="filtros">'+
-    '<div class="campo"><label>Mes</label><input type="month" id="facMes" value="'+esc(facMes)+'"></div>'+
+    campoMesAnio('facMes','Mes', facMes)+
     '<div class="campo"><label>Institución</label><select id="facInst"><option value="">Todas</option>'+
       instituciones().map(i => '<option value="'+esc(i.id)+'"'+(facInst===i.id?' selected':'')+'>'+
         esc(i.nombre.split('"')[0].trim())+'</option>').join('')+'</select></div>'+
@@ -104,7 +104,7 @@ function vistaFacturacion(){
     'Acá ves sólo las que te corresponden a vos. El resumen se emite con tu CUIT y condición frente al IVA '+
     'cargados en <b>Mi perfil</b>.</div></div>';
 
-  $('#facMes').onchange = e => { facMes = e.target.value; vistaFacturacion(); };
+  cablearMesAnio('facMes', v => { facMes = v; vistaFacturacion(); });
   $('#facInst').onchange = e => { facInst = e.target.value; vistaFacturacion(); };
   $('#facOS').onchange = e => { facOS = e.target.value; vistaFacturacion(); };
   $('#facMod').onchange = e => { facModalidad = e.target.value; vistaFacturacion(); };

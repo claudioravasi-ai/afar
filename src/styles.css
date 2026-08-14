@@ -482,6 +482,17 @@ html[data-tema="oscuro"] .pill{background:#16324f;color:var(--azul-300)}
 .filtros{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end}
 .filtros .campo{margin-bottom:0;min-width:135px;flex:1}
 .filtros .campo > label{font-size:10.5px;margin-bottom:3px}
+/* Selector de mes y año: dos desplegables que tienen que entrar enteros.
+   El del mes necesita ancho para «Septiembre»; el del año, para cuatro cifras. */
+.campo-mes,.filtros .campo-mes{min-width:224px}
+.mes-anio{display:flex;gap:6px}
+.mes-anio select:first-child{flex:1 1 auto;min-width:112px}
+.mes-anio select:last-child{flex:0 0 84px}
+/* En pantallas angostas ocupa el renglón entero: es preferible a que el año
+   quede cortado al lado del mes. */
+@media(max-width:560px){
+  .campo-mes,.filtros .campo-mes{min-width:100%;flex:1 0 100%}
+}
 .scroll-x{display:flex;gap:7px;overflow-x:auto;padding-bottom:5px;-webkit-overflow-scrolling:touch;
   scrollbar-width:none}
 .scroll-x::-webkit-scrollbar{display:none}

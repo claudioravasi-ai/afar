@@ -423,6 +423,41 @@ function campoSel(id, lbl, ops, val){
       return '<option value="'+esc(v)+'"'+(String(val)===String(v)?' selected':'')+'>'+esc(t)+'</option>';
     }).join('')+'</select></div>';
 }
+/* Selector de mes y año con dos desplegables.
+   Reemplaza a <input type="month">, que Safari en Mac no soporta: ahí el campo
+   quedaba como una caja de texto vacía, sin ninguna opción. Además, para elegir
+   un período de facturación dos listas son más rápidas que un calendario.
+   El valor se lee con leerMesAnio(id) y devuelve 'AAAA-MM'. */
+function campoMesAnio(id, lbl, val){
+  const v = String(val || mesDe(hoyISO()));
+  const anio = v.slice(0,4), mes = v.slice(5,7);
+  const anios = aniosDisponibles();
+  if(anio && anios.indexOf(Number(anio)) < 0) anios.push(Number(anio));
+  anios.sort((a,b) => a - b);
+  return '<div class="campo campo-mes"><label>'+esc(lbl)+'</label>'+
+    '<div class="mes-anio">'+
+      '<select id="'+id+'M">'+
+        MESES_NOMBRES.map((n,i) => {
+          const mm = String(i+1).padStart(2,'0');
+          return '<option value="'+mm+'"'+(mm===mes?' selected':'')+'>'+esc(n)+'</option>';
+        }).join('')+
+      '</select>'+
+      '<select id="'+id+'A">'+
+        anios.map(a => '<option value="'+a+'"'+(String(a)===anio?' selected':'')+'>'+a+'</option>').join('')+
+      '</select>'+
+    '</div></div>';
+}
+function leerMesAnio(id){
+  const m = $('#'+id+'M'), a = $('#'+id+'A');
+  return (m && a) ? (a.value + '-' + m.value) : '';
+}
+function cablearMesAnio(id, alCambiar){
+  ['M','A'].forEach(s => {
+    const e = $('#'+id+s);
+    if(e) e.onchange = () => alCambiar(leerMesAnio(id));
+  });
+}
+
 function campoArea(id, lbl, val, ph){
   return '<div class="campo"><label>'+esc(lbl)+'</label><textarea id="'+id+'" placeholder="'+
          esc(ph||'')+'">'+esc(val||'')+'</textarea></div>';

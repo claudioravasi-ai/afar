@@ -80,12 +80,25 @@ function semanaISO(iso){
   return d.getFullYear() + '-S' + String(Math.ceil((dias + j.getDay() + 1) / 7)).padStart(2,'0');
 }
 function mesDe(iso){ return String(iso||'').slice(0,7); }
+const MESES_NOMBRES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto',
+                       'Septiembre','Octubre','Noviembre','Diciembre'];
 function nombreMes(ym){
   if(!ym) return '—';
   const [a,m] = ym.split('-');
-  const M = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto',
-             'Septiembre','Octubre','Noviembre','Diciembre'];
-  return (M[Number(m)-1] || m) + ' ' + a;
+  return (MESES_NOMBRES[Number(m)-1] || m) + ' ' + a;
+}
+/* Años que tiene sentido ofrecer en un selector: los que abarcan las fichas
+   cargadas, más un año de margen a cada lado. */
+function aniosDisponibles(){
+  const hoy = Number(hoyISO().slice(0,4));
+  let min = hoy, max = hoy;
+  lista('fichas').forEach(f => {
+    const a = Number(String(f.fecha || '').slice(0,4));
+    if(a >= 1990 && a <= 2200){ if(a < min) min = a; if(a > max) max = a; }
+  });
+  const out = [];
+  for(let a = min - 1; a <= max + 1; a++) out.push(a);
+  return out;
 }
 function norm(s){
   return String(s||'').toLowerCase()

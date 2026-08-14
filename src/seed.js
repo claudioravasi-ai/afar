@@ -30,11 +30,25 @@ function diaRel(d){
   return f.toISOString().slice(0,10);
 }
 
-function sembrarDemo(){
-  if(Object.keys(DB.usuarios).length) return false;   // ya hay datos reales
-  /* Con la base compartida configurada, la asociacion esta en uso real: nunca
-     se siembra la demostracion, para no inyectarla en los datos de todos. */
-  if(configNube()) return false;
+/* Siembra a pedido, desde Coordinacion > Catalogos.
+   Existe porque, con la base compartida ya configurada, sembrarDemo() no
+   corre sola: hace falta un gesto explicito del coordinador. Los registros
+   llevan demo:true, asi que no viajan a Firebase. */
+function sembrarDemoManual(){
+  if(hayDemo()) return 0;
+  const marca = Object.keys(DB.usuarios).length;
+  sembrarDemo(true);
+  return Object.keys(DB.usuarios).length - marca;
+}
+
+function sembrarDemo(forzar){
+  if(!forzar){
+    if(Object.keys(DB.usuarios).length) return false;   // ya hay datos reales
+    /* Con la base compartida configurada, la asociacion esta en uso real: nunca
+       se siembra sola la demostracion, para no inyectarla en los datos de todos.
+       El coordinador puede cargarla a mano desde Catalogos. */
+    if(configNube()) return false;
+  }
 
   /* ---------------------------------------------------- Anestesióloga */
   const salt = 'demo' + Math.random().toString(36).slice(2,8);
@@ -564,6 +578,9 @@ function sembrarDemo(){
     'Swiss Medical':9800, 'Particular / Privado':12000
   });
   DB.config.valoresUnidad = DB.config.valoresUnidad;
+
+  /* Los otros cuatro anestesiólogos, con sus fichas en distintos estados */
+  if(typeof sembrarEquipoDemo === 'function') sembrarEquipoDemo();
 
   return true;
 }

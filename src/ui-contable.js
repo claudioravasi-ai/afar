@@ -55,8 +55,8 @@ function vistaContable(){
     'profesionales. No contiene pacientes, cirugías ni diagnósticos, en cumplimiento de la Ley 25.326.</div></div>'+
 
   '<div class="filtros">'+
-    '<div class="campo"><label>Desde</label><input type="month" id="ctDesde" value="'+esc(p.desde)+'"></div>'+
-    '<div class="campo"><label>Hasta</label><input type="month" id="ctHasta" value="'+esc(p.hasta)+'"></div>'+
+    campoMesAnio('ctDesde','Desde', p.desde)+
+    campoMesAnio('ctHasta','Hasta', p.hasta)+
     '<div class="campo"><label>Anestesiólogo</label><select id="ctUid"><option value="">Todos</option>'+
       socios().map(u => '<option value="'+esc(u.uid)+'"'+(contUid===u.uid?' selected':'')+'>'+
         esc(u.apellido+', '+u.nombre)+'</option>').join('')+'</select></div>'+
@@ -73,8 +73,8 @@ function vistaContable(){
 
   '<div id="ctCuerpo"></div>';
 
-  $('#ctDesde').onchange = e => { contDesde = e.target.value; vistaContable(); };
-  $('#ctHasta').onchange = e => { contHasta = e.target.value; vistaContable(); };
+  cablearMesAnio('ctDesde', v => { contDesde = v; vistaContable(); });
+  cablearMesAnio('ctHasta', v => { contHasta = v; vistaContable(); });
   $('#ctUid').onchange  = e => { contUid  = e.target.value; vistaContable(); };
   $('#ctInst').onchange = e => { contInst = e.target.value; vistaContable(); };
   $$('#vContable [data-cs]').forEach(b => b.onclick = () => { contSeccion = b.dataset.cs; vistaContable(); });
@@ -630,7 +630,7 @@ function ctParametros(){
     '<p class="mini mb8">Variación mensual, nivel general, en por ciento. Al guardar, la serie se '+
     'replica a todos los dispositivos de la asociación.</p>'+
     '<div class="grid c3" style="align-items:end">'+
-      '<div class="campo"><label>Mes</label><input type="month" id="ipcMes" value="'+esc(hoy)+'"></div>'+
+      campoMesAnio('ipcMes','Mes', hoy)+
       '<div class="campo"><label>Variación (%)</label>'+
         '<input type="number" step="0.01" id="ipcValor" placeholder="2,40"></div>'+
       '<div class="campo"><button class="btn pri full" id="ipcAgregar">'+ico('mas')+' Cargar mes</button></div>'+
@@ -699,7 +699,7 @@ function ctParametros(){
 }
 function ctCablearParametros(){
   $('#ipcAgregar').onclick = () => {
-    const m = $('#ipcMes').value, v = Number($('#ipcValor').value);
+    const m = leerMesAnio('ipcMes'), v = Number($('#ipcValor').value);
     if(!m) return toast('Elegí el mes.', 'err');
     if(!isFinite(v)) return toast('Cargá la variación del mes.', 'err');
     const t = Object.assign({}, ipcTabla()); t[m] = v;
