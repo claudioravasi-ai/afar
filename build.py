@@ -27,6 +27,7 @@ JS_FILES = [
     'firebase-config.js',
     'core.js',
     'seed.js',
+    'seed-extra.js',
     'ui-auth.js',
     'ui-pacientes.js',
     'ui-valoracion.js',
