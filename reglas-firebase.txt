@@ -1,0 +1,73 @@
+REGLAS DE SEGURIDAD PARA LA REALTIME DATABASE DE AFAR
+=====================================================
+
+Firebase crea la base en "modo de prueba", con reglas que dejan leer y escribir
+a cualquiera hasta una fecha de vencimiento. Eso sirve para probar la app, pero
+NO para trabajar con datos reales de pacientes.
+
+Pegá estas reglas en:
+   Consola de Firebase -> Build -> Realtime Database -> pestaña "Reglas"
+
+--------------------------------------------------------------------
+OPCIÓN A — mínima, mientras se prueba con datos ficticios
+--------------------------------------------------------------------
+{
+  "rules": {
+    "afar": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["fecha", "ownerUid"]
+    }
+  }
+}
+
+Cualquiera que conozca la URL de la base puede leer y escribir. Usala sólo con
+datos de prueba y cambiala antes del uso asistencial.
+
+
+--------------------------------------------------------------------
+OPCIÓN B — recomendada: exige autenticación de Firebase
+--------------------------------------------------------------------
+Requiere activar Authentication en la consola (por ejemplo, el proveedor
+"Anónimo" o "Correo/contraseña") y que la app inicie sesión en Firebase.
+Si querés dar este paso, avisá y se agrega el inicio de sesión de Firebase
+a la aplicación.
+
+{
+  "rules": {
+    "afar": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "usuarios": {
+        "$uid": {
+          ".write": "auth != null"
+        }
+      },
+      "fichas": {
+        ".indexOn": ["ownerUid", "fecha"]
+      },
+      "pacientes": {
+        ".indexOn": ["ownerUid"]
+      }
+    }
+  }
+}
+
+
+--------------------------------------------------------------------
+RECOMENDACIONES ADICIONALES
+--------------------------------------------------------------------
+1. Restringí la clave de API por dominio en:
+   Google Cloud Console -> APIs y servicios -> Credenciales -> Restricciones
+   de referente HTTP. Agregá sólo el dominio donde publiques la app.
+
+2. Activá las copias de seguridad automáticas de la Realtime Database
+   (requiere el plan Blaze) y, además, descargá el respaldo JSON desde
+   Coordinación -> Nube y respaldos con regularidad.
+
+3. Elegí la región de la base al crearla; después no se puede cambiar.
+   Para Argentina conviene southamerica-east1 o us-central1.
+
+4. Los datos de salud están alcanzados por la Ley 25.326 de Protección de
+   Datos Personales y por la Ley 26.529 de Derechos del Paciente. La historia
+   clínica debe conservarse un mínimo de diez años desde la última actuación.

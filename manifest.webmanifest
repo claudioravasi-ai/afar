@@ -1,0 +1,25 @@
+{
+  "name": "AFAR by Yanina Andino",
+  "short_name": "AFAR",
+  "description": "Asociación Fueguina de Anestesia y Reanimación — valoración anestésica prequirúrgica, fichas, estadísticas y facturación.",
+  "lang": "es-AR",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b2545",
+  "theme_color": "#0b2545",
+  "categories": ["medical", "health", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nueva ficha anestésica", "short_name": "Nueva ficha", "url": "./index.html#ficha",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Guías y protocolos", "short_name": "Guías", "url": "./index.html#guias",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

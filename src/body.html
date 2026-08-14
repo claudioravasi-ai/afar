@@ -1,0 +1,88 @@
+<!-- ========================= PANTALLA DE ACCESO ========================= -->
+<div id="pantallaAuth">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg viewBox="0 0 96 96" style="width:74px;height:74px" fill="none">
+        <circle cx="48" cy="48" r="45" stroke="#14b8a6" stroke-width="2.5" opacity=".35"/>
+        <circle cx="48" cy="48" r="37" fill="#0b2545"/>
+        <path d="M20 50h11l4-11 6 22 5-15 4 8h6l4-6 5 10 4-8h7"
+              stroke="#2dd4bf" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <path d="M48 68c-6 0-11-4-11-9 0-3 2-5 4-7" stroke="#7fa8cf" stroke-width="2.4"
+              stroke-linecap="round" fill="none"/>
+        <circle cx="48" cy="26" r="4" fill="#2dd4bf"/>
+      </svg>
+      <div class="marca">AFAR</div>
+      <div class="sub">Asociación Fueguina de<br>Anestesia y Reanimación</div>
+      <div class="autor">by Yanina Andino</div>
+    </div>
+
+    <div class="auth-tabs">
+      <button data-tab="ingresar" class="on">Ingresar</button>
+      <button data-tab="registro">Registrarme</button>
+      <button data-tab="coordinador">Coordinador</button>
+    </div>
+
+    <div id="authCuerpo"></div>
+
+    <svg class="ecg-line" viewBox="0 0 400 22" preserveAspectRatio="none" style="margin-top:16px">
+      <path d="M0 11h70l6-8 5 16 6-8h58l6-8 5 16 6-8h58l6-8 5 16 6-8h58l6-8 5 16 6-8h84"/>
+    </svg>
+  </div>
+</div>
+
+<!-- ============================== APLICACIÓN ============================== -->
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-in">
+      <svg viewBox="0 0 96 96" style="width:34px;height:34px;flex:none" fill="none">
+        <circle cx="48" cy="48" r="44" fill="rgba(255,255,255,.12)"/>
+        <path d="M20 50h11l4-11 6 22 5-15 4 8h6l4-6 5 10 4-8h7"
+              stroke="#2dd4bf" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      <div style="min-width:0">
+        <div class="marca">AFAR</div>
+        <div class="ctx" id="tbCtx"></div>
+      </div>
+      <div class="spacer"></div>
+      <button class="chip-nube" id="chipNube" title="Estado de la sincronización">
+        <span class="dot"></span><span id="chipNubeTxt">Local</span>
+      </button>
+      <button class="icon-btn" id="btnAvisos" title="Avisos y recordatorios">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
+        </svg>
+        <span class="badge-tb oculto" id="badgeAvisos">0</span>
+      </button>
+      <button class="icon-btn" id="btnTema" title="Cambiar tema"></button>
+      <button class="icon-btn" id="btnSalir" title="Cerrar sesión">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar"></nav>
+    <main>
+      <section class="vista on" id="vPanel"></section>
+      <section class="vista" id="vPacientes"></section>
+      <section class="vista" id="vFichas"></section>
+      <section class="vista" id="vFicha"></section>
+      <section class="vista" id="vStats"></section>
+      <section class="vista" id="vFacturacion"></section>
+      <section class="vista" id="vGuias"></section>
+      <section class="vista" id="vCoordinador"></section>
+      <section class="vista" id="vPerfil"></section>
+    </main>
+  </div>
+
+  <nav class="navbar" id="navbar"></nav>
+</div>
+
+<div class="modal" id="modal"></div>
+<div id="toast"></div>
+<div id="areaImpresion"></div>
