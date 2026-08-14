@@ -32,6 +32,7 @@ aplicación*.
 | Portal | Credencial |
 |---|---|
 | **Coordinador** | clave única `0112` (pestaña «Coordinador») |
+| **Contable** | clave única `2358` (pestaña «Contable») |
 | **Socio** | correo y contraseña propios, creados en «Registrarme» |
 | **Socio de prueba** | `demo@afar.org.ar` / `demo1234` |
 | **Segundo socio de prueba** | `demo2@afar.org.ar` / `demo1234` |
@@ -49,12 +50,13 @@ matrícula y comprobante de socio y lo apruebe.
 
 **Qué ve cada uno:**
 
-| | Socio | Coordinador |
-|---|---|---|
-| Padrón de pacientes | Completo, compartido por la asociación | Completo |
-| Fichas propias | Lectura y edición total | Todas |
-| Fichas de colegas | Lectura completa; sólo puede cargar el **acto anestésico** | Todas |
-| Estadísticas y facturación | Sólo su actividad | Toda la asociación |
+| | Socio | Coordinador | Contable |
+|---|---|---|---|
+| Padrón de pacientes | Completo, compartido por la asociación | Completo | **Ninguno** |
+| Fichas propias | Lectura y edición total | Todas | **Ninguna** |
+| Fichas de colegas | Lectura completa; sólo puede cargar el **acto anestésico** | Todas | **Ninguna** |
+| Estadísticas y facturación | Sólo su actividad | Toda la asociación | Toda, sin datos clínicos |
+| Comunicación interna | Sus hilos | Sus hilos | Sus hilos |
 
 El **padrón de pacientes es común**: cualquier socio busca por apellido, nombre
 o DNI y encuentra a un paciente ya cargado por otro, sin duplicarlo. Al escribir
@@ -116,6 +118,54 @@ final identifica ambas autorías con sus matrículas y sus firmas.
 ### Portal del coordinador
 Solicitudes de acceso, padrón de socios, **prestadores**, catálogos y auditoría
 de accesos y cambios.
+
+### Portal contable
+
+Acceso exclusivo del contador de la asociación, con clave propia (`2358`).
+**No accede a ningún dato clínico**: trabaja sobre una proyección anonimizada
+de las prestaciones —importes, financiadores, instituciones y profesionales—
+construida con una lista blanca de campos económicos, de modo que ni un cambio
+futuro en la ficha pueda filtrar información de pacientes (Ley 25.326). De los
+adicionales del nomenclador sólo recibe el **porcentaje total**: puede auditar
+la aritmética de la factura sin enterarse de que el recargo vino de un ASA V o
+de una obesidad mórbida.
+
+Seis secciones:
+
+1. **Tablero** — devengado, cobrado, adeudado y deuda a moneda de hoy;
+   inflación acumulada y proyectada; antigüedad de la deuda por tramos;
+   cruces por anestesiólogo, institución y financiador.
+2. **Cartera y deuda** — detalle de cada saldo impago con sus días de mora,
+   discriminando lo moroso de lo potencialmente incobrable.
+3. **Indexación** — saldos ajustados por IPC **discriminados por anestesiólogo,
+   institución y financiador**, con la pérdida de poder adquisitivo de cada uno
+   y su proyección a doce meses.
+4. **Situación fiscal** — categoría del monotributo de cada anestesiólogo sobre
+   sus ingresos de los últimos doce meses, uso del tope, margen restante y
+   proyección de recategorización; calendario de obligaciones y retenciones.
+5. **Recomendaciones** — qué hacer con cada tramo de deuda y cuándo conviene
+   indexar, generado a partir de los datos reales cargados.
+6. **Parámetros** — serie de IPC, escala del monotributo, alícuotas y plazos.
+
+⚠️ **La app no puede descargar sola el IPC ni la escala de ARCA**: no tiene
+servidor propio. Los valores vienen precargados como referencia y el contador
+los mantiene desde *Parámetros*; una vez cargados se replican por Firebase a
+todos los dispositivos. Todo valor sin confirmar se muestra marcado.
+
+### Comunicación interna
+
+Correo/chat interno entre anestesiólogos acreditados, la coordinación y el
+contable. Cada hilo es un **reclamo**, una **consulta** o un **aviso**, con
+prioridad y estado.
+
+Un hilo lo ven **únicamente sus participantes**: ni la coordinación ni el
+contable leen conversaciones ajenas.
+
+Cuando un reclamo lleva **más de 2 horas sin respuesta**, aparece en rojo en la
+bandeja, se suma a la campana de avisos y se cuenta aparte —tanto para quien
+debe contestar como para quien lo abrió y sigue esperando—. La alarma se apaga
+sola al responder o al darlo por resuelto. La bandeja se refresca cada dos
+minutos, así que el umbral se cumple sin recargar la aplicación.
 
 ### Prestadores
 Instituciones y financiadores en un solo lugar, con el número de fichas de cada
@@ -221,6 +271,7 @@ cd ~/Desktop/Claude/afar && python3 build.py
 | `src/data-cie10*.js` | Catálogo CIE-10 |
 | `src/data-cirugias*.js` | Catálogo quirúrgico con unidades anestésicas |
 | `src/data-guias.js` | Guías y protocolos |
+| `src/data-fiscal.js` | IPC, escala del monotributo y motor de indexación |
 | `src/core.js` | Estado, persistencia, Firebase, iconos, motor de scores |
 | `src/ui-*.js` | Cada pantalla |
 | `src/export.js` | Word, PDF y Excel |

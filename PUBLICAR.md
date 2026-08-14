@@ -202,21 +202,28 @@ llega sola al abrirla.
 
 # Antes de usarla con pacientes reales
 
-## Cambiar la clave del coordinador
+## Cambiar las claves de coordinación y del contable
 
-La clave `0112` está escrita en el código y **cualquiera que abra la página
-puede encontrarla**. Con la app publicada en internet, eso significa que
-cualquiera podría entrar al portal de coordinación.
+Las claves `0112` (coordinación) y `2358` (contable) están escritas en el
+código y **cualquiera que abra la página puede encontrarlas**. Con la app
+publicada en internet, eso significa que cualquiera podría entrar al portal de
+coordinación —que ve todas las historias clínicas— o al portal contable —que ve
+toda la facturación de la asociación—.
 
-Para cambiarla, editá una línea de `src/core.js`:
+Para cambiarlas, editá estas dos líneas de `src/core.js`:
 
 ```
 const CLAVE_COORDINADOR = '0112';
+const CLAVE_CONTABLE    = '2358';
 ```
 
-Poné la clave nueva entre las comillas, reconstruí con `python3 build.py` y
-subí el cambio. Aun así seguirá siendo visible para quien inspeccione el
+Poné las claves nuevas entre las comillas, reconstruí con `python3 build.py` y
+subí el cambio. Aun así seguirán siendo visibles para quien inspeccione el
 código: es una limitación de cualquier app sin servidor propio.
+
+**Elegí claves distintas entre sí y no las compartas por WhatsApp.** El portal
+contable no expone datos de pacientes, pero sí el detalle económico completo de
+cada anestesiólogo.
 
 ## Qué protege y qué no protege esta app
 
@@ -226,7 +233,9 @@ código: es una limitación de cualquier app sin servidor propio.
 | Separación de datos entre socios | Cada uno ve sólo lo suyo ✅ |
 | Aprobación de altas por la coordinación | Sí ✅ |
 | Registro de auditoría | Sí ✅ |
-| Clave del coordinador | Visible en el código ⚠️ |
+| Portal contable sin datos clínicos | Sí, por lista blanca de campos ✅ |
+| Confidencialidad de los hilos internos | Sólo los participantes ✅ |
+| Claves de coordinación y contable | Visibles en el código ⚠️ |
 | Base de datos | Abierta a quien conozca la URL ⚠️ |
 | Cifrado de los datos en reposo | No |
 
