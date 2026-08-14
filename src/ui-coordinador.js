@@ -225,23 +225,29 @@ function seccionCatalogos(c){
     ' procedimientos quirúrgicos precargados.</p>'+
   '</div>'+
 
-  (hayDemo()
-    ? '<div class="card" style="border:1.5px solid var(--warn)">'+
-      '<h3>'+ico('alerta')+'Datos de demostración</h3>'+
-      '<p class="mini mb8">Seis anestesiólogos de ejemplo con pacientes y fichas en distintos estados, '+
+  '<div class="card" style="border:1.5px solid var('+(hayDemo()?'--warn':'--borde')+')">'+
+    '<h3>'+ico(hayDemo()?'alerta':'pacientes')+'Datos de demostración</h3>'+
+    (hayDemo()
+      ? '<p class="mini mb8">Anestesiólogos de ejemplo con pacientes y fichas en distintos estados, '+
         'para que se vea cómo funciona cada pantalla. No son datos reales y '+
-        '<b>nunca se envían a la base compartida</b>: viven sólo en este dispositivo.</p>'+
-      '<button class="btn danger" id="coBorrarDemo">'+ico('borrar')+' Borrar todos los datos de demostración</button>'+
-    '</div>'
-    : '<div class="card" style="border:1.5px solid var(--borde)">'+
-      '<h3>'+ico('pacientes')+'Datos de demostración</h3>'+
-      '<p class="mini mb8">Carga seis anestesiólogos de ejemplo con pacientes y fichas en distintos '+
+        '<b>nunca se envían a la base compartida</b>: viven sólo en este dispositivo.</p>'
+      : '<p class="mini mb8">Carga seis anestesiólogos de ejemplo con pacientes y fichas en distintos '+
         'estados —valoraciones sin acto, actos sin honorarios, deuda vieja sin cobrar, una solicitud de '+
-        'alta pendiente y un reclamo sin responder— para recorrer la aplicación entera.</p>'+
-      '<p class="mini mb8"><b>No tocan la base compartida:</b> se quedan en este dispositivo y se borran '+
-        'de una sola vez con un botón.</p>'+
-      '<button class="btn ghost" id="coCargarDemo">'+ico('mas')+' Cargar datos de demostración</button>'+
-    '</div>');
+        'alta pendiente y un reclamo sin responder— para recorrer la aplicación entera. '+
+        '<b>No tocan la base compartida.</b></p>')+
+    (faltaEquipoDemo() && hayDemo()
+      ? '<div class="aviso info" style="margin-bottom:11px">'+ico('info')+
+        '<div>Tenés cargada la demostración original (Fernández y Gómez). Faltan los otros '+
+        '<b>cuatro anestesiólogos</b> —Torres, Sosa, Méndez y Vidal— con sus fichas, su deuda vieja '+
+        'y un reclamo sin responder.</div></div>' : '')+
+    '<div class="btn-row">'+
+      (faltaEquipoDemo()
+        ? '<button class="btn pri" id="coCargarDemo">'+ico('mas')+
+          (hayDemo() ? ' Completar la demostración' : ' Cargar datos de demostración')+'</button>' : '')+
+      (hayDemo()
+        ? '<button class="btn danger" id="coBorrarDemo">'+ico('borrar')+' Borrar la demostración</button>' : '')+
+    '</div>'+
+  '</div>';
 
   $('#vuGuardar').onclick = () => {
     const v = { _default: Number($('#vuDefault').value) || 0 };
@@ -253,12 +259,13 @@ function seccionCatalogos(c){
     toast('Valores guardados.', 'ok');
   };
   if($('#coBorrarDemo')) $('#coBorrarDemo').onclick = confirmarBorrarDemo;
-  if($('#coCargarDemo')) $('#coCargarDemo').onclick = () => confirmar('Cargar datos de demostración',
-    'Se agregan seis anestesiólogos de ejemplo con sus pacientes y fichas. Quedan sólo en este '+
-    'dispositivo, no viajan a la base compartida, y los podés borrar cuando quieras.',
+  if($('#coCargarDemo')) $('#coCargarDemo').onclick = () => confirmar(
+    hayDemo() ? 'Completar la demostración' : 'Cargar datos de demostración',
+    'Se agregan los anestesiólogos de ejemplo que falten, con sus pacientes y fichas. Quedan sólo en '+
+    'este dispositivo, no viajan a la base compartida, y los podés borrar cuando quieras.',
     () => {
       const n = sembrarDemoManual();
-      if(!n) return toast('No se pudo cargar la demostración.', 'err');
+      if(!n) return toast('La demostración ya estaba completa.', 'warn');
       auditar('demo-carga', 'Datos de demostración cargados en este dispositivo');
       toast('Demostración cargada.', 'ok');
       vistaCoordinador();

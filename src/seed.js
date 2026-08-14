@@ -30,15 +30,23 @@ function diaRel(d){
   return f.toISOString().slice(0,10);
 }
 
+/* ¿Está cargado el equipo ampliado (Torres, Sosa, Méndez y Vidal)? */
+function faltaEquipoDemo(){ return !DB.usuarios['usr_demo3']; }
+
 /* Siembra a pedido, desde Coordinacion > Catalogos.
    Existe porque, con la base compartida ya configurada, sembrarDemo() no
-   corre sola: hace falta un gesto explicito del coordinador. Los registros
-   llevan demo:true, asi que no viajan a Firebase. */
+   corre sola: hace falta un gesto explicito del coordinador.
+
+   Tambien completa instalaciones viejas: si ya estaba la demostracion
+   original (Fernandez y Gomez) pero no el equipo ampliado, agrega solo lo
+   que falta en vez de no hacer nada. Todo lleva demo:true, asi que no viaja
+   a Firebase. */
 function sembrarDemoManual(){
-  if(hayDemo()) return 0;
-  const marca = Object.keys(DB.usuarios).length;
-  sembrarDemo(true);
-  return Object.keys(DB.usuarios).length - marca;
+  const antes = Object.keys(DB.usuarios).length;
+  if(!hayDemo())              sembrarDemo(true);      /* nada cargado: todo */
+  else if(faltaEquipoDemo())  sembrarEquipoDemo();    /* completar lo que falta */
+  else return 0;                                      /* ya estaba entero */
+  return Object.keys(DB.usuarios).length - antes;
 }
 
 function sembrarDemo(forzar){

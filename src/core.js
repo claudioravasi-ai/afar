@@ -268,10 +268,14 @@ function cargarLocal(){
   }catch(e){ console.warn(e); return false; }
 }
 
-/* Escribe un registro en una coleccion (local + nube) */
+/* Escribe un registro en una coleccion (local + nube).
+   Los registros de demostracion se quedan SIEMPRE en el dispositivo: son
+   pacientes y fichas inventados, y si llegaran a la base compartida los
+   verian todos los socios mezclados con los datos reales. */
 function escribir(col, id, obj){
   DB[col][id] = obj;
   guardarLocal();
+  if(obj && obj.demo) return;
   if(nubeOK && fbDb && !aplicandoRemoto){
     try{ fbDb.ref('afar/'+col+'/'+id).set(obj); }
     catch(e){ console.warn('sync', e); }
