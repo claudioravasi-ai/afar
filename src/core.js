@@ -288,11 +288,40 @@ function auditar(accion, detalle){
 }
 
 /* ------------------------------------------------------ Firebase (nube) */
+/* ¿Trae la app una configuración incluida en el código? */
+function hayConfigEmbebida(){
+  return typeof FIREBASE_EMBEBIDA !== 'undefined' &&
+         FIREBASE_EMBEBIDA && !!FIREBASE_EMBEBIDA.databaseURL;
+}
+/* Configuración vigente. Prioridad:
+     1. la que se cargó a mano en este dispositivo,
+     2. la incluida en el código (todos los dispositivos, sin configurar nada),
+     3. ninguna: la app trabaja en local.
+   El valor 'off' marca una desconexión deliberada en este dispositivo, para
+   que la configuración embebida no vuelva a conectarse sola. */
 function configNube(){
-  try{ return JSON.parse(localStorage.getItem(LS_FB) || 'null'); }catch(e){ return null; }
+  let guardada = null;
+  try{ guardada = localStorage.getItem(LS_FB); }catch(e){}
+  if(guardada === 'off') return null;
+  if(guardada){
+    try{
+      const l = JSON.parse(guardada);
+      if(l && l.databaseURL) return l;
+    }catch(e){}
+  }
+  return hayConfigEmbebida() ? FIREBASE_EMBEBIDA : null;
+}
+/* ¿La conexión vigente viene del código y no de una carga manual? */
+function usandoConfigEmbebida(){
+  let g = null;
+  try{ g = localStorage.getItem(LS_FB); }catch(e){}
+  if(g === 'off') return false;
+  if(g){ try{ const l = JSON.parse(g); if(l && l.databaseURL) return false; }catch(e){} }
+  return hayConfigEmbebida();
 }
 function guardarConfigNube(cfg){
   if(cfg) localStorage.setItem(LS_FB, JSON.stringify(cfg));
+  else if(hayConfigEmbebida()) localStorage.setItem(LS_FB, 'off');
   else localStorage.removeItem(LS_FB);
 }
 function iniciarNube(){

@@ -289,8 +289,15 @@ function abrirSincronizacion(){
           : 'Podés seguir trabajando: los cambios se guardan en este dispositivo y se envían solos '+
             'cuando vuelva internet.')+
         '</div></div>'+
+      (usandoConfigEmbebida()
+        ? '<div class="aviso info">'+ico('candado')+'<div><b>Configuración incluida en la aplicación.</b><br>'+
+          'Nadie tiene que cargar nada: cada dispositivo se conecta solo al abrirla. '+
+          'Para cambiar de proyecto, pegá otra configuración acá abajo; para dejar este equipo '+
+          'trabajando en local, usá «Desconectar».</div></div>'
+        : '')+
       '<div class="card plano" style="border:1px solid var(--borde)">'+
         fila('Base de datos', cfg.projectId || '—')+
+        fila('Origen', usandoConfigEmbebida() ? 'incluida en la app' : 'cargada en este dispositivo')+
         fila('Socios', String(lista('usuarios').filter(u => u.rol === 'socio').length))+
         fila('Pacientes', String(lista('pacientes').length))+
         fila('Fichas', String(lista('fichas').length))+
