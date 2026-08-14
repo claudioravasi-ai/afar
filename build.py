@@ -24,6 +24,7 @@ JS_FILES = [
     'data-cirugias-extra.js',
     'data-guias.js',
     'data-fiscal.js',
+    'firebase-config.js',
     'core.js',
     'seed.js',
     'ui-auth.js',
