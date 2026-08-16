@@ -1,5 +1,5 @@
 /* =========================================================================
-   NUCLEO - AFAR by Yanina Andino
+   NUCLEO - AFAAR by Yanina Andino
    Estado, persistencia local, sincronizacion Firebase, utilidades de UI,
    iconografia y motor de scores anestesiologicos.
    ========================================================================= */

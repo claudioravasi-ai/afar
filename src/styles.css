@@ -1,5 +1,5 @@
 /* =========================================================================
-   AFAR by Yanina Andino - Sistema de diseno
+   AFAAR by Yanina Andino - Sistema de diseno
    Paleta: azul quirofano profundo + turquesa de monitoreo
    ========================================================================= */
 :root{
@@ -122,6 +122,19 @@ html[data-tema="oscuro"] .auth-tabs button.on{color:var(--aqua-400)}
 .chip-nube.on .dot{background:var(--aqua-400);box-shadow:0 0 8px var(--aqua-400);
   animation:latir 2s infinite}
 @keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* Teléfonos angostos (iPhone SE y similares): la marca «AFAAR» más el
+   indicador de sincronización y los tres botones no entran a tamaño completo
+   y se pisaban entre sí. Se achica todo en proporción, sin ocultar nada:
+   el estado de la nube tiene que seguir leyéndose. */
+@media(max-width:400px){
+  .topbar-in{gap:7px;padding:0 9px}
+  .topbar .marca{font-size:16px;letter-spacing:.06em}
+  .topbar .ctx{font-size:10px;max-width:38vw}
+  .icon-btn{width:33px;height:33px;border-radius:9px}
+  .icon-btn svg{width:17px;height:17px}
+  .chip-nube{padding:4px 7px;font-size:10px;gap:4px}
+}
 
 .layout{flex:1;display:flex;max-width:1400px;width:100%;margin:0 auto}
 .sidebar{display:none}

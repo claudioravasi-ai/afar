@@ -70,7 +70,7 @@ function sembrarDemo(forzar){
     telefono:'2901-445566', cuit:'27-27458113-4', condicionIva:'Monotributista',
     domicilio:'Av. Maipú 1250, Ushuaia',
     instituciones:['hru','ssj','hnu'],
-    comprobante:{ nombre:'cuota-afar-2026.pdf', tipo:'application/pdf', tam:84210,
+    comprobante:{ nombre:'cuota-afaar-2026.pdf', tipo:'application/pdf', tam:84210,
                   dataUrl:'data:application/pdf;base64,JVBERi0xLjQK' },
     firmaDataUrl:'', creado:diaRel(-95), aprobadoEn:diaRel(-93), aprobadoPor:'coordinador'
   });
@@ -87,7 +87,7 @@ function sembrarDemo(forzar){
     telefono:'2964-556677', cuit:'20-25987441-3', condicionIva:'Responsable Inscripto',
     domicilio:'San Martín 640, Río Grande',
     instituciones:['hrrg','cemep','sfue'],
-    comprobante:{ nombre:'cuota-afar-2026-gomez.pdf', tipo:'application/pdf', tam:79300,
+    comprobante:{ nombre:'cuota-afaar-2026-gomez.pdf', tipo:'application/pdf', tam:79300,
                   dataUrl:'data:application/pdf;base64,JVBERi0xLjQK' },
     firmaDataUrl:'', creado:diaRel(-140), aprobadoEn:diaRel(-138), aprobadoPor:'coordinador'
   });

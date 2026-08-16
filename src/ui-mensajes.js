@@ -93,13 +93,13 @@ function conteoMensajes(){
    queda esperandolos, como un correo. */
 function destinatariosPosibles(){
   const l = socios().map(u => ({ uid:u.uid, n:u.apellido + ', ' + u.nombre, rol:'Anestesiólogo' }));
-  l.unshift({ uid:'coordinador', n:'Coordinación AFAR', rol:'Coordinación' });
-  l.unshift({ uid:'contable',    n:'Contable AFAR',     rol:'Contable' });
+  l.unshift({ uid:'coordinador', n:'Coordinación AFAAR', rol:'Coordinación' });
+  l.unshift({ uid:'contable',    n:'Contable AFAAR',     rol:'Contable' });
   return l.filter(x => !SESION || x.uid !== SESION.uid);
 }
 function nombreParticipante(u){
-  if(u === 'coordinador') return 'Coordinación AFAR';
-  if(u === 'contable')    return 'Contable AFAR';
+  if(u === 'coordinador') return 'Coordinación AFAAR';
+  if(u === 'contable')    return 'Contable AFAAR';
   return nombreUsuario(u);
 }
 

@@ -21,7 +21,7 @@ function usuarioDemo(uid, datos){
     uid:uid, demo:true, rol:'socio', estado:'aprobado',
     salt:salt, passHash:hashClave(DEMO_CLAVE, salt),
     titulo:'Médico Especialista en Anestesiología',
-    comprobante:{ nombre:'cuota-afar-2026.pdf', tipo:'application/pdf', tam:80100,
+    comprobante:{ nombre:'cuota-afaar-2026.pdf', tipo:'application/pdf', tam:80100,
                   dataUrl:'data:application/pdf;base64,JVBERi0xLjQK' },
     firmaDataUrl:''
   }, datos));

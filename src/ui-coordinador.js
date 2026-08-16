@@ -23,7 +23,7 @@ function vistaCoordinador(){
 
   cont.innerHTML = ''+
   '<div class="vista-head"><div><h1>Portal del coordinador</h1>'+
-    '<p>Gestión institucional de la Asociación Fueguina de Anestesia y Reanimación</p></div></div>'+
+    '<p>Gestión institucional de la Asociación Fueguina de Analgesia, Anestesia y Reanimación</p></div></div>'+
   '<div class="scroll-x mb8">'+ secciones.map(s =>
     '<span class="tag'+(coordSeccion===s[0]?' on':'')+'" data-cs="'+s[0]+'">'+
     ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px"')+
@@ -76,7 +76,7 @@ function revisarSolicitud(u){
       fila('Solicitud enviada', fFechaLarga(s.creado))+
     '</div>'+
     (s.comprobante
-      ? '<div class="mt14"><label class="mini strong">Comprobante de socio AFAR</label>'+
+      ? '<div class="mt14"><label class="mini strong">Comprobante de socio AFAAR</label>'+
         ((s.comprobante.tipo||'').indexOf('pdf') >= 0
           ? '<div class="aviso info mt8">'+ico('archivo')+'<div>'+esc(s.comprobante.nombre)+' (PDF)</div></div>'
           : '<img src="'+s.comprobante.dataUrl+'" style="width:100%;border-radius:10px;margin-top:8px" alt="Comprobante">')+
@@ -169,7 +169,7 @@ function fichaSocio(u){
     auditar('socio-reactivar', s.apellido); cerrarModal(); vistaCoordinador(); toast('Socio reactivado.', 'ok');
   };
   $('#scClave').onclick = () => {
-    const nueva = 'afar' + Math.floor(1000 + Math.random()*9000);
+    const nueva = 'afaar' + Math.floor(1000 + Math.random()*9000);
     confirmar('Resetear contraseña',
       'Se asigna la contraseña provisoria <b>'+nueva+'</b> a '+esc(s.apellido)+'. '+
       'Anotala y comunicásela: no se puede recuperar después.',
@@ -343,7 +343,7 @@ function abrirSincronizacion(){
     '<div class="aviso info" style="margin-bottom:11px">'+ico('candado')+
       '<div><b>Configuración protegida.</b><br>'+
       'Cambiar la base de datos, descargar la copia de seguridad o restaurarla '+
-      'requiere la credencial de coordinación de la AFAR.</div></div>'+
+      'requiere la credencial de coordinación de la AFAAR.</div></div>'+
     '<div class="campo"><label>Credencial de coordinación</label>'+
       '<input type="password" id="snClave" inputmode="numeric" autocomplete="off" placeholder="••••"></div>'+
     '<button class="btn ghost full" id="snDesbloquear">'+ico('candado')+' Desbloquear</button>';
@@ -441,8 +441,8 @@ function abrirSincronizacion(){
   /* ---------------- copia de seguridad ---------------- */
   if($('#snRespaldo')) $('#snRespaldo').onclick = () => {
     if(!nubeDesbloqueada) return toast('Configuración bloqueada.', 'err');
-    descargar('afar-copia-'+hoyISO()+'.json',
-      JSON.stringify({ app:'AFAR by Yanina Andino', version:window.AFAR_BUILD,
+    descargar('afaar-copia-'+hoyISO()+'.json',
+      JSON.stringify({ app:'AFAAR by Yanina Andino', version:window.AFAR_BUILD,
                        generado:new Date().toISOString(), datos:DB }, null, 2),
       'application/json');
     auditar('respaldo', 'Descarga de copia de seguridad');
@@ -468,7 +468,7 @@ function abrirSincronizacion(){
             toast('Copia restaurada.', 'ok');
             cerrarModal(); refrescarVistaActual();
           }, 'Restaurar');
-      }catch(err){ toast('El archivo no es una copia válida de AFAR.', 'err'); }
+      }catch(err){ toast('El archivo no es una copia válida de AFAAR.', 'err'); }
     };
     fr.readAsText(f);
   };

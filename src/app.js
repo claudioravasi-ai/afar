@@ -100,7 +100,7 @@ function pintarEncabezado(){
   $('#tbCtx').innerHTML = esCoordinador()
     ? 'Portal del coordinador'
     : (esContable()
-       ? 'Contable AFAR · portal económico'
+       ? 'Contable AFAAR · portal económico'
        : esc((u.apellido||'') + ', ' + (u.nombre||'')) + ' · M.P. ' + esc(u.matriculaProvincial||'—'));
   pintarNavegacion();
   pintarBadgeAvisos();
@@ -201,7 +201,7 @@ function vistaPanel(){
 
   '<div class="mt20 txt-c"><svg class="ecg-line" viewBox="0 0 400 22" preserveAspectRatio="none">'+
     '<path d="M0 11h60l6-8 5 16 6-8h48l6-8 5 16 6-8h48l6-8 5 16 6-8h48l6-8 5 16 6-8h74"/></svg>'+
-    '<p class="mini mt8">AFAR by Yanina Andino · Asociación Fueguina de Anestesia y Reanimación</p></div>';
+    '<p class="mini mt8">AFAAR by Yanina Andino · Asociación Fueguina de Analgesia, Anestesia y Reanimación</p></div>';
 
   const ir = (id, fn) => { const e = $('#'+id); if(e) e.onclick = fn; };
   ir('tlNuevaFicha', () => abrirFicha(null));

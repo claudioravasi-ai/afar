@@ -1,5 +1,5 @@
 /* =========================================================================
-   CATALOGOS BASE - AFAR
+   CATALOGOS BASE - AFAAR
    Instituciones de Tierra del Fuego, financiadores, especialidades,
    farmacos con manejo perioperatorio, y listas clinicas de referencia.
    Todo es ampliable manualmente desde la app (Coordinador > Catalogos).

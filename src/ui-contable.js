@@ -1,5 +1,5 @@
 /* =========================================================================
-   PORTAL CONTABLE - AFAR
+   PORTAL CONTABLE - AFAAR
    Acceso exclusivo del contador de la asociacion.
 
    NO accede a ningun dato clinico: trabaja unicamente sobre la proyeccion
@@ -47,7 +47,7 @@ function vistaContable(){
   const cont = $('#vContable');
   const p = contPeriodo();
   cont.innerHTML = ''+
-  '<div class="vista-head"><div><h1>Contable AFAR</h1>'+
+  '<div class="vista-head"><div><h1>Contable AFAAR</h1>'+
     '<p>Gestión económica de la asociación · '+nombreMes(p.desde)+' a '+nombreMes(p.hasta)+'</p></div></div>'+
 
   '<div class="aviso info">'+ico('candado')+'<div><b>Portal sin datos clínicos.</b> '+
@@ -756,7 +756,7 @@ function exportarContableExcel(l, sufijo){
     cols.map(c => '<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>'+
     filas.map(f => '<tr>'+cols.map(c => '<td>'+esc(f[c])+'</td>').join('')+'</tr>').join('')+
     '</tbody></table></body></html>';
-  descargar('afar-contable-'+(sufijo||'prestaciones')+'-'+hoyISO()+'.xls', html,
+  descargar('afaar-contable-'+(sufijo||'prestaciones')+'-'+hoyISO()+'.xls', html,
     'application/vnd.ms-excel');
 }
 function imprimirInformeContable(l){
@@ -771,7 +771,7 @@ function imprimirInformeContable(l){
       '<td>'+fMoneda(d.cobrado)+'</td><td>'+fMoneda(d.saldo)+'</td>'+
       '<td>'+fMoneda(d.indexado)+'</td></tr>').join('')+'</tbody></table>';
   $('#areaImpresion').innerHTML =
-    '<div class="doc"><h1>AFAR — Informe contable</h1>'+
+    '<div class="doc"><h1>AFAAR — Informe contable</h1>'+
     '<p><b>Período:</b> '+nombreMes(p.desde)+' a '+nombreMes(p.hasta)+
     ' · <b>Emitido:</b> '+fFechaLarga(hoyISO())+'</p>'+
     '<table><tbody>'+

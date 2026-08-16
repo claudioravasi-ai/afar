@@ -277,12 +277,12 @@ function notificarCirugias(forzar){
   if(man.length) partes.push(man.length + ' mañana');
   const incompletas = hoy.concat(man).filter(f => faltantesFicha(f).some(x => x.critico)).length;
   try{
-    new Notification('AFAR — ' + partes.join(' y '), {
+    new Notification('AFAAR — ' + partes.join(' y '), {
       body: (hoy.length
         ? hoy.map(f => (f.hora||'') + ' ' + (f.cirugia||'sin cirugía')).join('\n')
         : 'Sin cirugías hoy.') +
         (incompletas ? '\n⚠ ' + incompletas + ' ficha(s) con datos esenciales sin cargar.' : ''),
-      icon:'icons/icon-192.png', tag:'afar-cirugias'
+      icon:'icons/icon-192.png', tag:'afaar-cirugias'
     });
     localStorage.setItem(clave, '1');
   }catch(e){}

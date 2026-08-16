@@ -2,7 +2,7 @@
    EXPORTACION
    Ficha anestesica en Word (.doc editable) y PDF (impresion del navegador).
    Facturacion y estadisticas en Excel (.xls) y PDF.
-   Todo documento lleva membrete de la AFAR, de la institucion y del
+   Todo documento lleva membrete de la AFAAR, de la institucion y del
    anestesiologo actuante.
    ========================================================================= */
 
@@ -279,7 +279,7 @@ function documentoFicha(f){
         '<br>Acto anestésico</div>'; })() : '')+
   '</div>'+
   '<div style="margin-top:22px;font-size:9px;color:#678;text-align:center;border-top:1px solid #ccd">'+
-    'Documento generado por AFAR by Yanina Andino · Ficha '+esc(f.id)+' · '+
+    'Documento generado por AFAAR by Yanina Andino · Ficha '+esc(f.id)+' · '+
     'Última modificación: '+esc(f.modificado ? fFecha(f.modificado)+' '+String(f.modificado).slice(11,16) : '—')+
     ' por '+esc(f.modificadoPorNombre || nombreUsuario(f.modificadoPor||f.ownerUid))+'<br>'+
     'Historia clínica sujeta a la Ley 26.529. Conservación mínima: 10 años.'+
@@ -340,14 +340,14 @@ function imprimirFicha(f){
 function tablaExcel(titulo, cabeceras, filas, resumen){
   return '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8">'+
     '<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'+
-    '<x:Name>AFAR</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'+
+    '<x:Name>AFAAR</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'+
     '</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->'+
     '<style>td,th{border:.5pt solid #b8c6d6;padding:4px 7px;font-family:Calibri,Arial;font-size:11pt}'+
     'th{background:#0b2545;color:#fff;font-weight:bold}'+
     '.tit{font-size:15pt;font-weight:bold;color:#0b2545;border:0}'+
     '.sub{font-size:10pt;color:#456;border:0}'+
     '.tot{background:#dce9f5;font-weight:bold}</style></head><body>'+
-    '<table><tr><td class="tit" colspan="'+cabeceras.length+'">AFAR — Asociación Fueguina de Anestesia y Reanimación</td></tr>'+
+    '<table><tr><td class="tit" colspan="'+cabeceras.length+'">AFAAR — Asociación Fueguina de Analgesia, Anestesia y Reanimación</td></tr>'+
     '<tr><td class="sub" colspan="'+cabeceras.length+'">'+esc(titulo)+'</td></tr>'+
     '<tr><td class="sub" colspan="'+cabeceras.length+'">Generado el '+fFechaLarga(hoyISO())+
       ' por '+esc(USUARIO ? (USUARIO.apellido+', '+USUARIO.nombre) : '')+
@@ -384,7 +384,7 @@ function exportarFacturacionExcel(l, mes){
     new Array(16).fill('').concat(['TOTAL DEVENGADO', (total).toFixed(2), '', '']),
     new Array(16).fill('').concat(['TOTAL COBRADO', (cobrado).toFixed(2), '', ''])
   ];
-  descargar('AFAR-facturacion-'+mes+'.xls',
+  descargar('AFAAR-facturacion-'+mes+'.xls',
     '﻿'+tablaExcel('Resumen de facturación — '+nombreMes(mes), cab, filas, resumen),
     'application/vnd.ms-excel;charset=utf-8');
   auditar('export-excel', 'Facturación '+mes);
@@ -405,7 +405,7 @@ function exportarEstadisticas(l, corteNombre, datos){
   const resumen = [['RESUMEN POR '+corteNombre.toUpperCase(),'','','','','','','','','','']]
     .concat(datos.map(d => [d.t, d.v, '', '', '', '', '', '', '', '', '']));
   const [d,h] = rangoPeriodo();
-  descargar('AFAR-estadisticas-'+d+'_'+h+'.xls',
+  descargar('AFAAR-estadisticas-'+d+'_'+h+'.xls',
     '﻿'+tablaExcel('Estadísticas del '+fFecha(d)+' al '+fFecha(h), cab, filas, resumen),
     'application/vnd.ms-excel;charset=utf-8');
   auditar('export-excel', 'Estadísticas');

@@ -1,5 +1,5 @@
 /* =========================================================================
-   DATOS FISCALES E INDICES - AFAR
+   DATOS FISCALES E INDICES - AFAAR
    Referencia impositiva argentina y motor de indexacion por inflacion.
 
    IMPORTANTE SOBRE LOS VALORES PRECARGADOS
