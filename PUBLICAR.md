@@ -1,4 +1,4 @@
-# Poner AFAR en línea — paso a paso
+# Poner AFAAR en línea — paso a paso
 
 Dos etapas independientes:
 
@@ -17,7 +17,7 @@ Tiempo: unos 10 minutos. Gratis en el plan Spark.
 ## 1. Crear el proyecto
 
 1. Entrá a **https://console.firebase.google.com** con una cuenta de Google.
-   Conviene una cuenta institucional de la AFAR, no una personal.
+   Conviene una cuenta institucional de la AFAAR, no una personal.
 2. Tocá **«Crear un proyecto»**.
 3. Nombre: **`afar-anestesia`**. Aceptá los términos y tocá **Continuar**.
 4. En «Google Analytics» tocá el interruptor para **desactivarlo** y luego
@@ -40,7 +40,7 @@ Tiempo: unos 10 minutos. Gratis en el plan Spark.
 
 1. Tocá el engranaje ⚙ arriba a la izquierda → **Configuración del proyecto**.
 2. Bajá hasta «Tus apps» y tocá el ícono **`</>`** (web).
-3. Sobrenombre de la app: **`AFAR`**. **No** marques «Firebase Hosting».
+3. Sobrenombre de la app: **`AFAAR`**. **No** marques «Firebase Hosting».
    Tocá **Registrar app**.
 4. Aparece un bloque de código con esta forma:
 
@@ -64,7 +64,7 @@ const firebaseConfig = {
 
 ## 4. Pegarlo en la app
 
-1. Abrí AFAR (podés estar con cualquier usuario).
+1. Abrí AFAAR (podés estar con cualquier usuario).
 2. Tocá el indicador **«Local»** que está arriba a la derecha, al lado de la luna.
 3. Ingresá la **credencial de coordinación (`0112`)** y tocá **Desbloquear**.
    Sin esa clave sólo se ve el estado; nadie más puede tocar la base de datos.
@@ -130,7 +130,7 @@ Sólo falta subirla.
 1. Si no tenés cuenta: **https://github.com/signup**.
 2. Ya con la sesión abierta, entrá a **https://github.com/new**.
 3. Completá:
-   - **Repository name:** `afar`
+   - **Repository name:** `afaar`
    - **Public** ← *tiene que ser público*: GitHub Pages gratis sólo funciona
      con repositorios públicos.
    - **No** marques «Add a README file» ni ninguna otra casilla.
@@ -150,7 +150,7 @@ que usar un *token*.
 
 **Cómo sacar el token** (una sola vez):
 1. Entrá a **https://github.com/settings/tokens/new**
-2. Note: `afar`
+2. Note: `afaar`
 3. Expiration: **No expiration**
 4. Marcá la casilla **`repo`** (la primera de la lista, con todas sus
    subcasillas).
@@ -179,7 +179,7 @@ teléfono del mundo.
 
 Al abrirla por HTTPS ya es una PWA instalable:
 
-- **iPhone / iPad (Safari):** botón Compartir → *Agregar a pantalla de inicio*.
+- **iPhone / iPad (Safaari):** botón Compartir → *Agregar a pantalla de inicio*.
 - **Android (Chrome):** menú ⋮ → *Instalar aplicación*.
 - **Mac / Windows (Chrome o Edge):** el ícono de instalar ⊕ en la barra de
   direcciones.

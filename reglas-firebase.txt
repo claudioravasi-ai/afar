@@ -1,4 +1,4 @@
-REGLAS DE SEGURIDAD PARA LA REALTIME DATABASE DE AFAR
+REGLAS DE SEGURIDAD PARA LA REALTIME DATABASE DE AFAAR
 =====================================================
 
 Firebase crea la base en "modo de prueba", con reglas que dejan leer y escribir

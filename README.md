@@ -1,6 +1,6 @@
-# AFAR by Yanina Andino
+# AFAAR by Yanina Andino
 
-Aplicación de la **Asociación Fueguina de Anestesia y Reanimación**: valoración
+Aplicación de la **Asociación Fueguina de Analgesia, Anestesia y Reanimación**: valoración
 anestésica prequirúrgica, ficha del acto anestésico, estadísticas y facturación.
 
 PWA en JavaScript vanilla, **sin build step ni dependencias**. Se abre con doble
@@ -228,7 +228,7 @@ propio buscador** y queda disponible para el resto de la asociación.
 | Estadísticas del período | **Excel (.xls)** | Estadísticas → Exportar |
 | Copia de seguridad | **JSON** | Indicador de sincronización (encabezado) |
 
-Todos llevan membrete de la AFAR, de la institución y del anestesiólogo
+Todos llevan membrete de la AFAAR, de la institución y del anestesiólogo
 actuante, con su matrícula y su firma.
 
 ---

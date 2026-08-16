@@ -1,7 +1,7 @@
 {
-  "name": "AFAR by Yanina Andino",
-  "short_name": "AFAR",
-  "description": "Asociación Fueguina de Anestesia y Reanimación — valoración anestésica prequirúrgica, fichas, estadísticas y facturación.",
+  "name": "AFAAR by Yanina Andino",
+  "short_name": "AFAAR",
+  "description": "Asociación Fueguina de Analgesia, Anestesia y Reanimación — valoración anestésica prequirúrgica, fichas, estadísticas y facturación.",
   "lang": "es-AR",
   "dir": "ltr",
   "start_url": "./index.html",

@@ -4,21 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
 <meta name="theme-color" content="#0b2545">
-<meta name="description" content="AFAR by Yanina Andino - Asociacion Fueguina de Anestesia y Reanimacion. Valoracion anestesica prequirurgica, fichas, estadisticas y facturacion.">
+<meta name="description" content="AFAAR by Yanina Andino - Asociacion Fueguina de Analgesia, Anestesia y Reanimacion. Valoracion anestesica prequirurgica, fichas, estadisticas y facturacion.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="AFAR">
+<meta name="apple-mobile-web-app-title" content="AFAAR">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
-<title>AFAR by Yanina Andino</title>
+<title>AFAAR by Yanina Andino</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.15.1212";</script>
+<script>window.AFAR_BUILD = "2026.08.16.0907";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
-   AFAR by Yanina Andino - Sistema de diseno
+   AFAAR by Yanina Andino - Sistema de diseno
    Paleta: azul quirofano profundo + turquesa de monitoreo
    ========================================================================= */
 :root{
@@ -141,6 +141,19 @@ html[data-tema="oscuro"] .auth-tabs button.on{color:var(--aqua-400)}
 .chip-nube.on .dot{background:var(--aqua-400);box-shadow:0 0 8px var(--aqua-400);
   animation:latir 2s infinite}
 @keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* Teléfonos angostos (iPhone SE y similares): la marca «AFAAR» más el
+   indicador de sincronización y los tres botones no entran a tamaño completo
+   y se pisaban entre sí. Se achica todo en proporción, sin ocultar nada:
+   el estado de la nube tiene que seguir leyéndose. */
+@media(max-width:400px){
+  .topbar-in{gap:7px;padding:0 9px}
+  .topbar .marca{font-size:16px;letter-spacing:.06em}
+  .topbar .ctx{font-size:10px;max-width:38vw}
+  .icon-btn{width:33px;height:33px;border-radius:9px}
+  .icon-btn svg{width:17px;height:17px}
+  .chip-nube{padding:4px 7px;font-size:10px;gap:4px}
+}
 
 .layout{flex:1;display:flex;max-width:1400px;width:100%;margin:0 auto}
 .sidebar{display:none}
@@ -583,8 +596,8 @@ body.imprimiendo{background:#fff}
               stroke-linecap="round" fill="none"/>
         <circle cx="48" cy="26" r="4" fill="#2dd4bf"/>
       </svg>
-      <div class="marca">AFAR</div>
-      <div class="sub">Asociación Fueguina de<br>Anestesia y Reanimación</div>
+      <div class="marca">AFAAR</div>
+      <div class="sub">Asociación Fueguina de Analgesia,<br>Anestesia y Reanimación</div>
       <div class="autor">by Yanina Andino</div>
     </div>
 
@@ -613,7 +626,7 @@ body.imprimiendo{background:#fff}
               stroke="#2dd4bf" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
       </svg>
       <div style="min-width:0">
-        <div class="marca">AFAR</div>
+        <div class="marca">AFAAR</div>
         <div class="ctx" id="tbCtx"></div>
       </div>
       <div class="spacer"></div>
@@ -667,7 +680,7 @@ body.imprimiendo{background:#fff}
 <script>
 /* ================ data-catalogos.js ================ */
 /* =========================================================================
-   CATALOGOS BASE - AFAR
+   CATALOGOS BASE - AFAAR
    Instituciones de Tierra del Fuego, financiadores, especialidades,
    farmacos con manejo perioperatorio, y listas clinicas de referencia.
    Todo es ampliable manualmente desde la app (Coordinador > Catalogos).
@@ -3762,7 +3775,7 @@ const GUIAS = [
 
 /* ================ data-fiscal.js ================ */
 /* =========================================================================
-   DATOS FISCALES E INDICES - AFAR
+   DATOS FISCALES E INDICES - AFAAR
    Referencia impositiva argentina y motor de indexacion por inflacion.
 
    IMPORTANTE SOBRE LOS VALORES PRECARGADOS
@@ -3996,7 +4009,7 @@ const FIREBASE_EMBEBIDA = {
 
 /* ================ core.js ================ */
 /* =========================================================================
-   NUCLEO - AFAR by Yanina Andino
+   NUCLEO - AFAAR by Yanina Andino
    Estado, persistencia local, sincronizacion Firebase, utilidades de UI,
    iconografia y motor de scores anestesiologicos.
    ========================================================================= */
@@ -5260,7 +5273,7 @@ function sembrarDemo(forzar){
     telefono:'2901-445566', cuit:'27-27458113-4', condicionIva:'Monotributista',
     domicilio:'Av. Maipú 1250, Ushuaia',
     instituciones:['hru','ssj','hnu'],
-    comprobante:{ nombre:'cuota-afar-2026.pdf', tipo:'application/pdf', tam:84210,
+    comprobante:{ nombre:'cuota-afaar-2026.pdf', tipo:'application/pdf', tam:84210,
                   dataUrl:'data:application/pdf;base64,JVBERi0xLjQK' },
     firmaDataUrl:'', creado:diaRel(-95), aprobadoEn:diaRel(-93), aprobadoPor:'coordinador'
   });
@@ -5277,7 +5290,7 @@ function sembrarDemo(forzar){
     telefono:'2964-556677', cuit:'20-25987441-3', condicionIva:'Responsable Inscripto',
     domicilio:'San Martín 640, Río Grande',
     instituciones:['hrrg','cemep','sfue'],
-    comprobante:{ nombre:'cuota-afar-2026-gomez.pdf', tipo:'application/pdf', tam:79300,
+    comprobante:{ nombre:'cuota-afaar-2026-gomez.pdf', tipo:'application/pdf', tam:79300,
                   dataUrl:'data:application/pdf;base64,JVBERi0xLjQK' },
     firmaDataUrl:'', creado:diaRel(-140), aprobadoEn:diaRel(-138), aprobadoPor:'coordinador'
   });
@@ -5807,7 +5820,7 @@ function usuarioDemo(uid, datos){
     uid:uid, demo:true, rol:'socio', estado:'aprobado',
     salt:salt, passHash:hashClave(DEMO_CLAVE, salt),
     titulo:'Médico Especialista en Anestesiología',
-    comprobante:{ nombre:'cuota-afar-2026.pdf', tipo:'application/pdf', tam:80100,
+    comprobante:{ nombre:'cuota-afaar-2026.pdf', tipo:'application/pdf', tam:80100,
                   dataUrl:'data:application/pdf;base64,JVBERi0xLjQK' },
     firmaDataUrl:''
   }, datos));
@@ -6086,7 +6099,7 @@ function htmlIngresar(){
   '<div class="campo"><label>Contraseña</label>'+
     '<input type="password" id="inClave" autocomplete="current-password" placeholder="••••••••"></div>'+
   '<button class="btn pri full grande" id="btnIngresar">'+ico('candado')+' Ingresar al portal</button>'+
-  '<p class="mini txt-c mt14" style="line-height:1.6">El ingreso de cada socio debe estar aprobado por el anestesiólogo coordinador de la AFAR.</p>';
+  '<p class="mini txt-c mt14" style="line-height:1.6">El ingreso de cada socio debe estar aprobado por el anestesiólogo coordinador de la AFAAR.</p>';
 }
 
 /* ------------------------------------------------------------ Registro */
@@ -6136,7 +6149,7 @@ function htmlRegistro(){
       insts.map(i => '<label class="chk"><input type="checkbox" value="'+esc(i.id)+'">'+
         esc(i.nombre.split('"')[0].trim())+'</label>').join('')+
     '</div></div>'+
-  '<div class="campo"><label>Comprobante de socio de la AFAR <span class="req">*</span></label>'+
+  '<div class="campo"><label>Comprobante de socio de la AFAAR <span class="req">*</span></label>'+
     '<input type="file" id="rgComprobante" accept="image/*,.pdf">'+
     '<div class="ayuda">Foto o PDF del recibo, certificado o constancia de asociado. Máximo 1,5 MB. El coordinador lo verifica antes de habilitar tu acceso.</div>'+
     '<div id="rgCompPrev" class="mt8"></div></div>'+
@@ -6148,7 +6161,7 @@ function htmlRegistro(){
 function htmlCoordinador(){
   return ''+
   '<div class="aviso warn">'+ico('escudo')+'<div><b>Acceso reservado</b><br>'+
-    'Portal del anestesiólogo coordinador de la AFAR. Credencial única y privada.</div></div>'+
+    'Portal del anestesiólogo coordinador de la AFAAR. Credencial única y privada.</div></div>'+
   '<div class="campo"><label>Credencial de coordinación</label>'+
     '<input type="password" id="inCoord" inputmode="numeric" placeholder="••••" autocomplete="off"></div>'+
   '<button class="btn aqua full grande" id="btnCoord">'+ico('escudo')+' Ingresar como coordinador</button>';
@@ -6158,7 +6171,7 @@ function htmlCoordinador(){
 function htmlContable(){
   return ''+
   '<div class="aviso warn">'+ico('dinero')+'<div><b>Acceso exclusivo del contador</b><br>'+
-    'Portal económico de la AFAR. Sin acceso a historias clínicas ni a datos de pacientes.</div></div>'+
+    'Portal económico de la AFAAR. Sin acceso a historias clínicas ni a datos de pacientes.</div></div>'+
   '<div class="campo"><label>Clave del contable</label>'+
     '<input type="password" id="inCont" inputmode="numeric" placeholder="••••" autocomplete="off"></div>'+
   '<button class="btn pri full grande" id="btnCont">'+ico('dinero')+' Ingresar como contable</button>'+
@@ -6221,14 +6234,14 @@ function intentarIngreso(){
   if(u.estado === 'pendiente')
     return abrirModal('Solicitud en revisión',
       '<div class="aviso warn">'+ico('reloj')+'<div>Tu solicitud de acceso fue enviada el '+
-      fFecha(u.creado)+' y está esperando la aprobación del anestesiólogo coordinador de la AFAR. '+
+      fFecha(u.creado)+' y está esperando la aprobación del anestesiólogo coordinador de la AFAAR. '+
       'Vas a poder ingresar apenas sea aprobada.</div></div>',
       '<button class="btn pri" data-cerrar>Entendido</button>');
   if(u.estado === 'rechazado')
     return abrirModal('Solicitud no aprobada',
       '<div class="aviso danger">'+ico('equis')+'<div><b>Motivo informado por el coordinador:</b><br>'+
       esc(u.motivoRechazo || 'Sin detalle.')+'</div></div>'+
-      '<p class="mini">Comunicate con la comisión directiva de la AFAR para regularizar tu situación.</p>',
+      '<p class="mini">Comunicate con la comisión directiva de la AFAAR para regularizar tu situación.</p>',
       '<button class="btn pri" data-cerrar>Cerrar</button>');
   if(u.estado === 'suspendido')
     return toast('Tu cuenta está suspendida. Contactá al coordinador.', 'err');
@@ -6242,14 +6255,14 @@ function intentarCoordinador(){
   const yaExiste = DB.usuarios['coordinador'];
   if(yaExiste && yaExiste.nombre === 'Yanino'){
     yaExiste.nombre = 'Yanina';
-    if(yaExiste.titulo === 'Anestesiólogo Coordinador — AFAR') yaExiste.titulo = 'Coordinación — AFAR';
+    if(yaExiste.titulo === 'Anestesiólogo Coordinador — AFAAR') yaExiste.titulo = 'Coordinación — AFAAR';
     escribir('usuarios', 'coordinador', yaExiste);
   }
   if(!yaExiste){
     escribir('usuarios', 'coordinador', {
       uid:'coordinador', rol:'coordinador', estado:'aprobado',
       email:'coordinacion@afar.org.ar', nombre:'Yanina', apellido:'Andino',
-      titulo:'Coordinación — AFAR', matriculaProvincial:'—',
+      titulo:'Coordinación — AFAAR', matriculaProvincial:'—',
       instituciones:[], creado:new Date().toISOString(), salt:'coord', passHash:''
     });
   }
@@ -6262,7 +6275,7 @@ function intentarContable(){
   if(!DB.usuarios['contable']){
     escribir('usuarios', 'contable', {
       uid:'contable', rol:'contable', estado:'aprobado',
-      email:'contable@afar.org.ar', nombre:'Contable', apellido:'AFAR',
+      email:'contable@afar.org.ar', nombre:'Contable', apellido:'AFAAR',
       titulo:'Contador de la Asociación', matriculaProvincial:'—',
       instituciones:[], creado:new Date().toISOString(), salt:'cont', passHash:''
     });
@@ -6277,7 +6290,7 @@ async function enviarRegistro(){
   if(!g('rgDni')) return toast('Completá el DNI.', 'err');
   if(!g('rgMatProv') && !g('rgMatNac')) return toast('Cargá al menos una matrícula.', 'err');
   if(!insts.length) return toast('Seleccioná al menos un lugar de trabajo.', 'err');
-  if(!borradorRegistro.comprobante) return toast('Adjuntá el comprobante de socio de la AFAR.', 'err');
+  if(!borradorRegistro.comprobante) return toast('Adjuntá el comprobante de socio de la AFAAR.', 'err');
 
   const u = uid('usr');
   const salt = Math.random().toString(36).slice(2,12);
@@ -6296,7 +6309,7 @@ async function enviarRegistro(){
   borradorRegistro = {}; pasoRegistro = 1;
   abrirModal('Solicitud enviada',
     '<div class="aviso ok">'+ico('check')+'<div><b>Recibimos tu solicitud.</b><br>'+
-    'El anestesiólogo coordinador de la AFAR va a revisar tu matrícula y tu comprobante de socio. '+
+    'El anestesiólogo coordinador de la AFAAR va a revisar tu matrícula y tu comprobante de socio. '+
     'Cuando la apruebe vas a poder ingresar con el correo y la contraseña que acabás de crear.</div></div>',
     '<button class="btn pri" data-cerrar>Entendido</button>');
   $$('.auth-tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === 'ingresar'));
@@ -6387,7 +6400,7 @@ function vistaPerfil(){
     '<div class="btn-row mt8"><button class="btn ghost chico" id="pfFirmaLimpiar">'+ico('borrar')+' Borrar firma</button></div>'+
   '</div>'+
 
-  '<div class="card"><h3>'+ico('adjunto')+'Comprobante de socio AFAR</h3>'+
+  '<div class="card"><h3>'+ico('adjunto')+'Comprobante de socio AFAAR</h3>'+
     (u.comprobante ?
       '<div class="aviso ok">'+ico('check')+'<div>'+esc(u.comprobante.nombre)+' — verificado por el coordinador el '+
         fFecha(u.aprobadoEn)+'</div></div>'+
@@ -6406,7 +6419,7 @@ function vistaPerfil(){
 
   '<div class="btn-row mt14"><button class="btn pri grande" id="pfGuardar">'+ico('check')+' Guardar cambios</button>'+
   '<button class="btn ghost grande" id="pfSalir">'+ico('salir')+' Cerrar sesión</button></div>'+
-  '<p class="mini txt-c mt20">AFAR by Yanina Andino · versión '+esc(window.AFAR_BUILD||'')+'</p>';
+  '<p class="mini txt-c mt20">AFAAR by Yanina Andino · versión '+esc(window.AFAR_BUILD||'')+'</p>';
 
   $$('#pfInsts .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
@@ -6487,7 +6500,7 @@ function campoSel(id, lbl, ops, val){
     }).join('')+'</select></div>';
 }
 /* Selector de mes y año con dos desplegables.
-   Reemplaza a <input type="month">, que Safari en Mac no soporta: ahí el campo
+   Reemplaza a <input type="month">, que Safaari en Mac no soporta: ahí el campo
    quedaba como una caja de texto vacía, sin ninguna opción. Además, para elegir
    un período de facturación dos listas son más rápidas que un calendario.
    El valor se lee con leerMesAnio(id) y devuelve 'AAAA-MM'. */
@@ -8558,7 +8571,7 @@ function vistaCoordinador(){
 
   cont.innerHTML = ''+
   '<div class="vista-head"><div><h1>Portal del coordinador</h1>'+
-    '<p>Gestión institucional de la Asociación Fueguina de Anestesia y Reanimación</p></div></div>'+
+    '<p>Gestión institucional de la Asociación Fueguina de Analgesia, Anestesia y Reanimación</p></div></div>'+
   '<div class="scroll-x mb8">'+ secciones.map(s =>
     '<span class="tag'+(coordSeccion===s[0]?' on':'')+'" data-cs="'+s[0]+'">'+
     ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px"')+
@@ -8611,7 +8624,7 @@ function revisarSolicitud(u){
       fila('Solicitud enviada', fFechaLarga(s.creado))+
     '</div>'+
     (s.comprobante
-      ? '<div class="mt14"><label class="mini strong">Comprobante de socio AFAR</label>'+
+      ? '<div class="mt14"><label class="mini strong">Comprobante de socio AFAAR</label>'+
         ((s.comprobante.tipo||'').indexOf('pdf') >= 0
           ? '<div class="aviso info mt8">'+ico('archivo')+'<div>'+esc(s.comprobante.nombre)+' (PDF)</div></div>'
           : '<img src="'+s.comprobante.dataUrl+'" style="width:100%;border-radius:10px;margin-top:8px" alt="Comprobante">')+
@@ -8704,7 +8717,7 @@ function fichaSocio(u){
     auditar('socio-reactivar', s.apellido); cerrarModal(); vistaCoordinador(); toast('Socio reactivado.', 'ok');
   };
   $('#scClave').onclick = () => {
-    const nueva = 'afar' + Math.floor(1000 + Math.random()*9000);
+    const nueva = 'afaar' + Math.floor(1000 + Math.random()*9000);
     confirmar('Resetear contraseña',
       'Se asigna la contraseña provisoria <b>'+nueva+'</b> a '+esc(s.apellido)+'. '+
       'Anotala y comunicásela: no se puede recuperar después.',
@@ -8878,7 +8891,7 @@ function abrirSincronizacion(){
     '<div class="aviso info" style="margin-bottom:11px">'+ico('candado')+
       '<div><b>Configuración protegida.</b><br>'+
       'Cambiar la base de datos, descargar la copia de seguridad o restaurarla '+
-      'requiere la credencial de coordinación de la AFAR.</div></div>'+
+      'requiere la credencial de coordinación de la AFAAR.</div></div>'+
     '<div class="campo"><label>Credencial de coordinación</label>'+
       '<input type="password" id="snClave" inputmode="numeric" autocomplete="off" placeholder="••••"></div>'+
     '<button class="btn ghost full" id="snDesbloquear">'+ico('candado')+' Desbloquear</button>';
@@ -8976,8 +8989,8 @@ function abrirSincronizacion(){
   /* ---------------- copia de seguridad ---------------- */
   if($('#snRespaldo')) $('#snRespaldo').onclick = () => {
     if(!nubeDesbloqueada) return toast('Configuración bloqueada.', 'err');
-    descargar('afar-copia-'+hoyISO()+'.json',
-      JSON.stringify({ app:'AFAR by Yanina Andino', version:window.AFAR_BUILD,
+    descargar('afaar-copia-'+hoyISO()+'.json',
+      JSON.stringify({ app:'AFAAR by Yanina Andino', version:window.AFAR_BUILD,
                        generado:new Date().toISOString(), datos:DB }, null, 2),
       'application/json');
     auditar('respaldo', 'Descarga de copia de seguridad');
@@ -9003,7 +9016,7 @@ function abrirSincronizacion(){
             toast('Copia restaurada.', 'ok');
             cerrarModal(); refrescarVistaActual();
           }, 'Restaurar');
-      }catch(err){ toast('El archivo no es una copia válida de AFAR.', 'err'); }
+      }catch(err){ toast('El archivo no es una copia válida de AFAAR.', 'err'); }
     };
     fr.readAsText(f);
   };
@@ -9025,7 +9038,7 @@ function confirmarBorrarDemo(){
 
 /* ================ ui-contable.js ================ */
 /* =========================================================================
-   PORTAL CONTABLE - AFAR
+   PORTAL CONTABLE - AFAAR
    Acceso exclusivo del contador de la asociacion.
 
    NO accede a ningun dato clinico: trabaja unicamente sobre la proyeccion
@@ -9073,7 +9086,7 @@ function vistaContable(){
   const cont = $('#vContable');
   const p = contPeriodo();
   cont.innerHTML = ''+
-  '<div class="vista-head"><div><h1>Contable AFAR</h1>'+
+  '<div class="vista-head"><div><h1>Contable AFAAR</h1>'+
     '<p>Gestión económica de la asociación · '+nombreMes(p.desde)+' a '+nombreMes(p.hasta)+'</p></div></div>'+
 
   '<div class="aviso info">'+ico('candado')+'<div><b>Portal sin datos clínicos.</b> '+
@@ -9782,7 +9795,7 @@ function exportarContableExcel(l, sufijo){
     cols.map(c => '<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>'+
     filas.map(f => '<tr>'+cols.map(c => '<td>'+esc(f[c])+'</td>').join('')+'</tr>').join('')+
     '</tbody></table></body></html>';
-  descargar('afar-contable-'+(sufijo||'prestaciones')+'-'+hoyISO()+'.xls', html,
+  descargar('afaar-contable-'+(sufijo||'prestaciones')+'-'+hoyISO()+'.xls', html,
     'application/vnd.ms-excel');
 }
 function imprimirInformeContable(l){
@@ -9797,7 +9810,7 @@ function imprimirInformeContable(l){
       '<td>'+fMoneda(d.cobrado)+'</td><td>'+fMoneda(d.saldo)+'</td>'+
       '<td>'+fMoneda(d.indexado)+'</td></tr>').join('')+'</tbody></table>';
   $('#areaImpresion').innerHTML =
-    '<div class="doc"><h1>AFAR — Informe contable</h1>'+
+    '<div class="doc"><h1>AFAAR — Informe contable</h1>'+
     '<p><b>Período:</b> '+nombreMes(p.desde)+' a '+nombreMes(p.hasta)+
     ' · <b>Emitido:</b> '+fFechaLarga(hoyISO())+'</p>'+
     '<table><tbody>'+
@@ -9911,13 +9924,13 @@ function conteoMensajes(){
    queda esperandolos, como un correo. */
 function destinatariosPosibles(){
   const l = socios().map(u => ({ uid:u.uid, n:u.apellido + ', ' + u.nombre, rol:'Anestesiólogo' }));
-  l.unshift({ uid:'coordinador', n:'Coordinación AFAR', rol:'Coordinación' });
-  l.unshift({ uid:'contable',    n:'Contable AFAR',     rol:'Contable' });
+  l.unshift({ uid:'coordinador', n:'Coordinación AFAAR', rol:'Coordinación' });
+  l.unshift({ uid:'contable',    n:'Contable AFAAR',     rol:'Contable' });
   return l.filter(x => !SESION || x.uid !== SESION.uid);
 }
 function nombreParticipante(u){
-  if(u === 'coordinador') return 'Coordinación AFAR';
-  if(u === 'contable')    return 'Contable AFAR';
+  if(u === 'coordinador') return 'Coordinación AFAAR';
+  if(u === 'contable')    return 'Contable AFAAR';
   return nombreUsuario(u);
 }
 
@@ -10979,12 +10992,12 @@ function notificarCirugias(forzar){
   if(man.length) partes.push(man.length + ' mañana');
   const incompletas = hoy.concat(man).filter(f => faltantesFicha(f).some(x => x.critico)).length;
   try{
-    new Notification('AFAR — ' + partes.join(' y '), {
+    new Notification('AFAAR — ' + partes.join(' y '), {
       body: (hoy.length
         ? hoy.map(f => (f.hora||'') + ' ' + (f.cirugia||'sin cirugía')).join('\n')
         : 'Sin cirugías hoy.') +
         (incompletas ? '\n⚠ ' + incompletas + ' ficha(s) con datos esenciales sin cargar.' : ''),
-      icon:'icons/icon-192.png', tag:'afar-cirugias'
+      icon:'icons/icon-192.png', tag:'afaar-cirugias'
     });
     localStorage.setItem(clave, '1');
   }catch(e){}
@@ -11186,7 +11199,7 @@ function abrirCalculadoras(){
    EXPORTACION
    Ficha anestesica en Word (.doc editable) y PDF (impresion del navegador).
    Facturacion y estadisticas en Excel (.xls) y PDF.
-   Todo documento lleva membrete de la AFAR, de la institucion y del
+   Todo documento lleva membrete de la AFAAR, de la institucion y del
    anestesiologo actuante.
    ========================================================================= */
 
@@ -11463,7 +11476,7 @@ function documentoFicha(f){
         '<br>Acto anestésico</div>'; })() : '')+
   '</div>'+
   '<div style="margin-top:22px;font-size:9px;color:#678;text-align:center;border-top:1px solid #ccd">'+
-    'Documento generado por AFAR by Yanina Andino · Ficha '+esc(f.id)+' · '+
+    'Documento generado por AFAAR by Yanina Andino · Ficha '+esc(f.id)+' · '+
     'Última modificación: '+esc(f.modificado ? fFecha(f.modificado)+' '+String(f.modificado).slice(11,16) : '—')+
     ' por '+esc(f.modificadoPorNombre || nombreUsuario(f.modificadoPor||f.ownerUid))+'<br>'+
     'Historia clínica sujeta a la Ley 26.529. Conservación mínima: 10 años.'+
@@ -11524,14 +11537,14 @@ function imprimirFicha(f){
 function tablaExcel(titulo, cabeceras, filas, resumen){
   return '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8">'+
     '<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'+
-    '<x:Name>AFAR</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'+
+    '<x:Name>AFAAR</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>'+
     '</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->'+
     '<style>td,th{border:.5pt solid #b8c6d6;padding:4px 7px;font-family:Calibri,Arial;font-size:11pt}'+
     'th{background:#0b2545;color:#fff;font-weight:bold}'+
     '.tit{font-size:15pt;font-weight:bold;color:#0b2545;border:0}'+
     '.sub{font-size:10pt;color:#456;border:0}'+
     '.tot{background:#dce9f5;font-weight:bold}</style></head><body>'+
-    '<table><tr><td class="tit" colspan="'+cabeceras.length+'">AFAR — Asociación Fueguina de Anestesia y Reanimación</td></tr>'+
+    '<table><tr><td class="tit" colspan="'+cabeceras.length+'">AFAAR — Asociación Fueguina de Analgesia, Anestesia y Reanimación</td></tr>'+
     '<tr><td class="sub" colspan="'+cabeceras.length+'">'+esc(titulo)+'</td></tr>'+
     '<tr><td class="sub" colspan="'+cabeceras.length+'">Generado el '+fFechaLarga(hoyISO())+
       ' por '+esc(USUARIO ? (USUARIO.apellido+', '+USUARIO.nombre) : '')+
@@ -11568,7 +11581,7 @@ function exportarFacturacionExcel(l, mes){
     new Array(16).fill('').concat(['TOTAL DEVENGADO', (total).toFixed(2), '', '']),
     new Array(16).fill('').concat(['TOTAL COBRADO', (cobrado).toFixed(2), '', ''])
   ];
-  descargar('AFAR-facturacion-'+mes+'.xls',
+  descargar('AFAAR-facturacion-'+mes+'.xls',
     '﻿'+tablaExcel('Resumen de facturación — '+nombreMes(mes), cab, filas, resumen),
     'application/vnd.ms-excel;charset=utf-8');
   auditar('export-excel', 'Facturación '+mes);
@@ -11589,7 +11602,7 @@ function exportarEstadisticas(l, corteNombre, datos){
   const resumen = [['RESUMEN POR '+corteNombre.toUpperCase(),'','','','','','','','','','']]
     .concat(datos.map(d => [d.t, d.v, '', '', '', '', '', '', '', '', '']));
   const [d,h] = rangoPeriodo();
-  descargar('AFAR-estadisticas-'+d+'_'+h+'.xls',
+  descargar('AFAAR-estadisticas-'+d+'_'+h+'.xls',
     '﻿'+tablaExcel('Estadísticas del '+fFecha(d)+' al '+fFecha(h), cab, filas, resumen),
     'application/vnd.ms-excel;charset=utf-8');
   auditar('export-excel', 'Estadísticas');
@@ -11745,7 +11758,7 @@ function pintarEncabezado(){
   $('#tbCtx').innerHTML = esCoordinador()
     ? 'Portal del coordinador'
     : (esContable()
-       ? 'Contable AFAR · portal económico'
+       ? 'Contable AFAAR · portal económico'
        : esc((u.apellido||'') + ', ' + (u.nombre||'')) + ' · M.P. ' + esc(u.matriculaProvincial||'—'));
   pintarNavegacion();
   pintarBadgeAvisos();
@@ -11846,7 +11859,7 @@ function vistaPanel(){
 
   '<div class="mt20 txt-c"><svg class="ecg-line" viewBox="0 0 400 22" preserveAspectRatio="none">'+
     '<path d="M0 11h60l6-8 5 16 6-8h48l6-8 5 16 6-8h48l6-8 5 16 6-8h48l6-8 5 16 6-8h74"/></svg>'+
-    '<p class="mini mt8">AFAR by Yanina Andino · Asociación Fueguina de Anestesia y Reanimación</p></div>';
+    '<p class="mini mt8">AFAAR by Yanina Andino · Asociación Fueguina de Analgesia, Anestesia y Reanimación</p></div>';
 
   const ir = (id, fn) => { const e = $('#'+id); if(e) e.onclick = fn; };
   ir('tlNuevaFicha', () => abrirFicha(null));

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Genera los iconos PNG de AFAR sin dependencias externas (sin Pillow).
-Diseno: campo azul quirofano con trazado de ECG turquesa y el monograma AFAR.
+Genera los iconos PNG de AFAAR sin dependencias externas (sin Pillow).
+Diseno: campo azul quirofano con trazado de ECG turquesa y el monograma AFAAR.
 
 Uso: python3 make-icons.py
 Salida: icons/icon-192.png, icons/icon-512.png, icons/icon-maskable-512.png
@@ -127,7 +127,7 @@ def escribir_png(ruta, tam, filas):
 def main():
     if not os.path.isdir(OUT):
         os.makedirs(OUT)
-    print('Generando iconos de AFAR…')
+    print('Generando iconos de AFAAR…')
     escribir_png(os.path.join(OUT, 'icon-192.png'), 192, render(192))
     escribir_png(os.path.join(OUT, 'icon-512.png'), 512, render(512))
     escribir_png(os.path.join(OUT, 'icon-maskable-512.png'), 512,
