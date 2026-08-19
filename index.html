@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.19.1714";</script>
+<script>window.AFAR_BUILD = "2026.08.19.2048";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -5651,6 +5651,52 @@ const FIREBASE_EMBEBIDA = {
   appId: "1:329744392924:web:3f8a0cc69cdc54c8788a19"
 };
 
+/* ================ email-config.js ================ */
+/* =========================================================================
+   ENVIO DE DOCUMENTACION AL PACIENTE — CONFIGURACION
+   -------------------------------------------------------------------------
+   La app no manda mails por si sola: los navegadores no pueden. Le pide a un
+   pequeño programa alojado en Google Apps Script que lo haga, y ese programa
+   envia desde una cuenta de Google real de la asociacion.
+
+   COMO COMPLETAR ESTO (una sola vez, lo hace el coordinador)
+   Ver el instructivo paso a paso en  ENVIO-DE-MAILS.md
+
+   1. Entrar a  script.google.com  con la cuenta de Google de la asociacion
+   2. Proyecto nuevo, pegar el contenido de  apps-script/Codigo.gs
+   3. Cambiar CLAVE_COMPARTIDA en ese archivo por una frase larga propia
+   4. Implementar -> Nueva implementacion -> Aplicacion web
+        Ejecutar como:      Yo
+        Quien tiene acceso: Cualquier persona
+   5. Copiar la URL que termina en /exec y pegarla abajo en ENVIO_URL
+   6. Pegar abajo la MISMA frase del paso 3 en ENVIO_CLAVE
+   7. Reconstruir con  python3 build.py  y subir el index.html
+
+   SI SE DEJA VACIO
+   La app funciona igual que siempre; el boton de enviar por mail avisa que
+   todavia no esta configurado y no se rompe nada.
+
+   ADVERTENCIA DE SEGURIDAD — LEER
+   Estos dos valores viajan dentro del index.html, que es publico. Cualquiera
+   que lea el codigo puede encontrarlos y usar el envio para mandar mails
+   desde la cuenta de la asociacion. El programa de Apps Script se defiende
+   con un tope diario y un registro de todo lo que envia, pero eso limita el
+   daño, no lo impide. La proteccion de verdad es que la app se identifique
+   contra un servicio de autenticacion, que es el mismo trabajo pendiente que
+   el de las reglas de la base de datos.
+
+   Si algun dia se sospecha un uso indebido: cambiar la frase de CLAVE_COMPARTIDA
+   en Apps Script y aca, reconstruir y volver a subir. Con eso queda cortado.
+   ========================================================================= */
+'use strict';
+
+const ENVIO_URL   = 'https://script.google.com/macros/s/AKfycbwq7Qc6cC1-qTQvkQovqUiw_ds3QZdTo-VqhRnQfjZ-1Qky8V0RG7c2ZcJsKlDjSkOb/exec';
+const ENVIO_CLAVE = 'AFAAR-CONTACTO-PACIENTES-x7kq93m4';
+
+/* Direccion que el paciente ve como remitente. Se completa sola con la cuenta
+   de Google que ejecuta el Apps Script; esto es solo el nombre visible. */
+const ENVIO_NOMBRE = 'AFAAR — Asociación Fueguina de Analgesia, Anestesia y Reanimación';
+
 /* ================ core.js ================ */
 /* =========================================================================
    NUCLEO - AFAAR by Yanina Andino
@@ -8309,6 +8355,11 @@ function editarPaciente(id){
       campoSel('paGrupo','Grupo y factor',
         ['','0+','0-','A+','A-','B+','B-','AB+','AB-'], p.grupoSanguineo)+
     '</div>'+
+    '<div class="campo"><label>Correo electrónico</label>'+
+      '<input type="email" id="paEmail" value="'+esc(p.email||'')+'" '+
+        'placeholder="nombre@correo.com" autocomplete="off">'+
+      '<div class="ayuda">A esta dirección se le envía la copia de la valoración '+
+      'prequirúrgica y del consentimiento informado.</div></div>'+
     '<div class="grid c2">'+
       campoTxt('paDom','Domicilio', p.domicilio)+
       campoSel('paLocalidad','Localidad',
@@ -8356,6 +8407,7 @@ function editarPaciente(id){
       apellido:g('paApellido'), nombre:g('paNombre'), dni:g('paDni'), fechaNac:g('paNac'),
       sexo:$('#paSexo').value, peso:g('paPeso'), talla:g('paTalla'),
       obraSocial:$('#paOS').value, nroAfiliado:g('paAfiliado'), telefono:g('paTel'),
+      email:g('paEmail'),
       grupoSanguineo:$('#paGrupo').value, domicilio:g('paDom'), localidad:$('#paLocalidad').value,
       contactoEmergencia:g('paEmergencia'), observaciones:g('paObs'),
       creado: p.creado || new Date().toISOString(),
@@ -8394,6 +8446,7 @@ function abrirPaciente(id){
     fila('Obra social', (p.obraSocial||'Sin cobertura') + (p.nroAfiliado ? ' — N.º '+p.nroAfiliado : ''))+
     fila('Grupo y factor', p.grupoSanguineo || '—')+
     fila('Teléfono', p.telefono || '—')+
+    fila('Correo electrónico', p.email || '—')+
     fila('Domicilio', [p.domicilio, p.localidad].filter(Boolean).join(', ') || '—')+
     fila('Contacto de emergencia', p.contactoEmergencia || '—')+
     (p.observaciones ? fila('Observaciones', p.observaciones) : '')+
@@ -9168,6 +9221,7 @@ function pintarFicha(){
     '<button class="btn ghost" id="fiWord">'+ico('word')+' Word</button>'+
     '<button class="btn ghost" id="fiPdf">'+ico('imprimir')+' PDF</button>'+
     (soloActo ? '' : '<button class="btn ghost" id="fiConsent">'+ico('firma')+' Consentimiento</button>')+
+    (soloActo ? '' : '<button class="btn ghost" id="fiMail">'+ico('adjunto')+' Enviar al paciente</button>')+
     (DB.fichas[f.id] && !soloActo ? '<button class="btn danger" id="fiBorrar">'+ico('borrar')+'</button>' : '')+
   '</div>';
 
@@ -9179,6 +9233,7 @@ function pintarFicha(){
   $('#fiWord').onclick = () => { guardarSolapaActual(); exportarFichaWord(fichaActual); };
   $('#fiPdf').onclick  = () => { guardarSolapaActual(); imprimirFicha(fichaActual); };
   if($('#fiConsent')) $('#fiConsent').onclick = () => { guardarSolapaActual(); abrirConsentimiento(fichaActual); };
+  if($('#fiMail')) $('#fiMail').onclick = () => { guardarSolapaActual(); enviarDocumentacionPaciente(fichaActual); };
   if($('#fiBorrar')) $('#fiBorrar').onclick = () => confirmar('Eliminar ficha',
     'Se elimina de forma permanente en todos los dispositivos. Esta acción no se puede deshacer.',
     () => { eliminar('fichas', f.id); auditar('ficha-borrar', f.id);
@@ -13024,7 +13079,12 @@ function seccion(t, contenido){
 }
 
 /* ============================ FICHA ANESTESICA ============================ */
-function documentoFicha(f){
+/* opts.paraPaciente: copia para el propio paciente. Sale todo lo clinico y el
+   consentimiento, y NO salen los honorarios ni el registro intraoperatorio.
+   Los honorarios son informacion economica entre el anestesiologo y el
+   financiador, no del paciente. */
+function documentoFicha(f, opts){
+  const paraPaciente = !!(opts && opts.paraPaciente);
   __secN = 0;
   const p = DB.pacientes[f.pacienteId] || {};
   const v = f.v || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {}, co = f.consent || {};
@@ -13064,7 +13124,9 @@ function documentoFicha(f){
     '<div class="par"><b>'+esc(s)+':</b><span>'+esc((v.antecedentes[s]||[]).join(' · '))+'</span></div>').join('');
 
   return ''+
-  membrete(f, 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')+
+  membrete(f, paraPaciente
+    ? 'VALORACIÓN PREQUIRÚRGICA Y CONSENTIMIENTO INFORMADO — COPIA PARA EL PACIENTE'
+    : 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')+
 
   seccion('Datos del paciente',
     '<table><tr>'+
@@ -13188,7 +13250,7 @@ function documentoFicha(f){
     par('Fecha de la evaluación', fFecha((v.riesgo||{}).fecha))+
     par('Ámbito', (v.riesgo||{}).ambito))+
 
-  seccion('Registro del acto anestésico',
+  (paraPaciente ? '' : seccion('Registro del acto anestésico',
     (f.actoPorUid && f.actoPorUid !== f.ownerUid
       ? par('Realizado por', nombreUsuario(f.actoPorUid)) : '')+
     par('Ingreso a quirófano', a.ingreso) + par('Inicio de la anestesia', a.inicioAnestesia)+
@@ -13206,7 +13268,7 @@ function documentoFicha(f){
     par('Eventos intraoperatorios', a.eventos) + par('Detalle de eventos', a.eventosDetalle)+
     par('Aldrete al egreso', a.aldreteTotal !== undefined ? a.aldreteTotal + '/10' : '')+
     par('Destino real', a.destinoReal) + par('Estado al egreso', a.estadoEgreso)+
-    par('Observaciones', a.observaciones))+
+    par('Observaciones', a.observaciones)))+
 
   (co.quien ? seccion('Consentimiento informado anestésico',
     '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
@@ -13215,7 +13277,7 @@ function documentoFicha(f){
     par('Declaraciones', co.items) + par('Aclaraciones', co.observaciones)+
     par('Fecha del consentimiento', fFecha(co.fecha) + (co.hora ? ' — ' + co.hora + ' h' : ''))) : '')+
 
-  ((h.modalidad || (f.honConsulta||{}).modalidad) ? seccion('Honorarios profesionales',
+  ((!paraPaciente && (h.modalidad || (f.honConsulta||{}).modalidad)) ? seccion('Honorarios profesionales',
     '<table><tr><th>Concepto</th><th>Profesional</th><th>Modalidad</th><th>Importe</th><th>Estado</th></tr>'+
     ((f.honConsulta||{}).modalidad ? '<tr><td>Consulta prequirúrgica</td>'+
       '<td>'+esc(nombreUsuario(f.ownerUid))+'</td>'+
@@ -13424,6 +13486,163 @@ function imprimirFacturacion(l, mes, tot, porOS, porInst){
     esc((u.apellido||'')+', '+(u.nombre||''))+'<br>M.P. '+esc(u.matriculaProvincial||'—')+'</div></div>';
   imprimir(html);
   auditar('export-pdf', 'Facturación '+mes);
+}
+
+/* ================ email-paciente.js ================ */
+/* =========================================================================
+   ENVIO AL PACIENTE DE LA VALORACION PREQUIRURGICA Y EL CONSENTIMIENTO
+   -------------------------------------------------------------------------
+   Arma el mail y se lo pasa al Apps Script configurado en email-config.js.
+   Los documentos van en el CUERPO del mail, no como adjuntos: la app no
+   genera PDF de verdad (el "PDF" es la impresion del navegador), asi que un
+   adjunto seria un .doc que en el telefono se ve mal o no abre.
+
+   El remitente es la cuenta de Google de la asociacion, no el mail personal
+   del anestesiologo: ningun servicio puede enviar en nombre de una casilla
+   ajena sin que el correo del paciente lo marque como sospechoso. Para que
+   el paciente igual llegue al profesional, el mail lleva "Responder a" con
+   su direccion, y su nombre, matricula y especialidad en la firma.
+   ========================================================================= */
+
+function envioConfigurado(){
+  return typeof ENVIO_URL === 'string' && ENVIO_URL.trim().length > 0 &&
+         typeof ENVIO_CLAVE === 'string' && ENVIO_CLAVE.trim().length > 0;
+}
+
+/* ------------------------------------------------- Cuerpo del mail (HTML) */
+function htmlMailPaciente(f, prof){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const trato = p.nombre ? esc(p.nombre) : 'paciente';
+  const firma = (prof.apellido || '') + ', ' + (prof.nombre || '');
+
+  return ''+
+  '<div style="font-family:Calibri,Arial,sans-serif;font-size:15px;color:#111;'+
+    'line-height:1.6;max-width:760px;margin:0 auto">'+
+
+    '<p>Estimado/a <b>'+trato+'</b>,</p>'+
+
+    '<p>Le escribo en mi carácter de médico/a anestesiólogo/a que realizó su '+
+    'valoración prequirúrgica.</p>'+
+
+    '<p>Más abajo encontrará la documentación correspondiente a su evaluación '+
+    'anestesiológica:</p>'+
+
+    '<div style="border-left:4px solid #0b2545;padding:2px 0 2px 14px;margin:18px 0">'+
+      '<p style="margin:6px 0"><b>Valoración prequirúrgica.</b> Resumen de su historia '+
+      'clínica, antecedentes, medicación, alergias y la evaluación realizada. '+
+      'Es la información que necesita el equipo quirúrgico.</p>'+
+      '<p style="margin:6px 0"><b>Consentimiento informado en anestesia.</b> Deja constancia '+
+      'de que se le explicaron los riesgos, los beneficios y las alternativas del '+
+      'procedimiento anestésico, y de que usted lo autoriza.</p>'+
+    '</div>'+
+
+    '<div style="background:#fff8e6;border:1px solid #e6d08a;border-radius:8px;padding:12px 14px;margin:18px 0">'+
+      '<b>Importante.</b> Imprima esta documentación y llévela el día de la '+
+      'intervención. Si antes de la cirugía cambia algo en su salud, si empieza a '+
+      'tomar una medicación nueva o si aparece cualquier síntoma, avísenos '+
+      'respondiendo a este correo.'+
+    '</div>'+
+
+    '<table style="width:100%;border-collapse:collapse;margin:18px 0;font-size:14px">'+
+      '<tr><td style="padding:10px 12px;background:#eef4fa;border-radius:8px">'+
+        '<b style="color:#0b2545">Profesional actuante</b><br>'+
+        esc(firma)+'<br>'+
+        esc(prof.titulo || 'Médico/a Especialista en Anestesiología')+'<br>'+
+        'Matrícula provincial: '+esc(prof.matriculaProvincial || '—')+
+        (prof.matriculaNacional ? ' · Matrícula nacional: '+esc(prof.matriculaNacional) : '')+'<br>'+
+        'Correo: '+esc(prof.email || '—')+
+      '</td></tr>'+
+    '</table>'+
+
+    '<p>Saludos cordiales,<br><b>'+esc(firma)+'</b></p>'+
+
+    '<hr style="border:0;border-top:1px solid #ccd;margin:26px 0 14px">'+
+
+    /* ---- Los documentos, con el mismo formato que la version impresa ---- */
+    '<div style="font-family:Calibri,Arial,sans-serif;font-size:12px">'+
+      '<style>'+CSS_DOC+'</style>'+
+      documentoFicha(f, { paraPaciente:true })+
+    '</div>'+
+
+    '<hr style="border:0;border-top:1px solid #ccd;margin:26px 0 14px">'+
+
+    /* --------------------------- Pie legal --------------------------- */
+    '<div style="font-size:11.5px;color:#455;line-height:1.55">'+
+      '<b style="color:#0b2545">AVISO LEGAL Y PROTECCIÓN DE DATOS</b>'+
+      '<p>Este mensaje contiene información de salud, que la ley considera un '+
+      'dato sensible. Se le envía a usted por ser el titular de esos datos.</p>'+
+      '<p><b>Ley 25.326 de Protección de Datos Personales.</b> Sus datos de salud '+
+      'reciben tratamiento confidencial y se usan únicamente con fines asistenciales. '+
+      'Usted puede acceder a ellos, pedir su rectificación y conocer su destino.</p>'+
+      '<p><b>Ley 17.132 del Ejercicio de la Medicina.</b> El profesional firmante está '+
+      'obligado a guardar secreto sobre todo lo que conoce en razón de su profesión.</p>'+
+      '<p><b>Ley 26.529 de Derechos del Paciente.</b> Esta documentación forma parte de '+
+      'su historia clínica, que le pertenece y se conserva un mínimo de diez años.</p>'+
+      '<p>Si usted no es el destinatario de este correo, por favor elimínelo y avise '+
+      'al remitente: contiene información amparada por el secreto médico.</p>'+
+    '</div>'+
+  '</div>';
+}
+
+/* --------------------------------------------------------------- Envio */
+function enviarDocumentacionPaciente(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const prof = DB.usuarios[f.ownerUid] || USUARIO || {};
+
+  if(!envioConfigurado())
+    return toast('El envío por mail todavía no está configurado. Ver ENVIO-DE-MAILS.md', 'err');
+  if(!f.pacienteId) return toast('La ficha no tiene paciente.', 'err');
+  if(!p.email)      return toast('El paciente no tiene correo cargado. Agregalo en su ficha.', 'err');
+  if(!(f.consent && f.consent.quien))
+    return toast('Todavía no está firmado el consentimiento informado.', 'warn');
+
+  const asunto = 'Documentación de valoración prequirúrgica — ' +
+    (p.apellido || '') + ', ' + (p.nombre || '');
+
+  confirmar('Enviar documentación al paciente',
+    'Se envía a <b>'+esc(p.email)+'</b> la valoración prequirúrgica y el '+
+    'consentimiento informado de <b>'+esc((p.apellido||'')+', '+(p.nombre||''))+'</b>.<br><br>'+
+    'El mail sale a nombre de la AFAAR y las respuestas del paciente te llegan a '+
+    '<b>'+esc(prof.email||'—')+'</b>.<br><br>'+
+    'No se incluyen honorarios ni datos económicos.',
+    async () => {
+      toast('Enviando…');
+      try{
+        /* Sin encabezados propios a proposito: agregar Content-Type dispara una
+           consulta previa de permisos que Apps Script no responde y el envio
+           falla. Asi el navegador lo manda como texto plano y funciona. */
+        const r = await fetch(ENVIO_URL, {
+          method: 'POST',
+          redirect: 'follow',
+          body: JSON.stringify({
+            clave:      ENVIO_CLAVE,
+            para:       p.email,
+            responderA: prof.email || '',
+            nombre:     typeof ENVIO_NOMBRE !== 'undefined' ? ENVIO_NOMBRE : 'AFAAR',
+            asunto:     asunto,
+            html:       htmlMailPaciente(f, prof),
+            fichaId:    f.id,
+            profesional: (prof.apellido||'')+', '+(prof.nombre||'')
+          })
+        });
+        const res = await r.json();
+        if(!res.ok) throw new Error(res.error || 'El servidor rechazó el envío.');
+
+        /* Queda registrado en la ficha y en la auditoria */
+        const base = JSON.parse(JSON.stringify(DB.fichas[f.id] || f));
+        base.envios = (base.envios || []).concat([{
+          fecha: new Date().toISOString(), a: p.email,
+          porUid: SESION ? SESION.uid : '', por: (prof.apellido||'')+', '+(prof.nombre||'')
+        }]);
+        escribir('fichas', base.id, base);
+        if(fichaActual && fichaActual.id === base.id) fichaActual.envios = base.envios;
+        auditar('email-paciente', 'Documentación enviada a ' + p.email);
+        toast('Documentación enviada a ' + p.email, 'ok');
+        pintarFicha();
+      }catch(err){
+        toast('No se pudo enviar: ' + err.message, 'err');
+      }
+    }, 'Enviar');
 }
 
 /* ================ app.js ================ */

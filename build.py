@@ -26,6 +26,7 @@ JS_FILES = [
     'data-guias.js',
     'data-fiscal.js',
     'firebase-config.js',
+    'email-config.js',
     'core.js',
     'seed.js',
     'seed-extra.js',
@@ -42,6 +43,7 @@ JS_FILES = [
     'ui-avisos.js',
     'ui-guias.js',
     'export.js',
+    'email-paciente.js',
     'app.js',
 ]
 
