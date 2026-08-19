@@ -22,6 +22,7 @@ JS_FILES = [
     'data-cie10-extra.js',
     'data-cirugias.js',
     'data-cirugias-extra.js',
+    'data-nomenclador.js',
     'data-guias.js',
     'data-fiscal.js',
     'firebase-config.js',
