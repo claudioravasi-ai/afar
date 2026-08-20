@@ -1,4 +1,4 @@
-/* Service worker de AFAAR by Yanina Andino
+/* Service worker de AFAAR
    Estrategia: red primero para el HTML y los recursos propios (para que las
    actualizaciones lleguen siempre), cache como respaldo sin conexion. */
 

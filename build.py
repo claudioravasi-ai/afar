@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ensambla AFAAR by Yanina Andino en un unico index.html autocontenido.
+Ensambla AFAAR en un unico index.html autocontenido.
 
 Uso:   python3 build.py
 Salida: index.html  (abrible con doble clic o servido por http)
@@ -17,6 +17,7 @@ CSS_FILES = [
 ]
 
 JS_FILES = [
+    'data-logo.js',
     'data-catalogos.js',
     'data-cie10.js',
     'data-cie10-extra.js',
@@ -80,13 +81,13 @@ def main():
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
 <meta name="theme-color" content="#0b2545">
-<meta name="description" content="AFAAR by Yanina Andino - Asociacion Fueguina de Analgesia, Anestesia y Reanimacion. Valoracion anestesica prequirurgica, fichas, estadisticas y facturacion.">
+<meta name="description" content="AFAAR - Asociacion Fueguina de Anestesia, Analgesia y Reanimacion. Valoracion anestesica prequirurgica, fichas, estadisticas y facturacion.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AFAAR">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
-<title>AFAAR by Yanina Andino</title>
+<title>AFAAR</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
