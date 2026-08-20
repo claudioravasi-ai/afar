@@ -14,7 +14,8 @@ const INSTITUCIONES_BASE = [
   { id:'cemep', nombre:'Clínica CEMEP',                                      ciudad:'Río Grande', tipo:'Privado' },
   { id:'sfue',  nombre:'Sanatorio Fueguino',                                 ciudad:'Río Grande', tipo:'Privado' },
   { id:'tolh',  nombre:'Hospital Comunitario de Tolhuin',                    ciudad:'Tolhuin',    tipo:'Público' },
-  { id:'cams',  nombre:'Centro Asistencial Municipal Ushuaia',               ciudad:'Ushuaia',    tipo:'Municipal' }
+  { id:'cams',  nombre:'Centro Asistencial Municipal Ushuaia',               ciudad:'Ushuaia',    tipo:'Municipal' },
+  { id:'cmep',  nombre:'Centro Médico Eva Perón',                            ciudad:'Ushuaia',    tipo:'Privado' }
 ];
 
 /* ---------- Financiadores / obras sociales ---------- */

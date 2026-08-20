@@ -124,10 +124,8 @@ function vistaPanel(){
   const dia = todas.filter(f => f.fecha === hoy);
   const delMes = todas.filter(f => mesDe(f.fecha) === mes);
   const semana = todas.filter(f => f.fecha && semanaISO(f.fecha) === semanaISO(hoy));
-  const prest = misPrestaciones();
-  const honMes = prest.filter(x => mesDe(x.fecha) === mes).reduce((a,x) => a + x.monto, 0);
-  const pendCobro = prest.filter(x => ['Pendiente','Presentado','Facturado'].indexOf(x.estado) >= 0)
-    .reduce((a,x) => a + x.monto, 0);
+  /* Los importes del mes y lo pendiente de cobro se consultan en Facturación,
+     no en el inicio. */
   const proximas = todas.filter(f => f.fecha && f.fecha >= hoy && diasHasta(f.fecha) <= 7)
     .sort((a,b) => (a.fecha + (a.hora||'')) < (b.fecha + (b.hora||'')) ? -1 : 1);
   const u = USUARIO || {};
@@ -151,8 +149,6 @@ function vistaPanel(){
     kpi('Hoy', dia.length, 'aqua', ico('calendario'), 'fichas del día')+
     kpi('Esta semana', semana.length, 'azul', ico('stats'), '')+
     kpi('Este mes', delMes.length, 'azul', ico('ficha'), nombreMes(mes))+
-    kpi('Honorarios del mes', fMoneda(honMes), 'ok', ico('dinero'), '')+
-    kpi('Pendiente de cobro', fMoneda(pendCobro), pendCobro?'warn':'ok', ico('reloj'), 'acumulado')+
     kpi('Pacientes', misPacientes().length, 'aqua', ico('pacientes'), 'en tu portal')+
   '</div>'+
 
@@ -201,7 +197,7 @@ function vistaPanel(){
 
   '<div class="mt20 txt-c"><svg class="ecg-line" viewBox="0 0 400 22" preserveAspectRatio="none">'+
     '<path d="M0 11h60l6-8 5 16 6-8h48l6-8 5 16 6-8h48l6-8 5 16 6-8h48l6-8 5 16 6-8h74"/></svg>'+
-    '<p class="mini mt8">AFAAR by Yanina Andino · Asociación Fueguina de Analgesia, Anestesia y Reanimación</p></div>';
+    '<p class="mini mt8">AFAAR · Asociación Fueguina de Anestesia, Analgesia y Reanimación</p></div>';
 
   const ir = (id, fn) => { const e = $('#'+id); if(e) e.onclick = fn; };
   ir('tlNuevaFicha', () => abrirFicha(null));
@@ -258,7 +254,12 @@ function aplicarTema(t){
 }
 
 function iniciar(){
+  /* El logo va incrustado como data URI, no como archivo suelto */
+  if(typeof LOGO_AFAAR === 'string'){
+    ['logoAuth','logoTopbar'].forEach(id => { const e = $('#'+id); if(e) e.src = LOGO_AFAAR; });
+  }
   parsearCatalogos();
+  parsearNomenclador();
   cargarLocal();
   sembrarDemo();                       /* sólo si la base está vacía */
   aplicarTema(localStorage.getItem(LS_TEMA) || 'claro');

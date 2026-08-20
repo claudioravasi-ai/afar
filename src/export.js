@@ -12,8 +12,8 @@ function membrete(f, titulo){
   const inst = instituciones().find(i => i.id === f.institucion);
   return ''+
   '<div class="membrete">'+
-    '<div class="a">A F A R</div>'+
-    '<div class="b">ASOCIACIÓN FUEGUINA DE ANESTESIA Y REANIMACIÓN</div>'+
+    '<div class="a">A F A A R</div>'+
+    '<div class="b">ASOCIACIÓN FUEGUINA DE ANESTESIA, ANALGESIA Y REANIMACIÓN</div>'+
     '<div class="b" style="font-size:9px;letter-spacing:.02em">Tierra del Fuego, Antártida e Islas del Atlántico Sur — República Argentina</div>'+
   '</div>'+
   '<table style="width:100%;border:0;margin-bottom:10px"><tr>'+
@@ -56,7 +56,12 @@ function seccion(t, contenido){
 }
 
 /* ============================ FICHA ANESTESICA ============================ */
-function documentoFicha(f){
+/* opts.paraPaciente: copia para el propio paciente. Sale todo lo clinico y el
+   consentimiento, y NO salen los honorarios ni el registro intraoperatorio.
+   Los honorarios son informacion economica entre el anestesiologo y el
+   financiador, no del paciente. */
+function documentoFicha(f, opts){
+  const paraPaciente = !!(opts && opts.paraPaciente);
   __secN = 0;
   const p = DB.pacientes[f.pacienteId] || {};
   const v = f.v || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {}, co = f.consent || {};
@@ -96,7 +101,9 @@ function documentoFicha(f){
     '<div class="par"><b>'+esc(s)+':</b><span>'+esc((v.antecedentes[s]||[]).join(' · '))+'</span></div>').join('');
 
   return ''+
-  membrete(f, 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')+
+  membrete(f, paraPaciente
+    ? 'VALORACIÓN PREQUIRÚRGICA Y CONSENTIMIENTO INFORMADO — COPIA PARA EL PACIENTE'
+    : 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')+
 
   seccion('Datos del paciente',
     '<table><tr>'+
@@ -220,7 +227,7 @@ function documentoFicha(f){
     par('Fecha de la evaluación', fFecha((v.riesgo||{}).fecha))+
     par('Ámbito', (v.riesgo||{}).ambito))+
 
-  seccion('Registro del acto anestésico',
+  (paraPaciente ? '' : seccion('Registro del acto anestésico',
     (f.actoPorUid && f.actoPorUid !== f.ownerUid
       ? par('Realizado por', nombreUsuario(f.actoPorUid)) : '')+
     par('Ingreso a quirófano', a.ingreso) + par('Inicio de la anestesia', a.inicioAnestesia)+
@@ -238,7 +245,7 @@ function documentoFicha(f){
     par('Eventos intraoperatorios', a.eventos) + par('Detalle de eventos', a.eventosDetalle)+
     par('Aldrete al egreso', a.aldreteTotal !== undefined ? a.aldreteTotal + '/10' : '')+
     par('Destino real', a.destinoReal) + par('Estado al egreso', a.estadoEgreso)+
-    par('Observaciones', a.observaciones))+
+    par('Observaciones', a.observaciones)))+
 
   (co.quien ? seccion('Consentimiento informado anestésico',
     '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
@@ -247,7 +254,7 @@ function documentoFicha(f){
     par('Declaraciones', co.items) + par('Aclaraciones', co.observaciones)+
     par('Fecha del consentimiento', fFecha(co.fecha) + (co.hora ? ' — ' + co.hora + ' h' : ''))) : '')+
 
-  ((h.modalidad || (f.honConsulta||{}).modalidad) ? seccion('Honorarios profesionales',
+  ((!paraPaciente && (h.modalidad || (f.honConsulta||{}).modalidad)) ? seccion('Honorarios profesionales',
     '<table><tr><th>Concepto</th><th>Profesional</th><th>Modalidad</th><th>Importe</th><th>Estado</th></tr>'+
     ((f.honConsulta||{}).modalidad ? '<tr><td>Consulta prequirúrgica</td>'+
       '<td>'+esc(nombreUsuario(f.ownerUid))+'</td>'+
@@ -279,7 +286,7 @@ function documentoFicha(f){
         '<br>Acto anestésico</div>'; })() : '')+
   '</div>'+
   '<div style="margin-top:22px;font-size:9px;color:#678;text-align:center;border-top:1px solid #ccd">'+
-    'Documento generado por AFAAR by Yanina Andino · Ficha '+esc(f.id)+' · '+
+    'Documento generado por AFAAR · Ficha '+esc(f.id)+' · '+
     'Última modificación: '+esc(f.modificado ? fFecha(f.modificado)+' '+String(f.modificado).slice(11,16) : '—')+
     ' por '+esc(f.modificadoPorNombre || nombreUsuario(f.modificadoPor||f.ownerUid))+'<br>'+
     'Historia clínica sujeta a la Ley 26.529. Conservación mínima: 10 años.'+
@@ -347,7 +354,7 @@ function tablaExcel(titulo, cabeceras, filas, resumen){
     '.tit{font-size:15pt;font-weight:bold;color:#0b2545;border:0}'+
     '.sub{font-size:10pt;color:#456;border:0}'+
     '.tot{background:#dce9f5;font-weight:bold}</style></head><body>'+
-    '<table><tr><td class="tit" colspan="'+cabeceras.length+'">AFAAR — Asociación Fueguina de Analgesia, Anestesia y Reanimación</td></tr>'+
+    '<table><tr><td class="tit" colspan="'+cabeceras.length+'">AFAAR — Asociación Fueguina de Anestesia, Analgesia y Reanimación</td></tr>'+
     '<tr><td class="sub" colspan="'+cabeceras.length+'">'+esc(titulo)+'</td></tr>'+
     '<tr><td class="sub" colspan="'+cabeceras.length+'">Generado el '+fFechaLarga(hoyISO())+
       ' por '+esc(USUARIO ? (USUARIO.apellido+', '+USUARIO.nombre) : '')+
@@ -415,8 +422,8 @@ function exportarEstadisticas(l, corteNombre, datos){
 function imprimirFacturacion(l, mes, tot, porOS, porInst){
   const u = USUARIO || {};
   const html = ''+
-  '<div class="membrete"><div class="a">A F A R</div>'+
-    '<div class="b">ASOCIACIÓN FUEGUINA DE ANESTESIA Y REANIMACIÓN</div></div>'+
+  '<div class="membrete"><div class="a">A F A A R</div>'+
+    '<div class="b">ASOCIACIÓN FUEGUINA DE ANESTESIA, ANALGESIA Y REANIMACIÓN</div></div>'+
   '<h1>RESUMEN DE FACTURACIÓN — '+esc(nombreMes(mes).toUpperCase())+'</h1>'+
   '<table style="border:0;margin-bottom:10px"><tr>'+
     '<td style="border:0"><b>Profesional:</b> '+esc((u.apellido||'')+', '+(u.nombre||''))+'<br>'+

@@ -88,7 +88,7 @@ function calcularAvisos(){
     const p = pendientes().length;
     if(p) av.push({ nivel:'danger', icono:'campana', orden:0,
       titulo: p + ' solicitud' + (p===1?'':'es') + ' de acceso sin resolver',
-      detalle:'Verificá matrícula y comprobante de socio para habilitar el ingreso.',
+      detalle:'Verificá la matrícula para habilitar el ingreso.',
       accion: () => { coordSeccion = 'solicitudes'; irA('coordinador'); } });
   }
 

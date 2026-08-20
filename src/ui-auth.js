@@ -31,7 +31,7 @@ function htmlRegistro(){
   if(pasoRegistro === 1){
     return ''+
     '<div class="aviso info">'+ico('info')+'<div><b>Paso 1 de 2 · Credenciales</b><br>'+
-      'Creá tu usuario personal. En el paso siguiente completás tus datos profesionales y adjuntás el comprobante de socio.</div></div>'+
+      'Creá tu usuario personal. En el paso siguiente completás tus datos profesionales.</div></div>'+
     '<div class="campo"><label>Correo electrónico <span class="req">*</span></label>'+
       '<input type="email" id="rgEmail" inputmode="email" autocomplete="email" placeholder="nombre@correo.com" value="'+esc(borradorRegistro.email||'')+'"></div>'+
     '<div class="campo"><label>Contraseña <span class="req">*</span></label>'+
@@ -73,10 +73,6 @@ function htmlRegistro(){
       insts.map(i => '<label class="chk"><input type="checkbox" value="'+esc(i.id)+'">'+
         esc(i.nombre.split('"')[0].trim())+'</label>').join('')+
     '</div></div>'+
-  '<div class="campo"><label>Comprobante de socio de la AFAAR <span class="req">*</span></label>'+
-    '<input type="file" id="rgComprobante" accept="image/*,.pdf">'+
-    '<div class="ayuda">Foto o PDF del recibo, certificado o constancia de asociado. Máximo 1,5 MB. El coordinador lo verifica antes de habilitar tu acceso.</div>'+
-    '<div id="rgCompPrev" class="mt8"></div></div>'+
   '<div class="btn-row"><button class="btn ghost" id="btnPaso1">'+ico('atras')+' Atrás</button>'+
   '<button class="btn pri" style="flex:1" id="btnRegistrar">'+ico('check')+' Enviar solicitud</button></div>';
 }
@@ -135,14 +131,6 @@ function cablearAuth(tab){
       $$('#rgInsts .chk').forEach(l => {
         l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
       });
-      $('#rgComprobante').onchange = async e => {
-        const f = e.target.files[0]; if(!f) return;
-        try{
-          borradorRegistro.comprobante = await leerArchivo(f, 1600000);
-          $('#rgCompPrev').innerHTML = '<div class="aviso ok" style="margin:0">'+ico('check')+
-            '<div>'+esc(f.name)+' · '+Math.round(f.size/1024)+' KB adjunto</div></div>';
-        }catch(err){ toast(err.message, 'err'); e.target.value = ''; }
-      };
     }
   }
 }
@@ -214,7 +202,6 @@ async function enviarRegistro(){
   if(!g('rgDni')) return toast('Completá el DNI.', 'err');
   if(!g('rgMatProv') && !g('rgMatNac')) return toast('Cargá al menos una matrícula.', 'err');
   if(!insts.length) return toast('Seleccioná al menos un lugar de trabajo.', 'err');
-  if(!borradorRegistro.comprobante) return toast('Adjuntá el comprobante de socio de la AFAAR.', 'err');
 
   const u = uid('usr');
   const salt = Math.random().toString(36).slice(2,12);
@@ -227,13 +214,12 @@ async function enviarRegistro(){
     titulo:g('rgTitulo') || 'Médico Especialista en Anestesiología',
     telefono:g('rgTel'), cuit:g('rgCuit'), condicionIva:g('rgIva'),
     instituciones: insts,
-    comprobante: borradorRegistro.comprobante,
     firmaDataUrl:'', creado:new Date().toISOString()
   });
   borradorRegistro = {}; pasoRegistro = 1;
   abrirModal('Solicitud enviada',
     '<div class="aviso ok">'+ico('check')+'<div><b>Recibimos tu solicitud.</b><br>'+
-    'El anestesiólogo coordinador de la AFAAR va a revisar tu matrícula y tu comprobante de socio. '+
+    'El anestesiólogo coordinador de la AFAAR va a revisar tu matrícula. '+
     'Cuando la apruebe vas a poder ingresar con el correo y la contraseña que acabás de crear.</div></div>',
     '<button class="btn pri" data-cerrar>Entendido</button>');
   $$('.auth-tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === 'ingresar'));
@@ -324,14 +310,14 @@ function vistaPerfil(){
     '<div class="btn-row mt8"><button class="btn ghost chico" id="pfFirmaLimpiar">'+ico('borrar')+' Borrar firma</button></div>'+
   '</div>'+
 
-  '<div class="card"><h3>'+ico('adjunto')+'Comprobante de socio AFAAR</h3>'+
-    (u.comprobante ?
+  /* El comprobante de socio ya no se pide. Los socios que lo cargaron antes
+     lo siguen viendo y pueden descargarlo; no se ofrece cargar uno nuevo. */
+  (u.comprobante ?
+    '<div class="card"><h3>'+ico('adjunto')+'Comprobante de socio AFAAR</h3>'+
       '<div class="aviso ok">'+ico('check')+'<div>'+esc(u.comprobante.nombre)+' — verificado por el coordinador el '+
         fFecha(u.aprobadoEn)+'</div></div>'+
-      '<button class="btn ghost chico" id="pfVerComp">'+ico('ojo')+' Ver comprobante</button>'
-      : '<div class="aviso warn">'+ico('alerta')+'<div>No hay comprobante cargado.</div></div>')+
-    '<div class="campo mt14"><label>Reemplazar comprobante</label><input type="file" id="pfComp" accept="image/*,.pdf"></div>'+
-  '</div>'+
+      '<button class="btn ghost chico" id="pfVerComp">'+ico('ojo')+' Ver comprobante</button>'+
+    '</div>' : '')+
 
   '<div class="card"><h3>'+ico('candado')+'Seguridad</h3>'+
     '<div class="grid c2">'+
@@ -343,7 +329,7 @@ function vistaPerfil(){
 
   '<div class="btn-row mt14"><button class="btn pri grande" id="pfGuardar">'+ico('check')+' Guardar cambios</button>'+
   '<button class="btn ghost grande" id="pfSalir">'+ico('salir')+' Cerrar sesión</button></div>'+
-  '<p class="mini txt-c mt20">AFAAR by Yanina Andino · versión '+esc(window.AFAR_BUILD||'')+'</p>';
+  '<p class="mini txt-c mt20">AFAAR · versión '+esc(window.AFAR_BUILD||'')+'</p>';
 
   $$('#pfInsts .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
@@ -354,11 +340,6 @@ function vistaPerfil(){
   $('#pfFirmaLimpiar').onclick = () => { firma.limpiar(); borradorFirma = ''; };
 
   if($('#pfVerComp')) $('#pfVerComp').onclick = () => verComprobante(u);
-  $('#pfComp').onchange = async e => {
-    const f = e.target.files[0]; if(!f) return;
-    try{ u.comprobante = await leerArchivo(f, 1600000); toast('Comprobante listo. Guardá los cambios.'); }
-    catch(err){ toast(err.message, 'err'); }
-  };
   $('#pfCambiarClave').onclick = () => {
     const c0 = $('#pfC0').value, c1 = $('#pfC1').value;
     if(hashClave(c0, u.salt) !== u.passHash) return toast('La contraseña actual no coincide.', 'err');

@@ -100,8 +100,15 @@ function abrirFicha(id, pacienteId){
     creado:new Date().toISOString()
   };
   if(pacienteId) fichaActual.pacienteId = pacienteId;
-  solapaFicha = 'qx';
-  cxSeleccionada = fichaActual.cirugia ? { n:fichaActual.cirugia, ua:fichaActual.cirugiaUA } : null;
+  /* Si la ficha la hizo otro anestesiologo y el acto todavia no es mio,
+     abre directamente en la solapa para tomar el acto operatorio. */
+  const g = id ? DB.fichas[id] : null;
+  solapaFicha = (g && !puedeEditarFicha(g) && !esActorFicha(g)) ? 'tomar' : 'qx';
+  cxSeleccionada = fichaActual.cirugia ? {
+    n: fichaActual.cirugia, ua: fichaActual.cirugiaUA,
+    cod: fichaActual.cirugiaCod || '', comp: fichaActual.cirugiaComp || '',
+    grillaB: !!fichaActual.cirugiaGrillaB, nota: fichaActual.cirugiaNota || ''
+  } : null;
   dxQxSeleccionado = fichaActual.dxQuirurgico || null;
   irA('ficha');
   pintarFicha();
@@ -114,13 +121,27 @@ function pintarFicha(){
   const soloActo = !!guardada && !puedeEditarFicha(guardada);
   const p = DB.pacientes[f.pacienteId] || null;
   const cont = $('#vFicha');
-  const solapas = [
-    ['qx','bisturi','Quirúrgico'],
-    ['val','valoracion','Valoración'],
-    ['plan','lista','Plan'],
-    ['acto','monitor','Acto'],
-    ['hon','dinero','Honorarios']
-  ];
+  /* La ficha son dos actos medicos distintos y se muestran como dos bloques
+     separados: la valoracion prequirurgica (datos filiatorios, valoracion y
+     plan) y el acto quirurgico. Honorarios queda aparte porque abarca los dos.
+     Si la ficha es de un colega, al principio aparece la solapa para tomar
+     el acto operatorio. */
+  const grupos = [
+    (soloActo ? { t:'Tomo la ficha', solapas:[['tomar','firma','Tomo ficha anestésica para acto operatorio']] } : null),
+    { t:'Valoración prequirúrgica', solapas:[
+        ['qx','ficha','Datos filiatorios'],
+        ['val','valoracion','Valoración'],
+        ['plan','lista','Plan']
+    ] },
+    { t:'Acto quirúrgico', solapas:[
+        ['acto','monitor','Acto quirúrgico']
+    ] },
+    { t:'Honorarios', solapas:[
+        ['hon','dinero','Honorarios']
+    ] }
+  ].filter(Boolean);
+  const solapas = grupos.reduce((a,g) => a.concat(g.solapas), []);
+  if(!solapas.some(s => s[0] === solapaFicha)) solapaFicha = solapas[0][0];
 
   cont.innerHTML = ''+
   '<div class="vista-head no-print">'+
@@ -131,10 +152,14 @@ function pintarFicha(){
       ' · '+etiquetaEstadoFicha(f)+'</p></div>'+
   '</div>'+
 
-  '<div class="scroll-x no-print mb8">'+ solapas.map(s =>
-    '<span class="tag'+(solapaFicha===s[0]?' on':'')+'" data-solapa="'+s[0]+'">'+
-    ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px"')+
-    s[2]+'</span>').join('') +'</div>'+
+  '<div class="fi-secciones no-print mb8">'+ grupos.map(g =>
+    '<div class="fi-seccion">'+
+      '<span class="fi-seccion-t">'+esc(g.t)+'</span>'+
+      '<div class="fi-seccion-s">'+ g.solapas.map(s =>
+        '<span class="tag'+(solapaFicha===s[0]?' on':'')+'" data-solapa="'+s[0]+'">'+
+        ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px"')+
+        esc(s[2])+'</span>').join('') +'</div>'+
+    '</div>').join('') +'</div>'+
 
   (soloActo ? bannerFichaAjena(f) : bannerFaltantes(f))+
 
@@ -145,6 +170,7 @@ function pintarFicha(){
     '<button class="btn ghost" id="fiWord">'+ico('word')+' Word</button>'+
     '<button class="btn ghost" id="fiPdf">'+ico('imprimir')+' PDF</button>'+
     (soloActo ? '' : '<button class="btn ghost" id="fiConsent">'+ico('firma')+' Consentimiento</button>')+
+    (soloActo ? '' : '<button class="btn ghost" id="fiMail">'+ico('adjunto')+' Enviar al paciente</button>')+
     (DB.fichas[f.id] && !soloActo ? '<button class="btn danger" id="fiBorrar">'+ico('borrar')+'</button>' : '')+
   '</div>';
 
@@ -156,25 +182,14 @@ function pintarFicha(){
   $('#fiWord').onclick = () => { guardarSolapaActual(); exportarFichaWord(fichaActual); };
   $('#fiPdf').onclick  = () => { guardarSolapaActual(); imprimirFicha(fichaActual); };
   if($('#fiConsent')) $('#fiConsent').onclick = () => { guardarSolapaActual(); abrirConsentimiento(fichaActual); };
-  if($('#fiTomarActo')) $('#fiTomarActo').onclick = () => confirmar('Tomar el acto anestésico',
-    'Vas a quedar registrado como el anestesiólogo que realiza este acto. '+
-    'El honorario del acto pasa a tu nombre; la consulta prequirúrgica sigue siendo de '+
-    esc(autorFicha(fichaActual))+'.',
-    () => {
-      const base = JSON.parse(JSON.stringify(DB.fichas[fichaActual.id]));
-      base.asignadoUid = SESION.uid;
-      base.modificado = new Date().toISOString();
-      escribir('fichas', base.id, base);
-      auditar('ficha-tomar-acto', 'Acto de la ficha de ' + autorFicha(base));
-      fichaActual = base; pintarFicha();
-      toast('El acto quedó a tu nombre.', 'ok');
-    }, 'Tomar el acto');
+  if($('#fiMail')) $('#fiMail').onclick = () => { guardarSolapaActual(); enviarDocumentacionPaciente(fichaActual); };
   if($('#fiBorrar')) $('#fiBorrar').onclick = () => confirmar('Eliminar ficha',
     'Se elimina de forma permanente en todos los dispositivos. Esta acción no se puede deshacer.',
     () => { eliminar('fichas', f.id); auditar('ficha-borrar', f.id);
             toast('Ficha eliminada.', 'ok'); irA('fichas'); vistaFichas(); }, 'Eliminar', true);
 
   const cuerpo = $('#fiCuerpo');
+  if(solapaFicha === 'tomar')     { cuerpo.innerHTML = htmlTomarActo(f);   cablearTomarActo(f); return; }
   if(solapaFicha === 'qx')        { cuerpo.innerHTML = htmlQuirurgico(f);  cablearQuirurgico(f); }
   else if(solapaFicha === 'val')  { cuerpo.innerHTML = htmlValoracion(f);  cablearValoracion(f); }
   else if(solapaFicha === 'plan') { cuerpo.innerHTML = htmlPlan(f);        cablearGenerico(); }
@@ -208,9 +223,69 @@ function bannerFichaAjena(f){
     'La valoración, el plan y la consulta prequirúrgica son de '+esc(a)+' y quedan bloqueados.'+
     (f.actoPorUid && f.actoPorUid !== f.ownerUid
       ? '<br>Acto registrado por <b>'+esc(nombreUsuario(f.actoPorUid))+'</b>.' : '')+
-    (mio ? '' : '<br><button class="btn ghost chico mt8" id="fiTomarActo">'+
-      'Voy a realizar este acto</button>')+
+    (mio ? '' : '<br>Si sos vos quien opera, tomá la ficha desde la solapa '+
+      '<b>«Tomo ficha anestésica para acto operatorio»</b>.')+
     '</div></div>';
+}
+
+/* ================= TOMO FICHA ANESTESICA PARA ACTO OPERATORIO =============
+   Primera solapa cuando la ficha la abrio un anestesiologo distinto del que
+   hizo la valoracion. Muestra por defecto quien hizo el prequirurgico y deja
+   registrado quien se hace cargo del acto. */
+function htmlTomarActo(f){
+  const p    = DB.pacientes[f.pacienteId] || {};
+  const mio  = esActorFicha(f);
+  const prev = f.asignadoUid === 'sinasignar' || (!f.asignadoUid && !f.actorExterno)
+    ? '' : nombreActor(f);
+
+  return ''+
+  '<div class="card"><h3>'+ico('firma')+'Tomo ficha anestésica para acto operatorio</h3>'+
+
+    '<div class="campo"><label>Valoración prequirúrgica realizada por</label>'+
+      '<input type="text" value="'+esc(autorFicha(f))+'" readonly>'+
+      '<div class="ayuda">Es el anestesiólogo que hizo los datos filiatorios, la valoración '+
+      'y el plan. La consulta prequirúrgica se factura a su nombre.</div></div>'+
+
+    '<div class="campo"><label>Anestesiólogo previsto para el acto</label>'+
+      '<input type="text" value="'+esc(prev || 'Todavía no se sabe quién opera')+'" readonly>'+
+      '</div>'+
+
+    (p.apellido ? '<div class="campo"><label>Paciente</label>'+
+      '<input type="text" value="'+esc(p.apellido+', '+p.nombre)+'" readonly></div>' : '')+
+
+    (f.cirugia ? '<div class="campo"><label>Cirugía</label>'+
+      '<input type="text" value="'+esc(f.cirugia+(f.cirugiaComp ? ' — complejidad '+f.cirugiaComp : ''))+'" readonly>'+
+      '</div>' : '')+
+
+    (mio
+      ? '<div class="aviso ok">'+ico('check')+'<div><b>El acto operatorio ya está a tu nombre.</b><br>'+
+        'Completá la solapa <b>Acto quirúrgico</b> y cargá tus honorarios del acto.</div></div>'
+      : '<div class="aviso info">'+ico('info')+'<div>Al tomar la ficha quedás registrado como el '+
+        'anestesiólogo que realiza el acto operatorio. El honorario del acto pasa a tu nombre; '+
+        'la consulta prequirúrgica sigue siendo de <b>'+esc(autorFicha(f))+'</b>.</div></div>'+
+        '<button class="btn pri grande" id="fiTomar2">'+ico('firma')+
+        ' Tomo esta ficha para el acto operatorio</button>')+
+  '</div>';
+}
+
+function cablearTomarActo(f){
+  if(!$('#fiTomar2')) return;
+  $('#fiTomar2').onclick = () => confirmar('Tomar el acto operatorio',
+    'Vas a quedar registrado como el anestesiólogo que realiza este acto. '+
+    'El honorario del acto pasa a tu nombre; la consulta prequirúrgica sigue siendo de '+
+    esc(autorFicha(f))+'.',
+    () => {
+      const base = JSON.parse(JSON.stringify(DB.fichas[f.id]));
+      base.asignadoUid = SESION.uid;
+      base.actorExterno = '';
+      base.modificado = new Date().toISOString();
+      escribir('fichas', base.id, base);
+      auditar('ficha-tomar-acto', 'Acto de la ficha de ' + autorFicha(base));
+      fichaActual = base;
+      solapaFicha = 'acto';
+      pintarFicha();
+      toast('El acto quedó a tu nombre.', 'ok');
+    }, 'Tomar el acto');
 }
 
 function guardarSolapaActual(){
@@ -278,7 +353,7 @@ function htmlQuirurgico(f){
       esc(p.dni||'—')+' · '+(edadDe(p.fechaNac, f.fecha)||'—')+' años · '+esc(p.obraSocial||'sin cobertura')+'</div></div>' : '')+
   '</div>'+
 
-  '<div class="card"><h3>'+ico('calendario')+'Datos del acto quirúrgico</h3>'+
+  '<div class="card"><h3>'+ico('calendario')+'Datos de la cirugía</h3>'+
     '<div class="campo"><label>Carácter de la cirugía <span class="req">*</span></label>'+
       '<div class="seg" id="qxCaracter">'+
         [['programada','Programada'],['urgencia','Urgencia'],['emergencia','Emergencia']].map(c =>
@@ -444,32 +519,61 @@ function cablearQuirurgico(f){
     };
   };
 
-  /* buscador de cirugías */
+  /* buscador de cirugías — nomenclador AFAAR 2021 + catálogo propio */
   const pintarCx = () => {
     $('#cxSel').innerHTML = cxSeleccionada
-      ? '<span class="pill"><span>'+esc(cxSeleccionada.n)+'</span><b>'+cxSeleccionada.ua+' UA</b>'+
-        '<button id="cxQuitar">&times;</button></span>'
+      ? '<span class="pill">'+
+          (cxSeleccionada.cod ? '<b>'+esc(cxSeleccionada.cod)+'</b>' : '')+
+          '<span>'+esc(cxSeleccionada.n)+'</span>'+
+          (cxSeleccionada.comp ? '<b class="comp">Complejidad '+esc(cxSeleccionada.comp)+'</b>' : '')+
+          (cxSeleccionada.ua ? '<b>'+cxSeleccionada.ua+' UA</b>' : '')+
+          '<button id="cxQuitar">&times;</button></span>'+
+        (cxSeleccionada.grillaB
+          ? '<div class="ayuda">Práctica de <b>Grilla B</b>: se factura con la grilla de '+
+            'Cardiovascular, Tórax, Neurocirugía, Hemodinamia, Maxilofacial o cirujano itinerante.</div>' : '')+
+        (cxSeleccionada.nota
+          ? '<div class="ayuda">'+esc(cxSeleccionada.nota.replace(/;/g,' · ')
+              .replace('RX:','Requiere radioscopia: ').replace('RF:','Radiofrecuencia: ')
+              .replace('INT:','Internación: '))+'</div>' : '')+
+        (cxSeleccionada.cod && !cxSeleccionada.ua
+          ? '<div class="ayuda">El nomenclador tabula por complejidad. Si tu convenio se liquida '+
+            'por unidades anestésicas, cargá las UA en la solapa Honorarios.</div>' : '')
       : '<span class="mini">Sin cirugía seleccionada.</span>';
     if($('#cxQuitar')) $('#cxQuitar').onclick = () => { cxSeleccionada = null; pintarCx(); };
   };
   montarBuscador({
     input:$('#cxBuscar'), caja:$('#cxRes'), manual:true,
-    fuente: () => todasCirugias().map(x => ({
-      etiqueta:x.n, sub:x.esp+' · '+x.ua+' unidades anestésicas',
-      busca: norm(x.n+' '+x.esp), dato:x })),
-    onElegir: x => { cxSeleccionada = { n:x.dato.n, ua:x.dato.ua };
-      if(!$('#qxEsp').value && x.dato.esp) $('#qxEsp').value = x.dato.esp; pintarCx(); },
+    fuente: () => NOMENCLADOR.map(x => ({
+        cod: x.cod,
+        etiqueta: x.n,
+        sub: 'Complejidad '+x.comp+' · '+x.grupo+(x.sub ? ' · '+x.sub : '')+(x.grillaB ? ' · Grilla B' : ''),
+        /* el nombre va primero para que el ranking por prefijo funcione;
+           el codigo sigue siendo buscable */
+        busca: norm(x.n+' '+x.cod+' '+x.grupo+' '+x.sub), peso:0, dato:x
+      })).concat(todasCirugias().map(x => ({
+        etiqueta: x.n, sub: 'Catálogo propio · '+x.esp+' · '+x.ua+' unidades anestésicas',
+        busca: norm(x.n+' '+x.esp), peso:1, dato:x }))),
+    onElegir: x => {
+      const d = x.dato;
+      cxSeleccionada = d.cod
+        ? { n:d.n, cod:d.cod, comp:d.comp, grillaB:d.grillaB, nota:d.nota, ua:0 }
+        : { n:d.n, ua:d.ua, cod:'', comp:'', grillaB:false, nota:'' };
+      if(!$('#qxEsp').value && d.esp) $('#qxEsp').value = d.esp;
+      pintarCx();
+    },
     onManual: txt => { if(!txt) return;
       abrirModal('Agregar procedimiento al catálogo',
         campoTxt('ncNombre','Nombre del procedimiento', txt)+
         campoSel('ncEsp','Especialidad', ESPECIALIDADES)+
-        campoNum('ncUA','Unidades anestésicas', 10),
+        campoNum('ncUA','Unidades anestésicas', 10)+
+        '<div class="ayuda">Sólo para prácticas que no figuran en el nomenclador AFAAR. '+
+        'El nomenclador indica facturar por similitud antes que crear una práctica nueva.</div>',
         '<button class="btn ghost" data-cerrar>Cancelar</button>'+
         '<button class="btn pri" id="ncGuardar">Agregar</button>');
       $('#ncGuardar').onclick = () => {
         const n = $('#ncNombre').value.trim(); if(!n) return;
         agregarExtra('cx', { n, esp:$('#ncEsp').value, ua:Number($('#ncUA').value)||10 });
-        cxSeleccionada = { n, ua:Number($('#ncUA').value)||10 };
+        cxSeleccionada = { n, ua:Number($('#ncUA').value)||10, cod:'', comp:'', grillaB:false, nota:'' };
         cerrarModal(); pintarCx(); toast('Procedimiento agregado al catálogo.', 'ok');
       };
     }
@@ -504,6 +608,10 @@ function leerQuirurgico(){
     especialidad: val('qxEsp'),
     cirugia: cxSeleccionada ? cxSeleccionada.n : '',
     cirugiaUA: cxSeleccionada ? cxSeleccionada.ua : 0,
+    cirugiaCod: cxSeleccionada ? (cxSeleccionada.cod || '') : '',
+    cirugiaComp: cxSeleccionada ? (cxSeleccionada.comp || '') : '',
+    cirugiaGrillaB: cxSeleccionada ? !!cxSeleccionada.grillaB : false,
+    cirugiaNota: cxSeleccionada ? (cxSeleccionada.nota || '') : '',
     dxQuirurgico: dxQxSeleccionado,
     lateralidad: val('qxLateralidad'),
     cirujano: val('qxCirujano'), ayudante: val('qxAyudante'),

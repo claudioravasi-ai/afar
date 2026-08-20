@@ -1,5 +1,5 @@
 /* =========================================================================
-   NUCLEO - AFAAR by Yanina Andino
+   NUCLEO - AFAAR
    Estado, persistencia local, sincronizacion Firebase, utilidades de UI,
    iconografia y motor de scores anestesiologicos.
    ========================================================================= */
@@ -455,6 +455,34 @@ function parsearCatalogos(){
     CIRUGIAS.push({ n: p[0].trim(), ua: Number(p[1]) || 10, esp });
   });
 }
+/* ------------------------------- Nomenclador anestesiologico AFAAR 2021 */
+let NOMENCLADOR = [];
+function parsearNomenclador(){
+  NOMENCLADOR = [];
+  if(typeof NOMENCLADOR_TXT === 'undefined') return;
+  let grupo = '', gcod = '', sub = '';
+  const cargar = (txt, anexo) => {
+    txt.split('\n').forEach(l => {
+      l = l.trim(); if(!l) return;
+      if(l.slice(0,2) === '##'){ sub = (l.slice(2).split('|')[1] || '').trim(); return; }
+      if(l[0] === '#'){
+        const p = l.slice(1).split('|');
+        gcod = p[0].trim(); grupo = (p[1] || '').trim(); sub = ''; return;
+      }
+      const p = l.split('|');
+      if(p.length < 3) return;
+      NOMENCLADOR.push({
+        cod: p[0].trim(), n: p[1].trim(), comp: p[2].trim(),
+        grillaB: !anexo && p[3] === 'B',
+        nota: anexo ? (p[3] || '').trim() : '',
+        grupo, gcod, sub, anexo: !!anexo
+      });
+    });
+  };
+  cargar(NOMENCLADOR_TXT, false);
+  if(typeof NOMENCLADOR_DOLOR_TXT !== 'undefined') cargar(NOMENCLADOR_DOLOR_TXT, true);
+}
+
 /* Diagnosticos y cirugias agregados manualmente por los usuarios */
 function extras(tipo){
   return lista('catalogoExtra').filter(x => x.tipo === tipo);
@@ -633,7 +661,17 @@ function montarBuscador(opts){
     const q = norm(inp.value.trim());
     caja.innerHTML = '';
     if(q.length < 2){ caja.classList.remove('on'); return; }
-    items = opts.fuente().filter(x => x.busca.indexOf(q) >= 0).slice(0, 60);
+    /* Coincidencia por palabras: "cesarea acreta" encuentra
+       "Cesárea por placenta ácreta e histerectomía". Primero lo que arranca
+       con lo tipeado, despues el resto. */
+    const term = q.split(/\s+/).filter(Boolean);
+    items = opts.fuente()
+      .filter(x => term.every(w => x.busca.indexOf(w) >= 0))
+      .map(x => [x.busca.indexOf(q) === 0 ? 0 : (x.busca.indexOf(term[0]) === 0 ? 1 : 2), x])
+      /* A igual coincidencia manda el "peso": el nomenclador oficial va
+         antes que el catalogo propio. */
+      .sort((a,b) => a[0] - b[0] || (a[1].peso||0) - (b[1].peso||0))
+      .slice(0, 60).map(r => r[1]);
     let html = items.map((x,i) =>
       '<div data-i="'+i+'">'+
         (x.cod ? '<span class="cod">'+esc(x.cod)+'</span>' : '')+

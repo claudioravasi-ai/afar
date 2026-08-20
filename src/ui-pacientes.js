@@ -92,6 +92,11 @@ function editarPaciente(id){
       campoSel('paGrupo','Grupo y factor',
         ['','0+','0-','A+','A-','B+','B-','AB+','AB-'], p.grupoSanguineo)+
     '</div>'+
+    '<div class="campo"><label>Correo electrónico</label>'+
+      '<input type="email" id="paEmail" value="'+esc(p.email||'')+'" '+
+        'placeholder="nombre@correo.com" autocomplete="off">'+
+      '<div class="ayuda">A esta dirección se le envía la copia de la valoración '+
+      'prequirúrgica y del consentimiento informado.</div></div>'+
     '<div class="grid c2">'+
       campoTxt('paDom','Domicilio', p.domicilio)+
       campoSel('paLocalidad','Localidad',
@@ -139,6 +144,7 @@ function editarPaciente(id){
       apellido:g('paApellido'), nombre:g('paNombre'), dni:g('paDni'), fechaNac:g('paNac'),
       sexo:$('#paSexo').value, peso:g('paPeso'), talla:g('paTalla'),
       obraSocial:$('#paOS').value, nroAfiliado:g('paAfiliado'), telefono:g('paTel'),
+      email:g('paEmail'),
       grupoSanguineo:$('#paGrupo').value, domicilio:g('paDom'), localidad:$('#paLocalidad').value,
       contactoEmergencia:g('paEmergencia'), observaciones:g('paObs'),
       creado: p.creado || new Date().toISOString(),
@@ -177,6 +183,7 @@ function abrirPaciente(id){
     fila('Obra social', (p.obraSocial||'Sin cobertura') + (p.nroAfiliado ? ' — N.º '+p.nroAfiliado : ''))+
     fila('Grupo y factor', p.grupoSanguineo || '—')+
     fila('Teléfono', p.telefono || '—')+
+    fila('Correo electrónico', p.email || '—')+
     fila('Domicilio', [p.domicilio, p.localidad].filter(Boolean).join(', ') || '—')+
     fila('Contacto de emergencia', p.contactoEmergencia || '—')+
     (p.observaciones ? fila('Observaciones', p.observaciones) : '')+

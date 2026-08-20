@@ -23,7 +23,7 @@ function vistaCoordinador(){
 
   cont.innerHTML = ''+
   '<div class="vista-head"><div><h1>Portal del coordinador</h1>'+
-    '<p>Gestión institucional de la Asociación Fueguina de Analgesia, Anestesia y Reanimación</p></div></div>'+
+    '<p>Gestión institucional de la Asociación Fueguina de Anestesia, Analgesia y Reanimación</p></div></div>'+
   '<div class="scroll-x mb8">'+ secciones.map(s =>
     '<span class="tag'+(coordSeccion===s[0]?' on':'')+'" data-cs="'+s[0]+'">'+
     ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px"')+
@@ -45,7 +45,7 @@ function seccionSolicitudes(c){
   const p = pendientes().sort((a,b) => (a.creado||'') < (b.creado||'') ? -1 : 1);
   c.innerHTML = p.length
     ? '<div class="aviso warn">'+ico('campana')+'<div><b>'+p.length+' solicitud'+(p.length===1?'':'es')+
-      ' esperando aprobación.</b> Verificá matrícula y comprobante antes de habilitar el acceso.</div></div>'+
+      ' esperando aprobación.</b> Verificá la matrícula antes de habilitar el acceso.</div></div>'+
       '<div class="lista">'+ p.map(u =>
         '<div class="item" data-sol="'+u.uid+'">'+
           '<div class="avatar" style="background:var(--warn-bg);color:var(--warn)">'+esc(iniciales(u.nombre,u.apellido))+'</div>'+
@@ -75,13 +75,15 @@ function revisarSolicitud(u){
       fila('Lugares de trabajo', insts)+
       fila('Solicitud enviada', fFechaLarga(s.creado))+
     '</div>'+
+    /* Los socios que se registraron cuando el comprobante era obligatorio
+       lo siguen teniendo cargado; para el resto ya no se pide. */
     (s.comprobante
       ? '<div class="mt14"><label class="mini strong">Comprobante de socio AFAAR</label>'+
         ((s.comprobante.tipo||'').indexOf('pdf') >= 0
           ? '<div class="aviso info mt8">'+ico('archivo')+'<div>'+esc(s.comprobante.nombre)+' (PDF)</div></div>'
           : '<img src="'+s.comprobante.dataUrl+'" style="width:100%;border-radius:10px;margin-top:8px" alt="Comprobante">')+
         '</div>'
-      : '<div class="aviso danger mt14">'+ico('alerta')+'<div>No adjuntó comprobante.</div></div>'),
+      : ''),
     '<button class="btn danger" id="solRechazar">'+ico('equis')+' Denegar</button>'+
     '<button class="btn ok" id="solAprobar">'+ico('check')+' Aprobar acceso</button>');
 
@@ -442,7 +444,7 @@ function abrirSincronizacion(){
   if($('#snRespaldo')) $('#snRespaldo').onclick = () => {
     if(!nubeDesbloqueada) return toast('Configuración bloqueada.', 'err');
     descargar('afaar-copia-'+hoyISO()+'.json',
-      JSON.stringify({ app:'AFAAR by Yanina Andino', version:window.AFAR_BUILD,
+      JSON.stringify({ app:'AFAAR', version:window.AFAR_BUILD,
                        generado:new Date().toISOString(), datos:DB }, null, 2),
       'application/json');
     auditar('respaldo', 'Descarga de copia de seguridad');
