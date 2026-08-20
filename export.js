@@ -56,7 +56,12 @@ function seccion(t, contenido){
 }
 
 /* ============================ FICHA ANESTESICA ============================ */
-function documentoFicha(f){
+/* opts.paraPaciente: copia para el propio paciente. Sale todo lo clinico y el
+   consentimiento, y NO salen los honorarios ni el registro intraoperatorio.
+   Los honorarios son informacion economica entre el anestesiologo y el
+   financiador, no del paciente. */
+function documentoFicha(f, opts){
+  const paraPaciente = !!(opts && opts.paraPaciente);
   __secN = 0;
   const p = DB.pacientes[f.pacienteId] || {};
   const v = f.v || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {}, co = f.consent || {};
@@ -96,7 +101,9 @@ function documentoFicha(f){
     '<div class="par"><b>'+esc(s)+':</b><span>'+esc((v.antecedentes[s]||[]).join(' · '))+'</span></div>').join('');
 
   return ''+
-  membrete(f, 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')+
+  membrete(f, paraPaciente
+    ? 'VALORACIÓN PREQUIRÚRGICA Y CONSENTIMIENTO INFORMADO — COPIA PARA EL PACIENTE'
+    : 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')+
 
   seccion('Datos del paciente',
     '<table><tr>'+
@@ -220,7 +227,7 @@ function documentoFicha(f){
     par('Fecha de la evaluación', fFecha((v.riesgo||{}).fecha))+
     par('Ámbito', (v.riesgo||{}).ambito))+
 
-  seccion('Registro del acto anestésico',
+  (paraPaciente ? '' : seccion('Registro del acto anestésico',
     (f.actoPorUid && f.actoPorUid !== f.ownerUid
       ? par('Realizado por', nombreUsuario(f.actoPorUid)) : '')+
     par('Ingreso a quirófano', a.ingreso) + par('Inicio de la anestesia', a.inicioAnestesia)+
@@ -238,7 +245,7 @@ function documentoFicha(f){
     par('Eventos intraoperatorios', a.eventos) + par('Detalle de eventos', a.eventosDetalle)+
     par('Aldrete al egreso', a.aldreteTotal !== undefined ? a.aldreteTotal + '/10' : '')+
     par('Destino real', a.destinoReal) + par('Estado al egreso', a.estadoEgreso)+
-    par('Observaciones', a.observaciones))+
+    par('Observaciones', a.observaciones)))+
 
   (co.quien ? seccion('Consentimiento informado anestésico',
     '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
@@ -247,7 +254,7 @@ function documentoFicha(f){
     par('Declaraciones', co.items) + par('Aclaraciones', co.observaciones)+
     par('Fecha del consentimiento', fFecha(co.fecha) + (co.hora ? ' — ' + co.hora + ' h' : ''))) : '')+
 
-  ((h.modalidad || (f.honConsulta||{}).modalidad) ? seccion('Honorarios profesionales',
+  ((!paraPaciente && (h.modalidad || (f.honConsulta||{}).modalidad)) ? seccion('Honorarios profesionales',
     '<table><tr><th>Concepto</th><th>Profesional</th><th>Modalidad</th><th>Importe</th><th>Estado</th></tr>'+
     ((f.honConsulta||{}).modalidad ? '<tr><td>Consulta prequirúrgica</td>'+
       '<td>'+esc(nombreUsuario(f.ownerUid))+'</td>'+

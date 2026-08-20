@@ -170,6 +170,7 @@ function pintarFicha(){
     '<button class="btn ghost" id="fiWord">'+ico('word')+' Word</button>'+
     '<button class="btn ghost" id="fiPdf">'+ico('imprimir')+' PDF</button>'+
     (soloActo ? '' : '<button class="btn ghost" id="fiConsent">'+ico('firma')+' Consentimiento</button>')+
+    (soloActo ? '' : '<button class="btn ghost" id="fiMail">'+ico('adjunto')+' Enviar al paciente</button>')+
     (DB.fichas[f.id] && !soloActo ? '<button class="btn danger" id="fiBorrar">'+ico('borrar')+'</button>' : '')+
   '</div>';
 
@@ -181,6 +182,7 @@ function pintarFicha(){
   $('#fiWord').onclick = () => { guardarSolapaActual(); exportarFichaWord(fichaActual); };
   $('#fiPdf').onclick  = () => { guardarSolapaActual(); imprimirFicha(fichaActual); };
   if($('#fiConsent')) $('#fiConsent').onclick = () => { guardarSolapaActual(); abrirConsentimiento(fichaActual); };
+  if($('#fiMail')) $('#fiMail').onclick = () => { guardarSolapaActual(); enviarDocumentacionPaciente(fichaActual); };
   if($('#fiBorrar')) $('#fiBorrar').onclick = () => confirmar('Eliminar ficha',
     'Se elimina de forma permanente en todos los dispositivos. Esta acción no se puede deshacer.',
     () => { eliminar('fichas', f.id); auditar('ficha-borrar', f.id);
