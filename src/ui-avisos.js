@@ -12,29 +12,45 @@ function faltantesFicha(f){
   const pasada = (f.fecha || '') < hoy;
   const v = f.v || {}, sc = v.scores || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {};
 
-  if(!f.pacienteId)                        m.push({ t:'paciente', s:'qx', critico:true });
-  if(!f.institucion)                       m.push({ t:'institución', s:'qx', critico:true });
-  if(!f.cirugia)                           m.push({ t:'cirugía', s:'qx', critico:true });
-  if(!f.obraSocial)                        m.push({ t:'financiador', s:'qx' });
-  if(!f.cirujano)                          m.push({ t:'cirujano', s:'qx' });
-  if(!sc.asa)                              m.push({ t:'clasificación ASA', s:'val', critico:true });
-  if(!(v.cie10 || []).length)              m.push({ t:'diagnósticos CIE-10', s:'val' });
-  if(!(v.examen || {}).ta)                 m.push({ t:'signos vitales', s:'val' });
-  if(!(v.va || {}).mallampati)             m.push({ t:'evaluación de la vía aérea', s:'val', critico:true });
-  if(!(v.lab || {}).hb)                    m.push({ t:'laboratorio', s:'val' });
-  if(!(v.ayuno || {}).tipo)                m.push({ t:'control de ayuno', s:'val' });
-  if(!(v.riesgo || {}).fundamento)         m.push({ t:'conclusión de aptitud', s:'val', critico:true });
-  if(!(pl.tecnica || []).length)           m.push({ t:'plan anestésico', s:'plan', critico:true });
+  const r = f.recup || {};
+  /* La solapa que se nombra es el paso del flujo al que hay que ir */
+  if(!f.pacienteId)                        m.push({ t:'paciente', s:'paciente', critico:true });
+  if(!f.institucion)                       m.push({ t:'institución', s:'paciente', critico:true });
+  if(!f.cirugia)                           m.push({ t:'cirugía', s:'paciente', critico:true });
+  if(!f.diagnostico && !f.dxQuirurgico)    m.push({ t:'diagnóstico', s:'paciente' });
+  if(!f.obraSocial)                        m.push({ t:'financiador', s:'paciente' });
+  if(!f.cirujano)                          m.push({ t:'cirujano', s:'paciente' });
+  if(!pesoDePaciente(f))                   m.push({ t:'peso del paciente', s:'paciente', critico:true });
+  if(!sc.asa)                              m.push({ t:'clasificación ASA', s:'preanestesia', critico:true });
+  if(!(v.antecedentes2 || []).length && !v.sinAntecedentes)
+                                           m.push({ t:'antecedentes patológicos', s:'preanestesia' });
+  if(!(v.examen || {}).ta)                 m.push({ t:'signos vitales de la consulta', s:'preanestesia' });
+  if(!(v.va || {}).mallampati)             m.push({ t:'evaluación de la vía aérea', s:'preanestesia', critico:true });
+  if(!(v.lab || {}).hb)                    m.push({ t:'laboratorio', s:'preanestesia' });
+  if(!(v.ayuno || {}).tipo)                m.push({ t:'control de ayuno', s:'preanestesia' });
+  if(!(v.riesgo || {}).fundamento)         m.push({ t:'conclusión de aptitud', s:'preanestesia', critico:true });
+  if(!(pl.tecnica || []).length)           m.push({ t:'plan anestésico', s:'preanestesia', critico:true });
   if(!(f.consent || {}).quien)             m.push({ t:'consentimiento informado', s:'consent', critico:true });
   if(pasada){
-    if(!a.finAnestesia)                    m.push({ t:'registro del acto anestésico', s:'acto', critico:true });
-    if(!a.aldreteTotal)                    m.push({ t:'Aldrete al egreso', s:'acto' });
-    if(!(a.eventos || []).length)          m.push({ t:'eventos intraoperatorios', s:'acto' });
+    if(!(a.tecnicas || []).length)         m.push({ t:'técnica anestésica realizada', s:'anestesia', critico:true });
+    if(!a.finCirugia && !a.finAnestesia)   m.push({ t:'tiempos del procedimiento', s:'anestesia', critico:true });
+    if(!(a.drogas || []).length)           m.push({ t:'drogas administradas', s:'anestesia' });
+    if(!(a.controles || []).length)        m.push({ t:'controles de signos vitales', s:'anestesia' });
+    if(!(a.eventos2 || []).length && !a.sinEventos)
+                                           m.push({ t:'eventos intraoperatorios', s:'anestesia' });
+    if(!r.aldreteTotal)                    m.push({ t:'Aldrete al egreso', s:'recuperacion' });
+    if(!(f.firma || {}).firmado)           m.push({ t:'firma de la ficha', s:'firma', critico:true });
   }
   if(esActorFicha(f) && !h.modalidad)      m.push({ t:'honorarios del acto', s:'hon' });
   if(esAutorFicha(f) && !(f.honConsulta||{}).modalidad)
                                            m.push({ t:'honorarios de la consulta', s:'hon' });
   return m;
+}
+
+/* El peso vive en la historia del paciente, no en la ficha */
+function pesoDePaciente(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  return Number(p.peso) || 0;
 }
 
 function diasHasta(iso){

@@ -50,7 +50,7 @@ function seccionSolicitudes(c){
         '<div class="item" data-sol="'+u.uid+'">'+
           '<div class="avatar" style="background:var(--warn-bg);color:var(--warn)">'+esc(iniciales(u.nombre,u.apellido))+'</div>'+
           '<div class="txt"><b>'+esc(u.apellido+', '+u.nombre)+'</b>'+
-            '<span>M.P. '+esc(u.matriculaProvincial||'—')+' · '+esc(u.email)+' · solicitó el '+fFecha(u.creado)+'</span></div>'+
+            '<span>M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+' · '+esc(u.email)+' · solicitó el '+fFecha(u.creado)+'</span></div>'+
           '<div class="der"><span class="tag warn">Pendiente</span></div>'+
         '</div>').join('') +'</div>'
     : '<div class="vacio">'+ico('check')+'<b>No hay solicitudes pendientes</b>'+
@@ -126,7 +126,7 @@ function seccionPadron(c){
         return '<div class="item" data-soc="'+u.uid+'">'+
           '<div class="avatar">'+esc(iniciales(u.nombre,u.apellido))+'</div>'+
           '<div class="txt"><b>'+esc(u.apellido+', '+u.nombre)+'</b>'+
-            '<span>M.P. '+esc(u.matriculaProvincial||'—')+' · '+nf+' fichas · '+esc(u.email)+'</span></div>'+
+            '<span>M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+' · '+nf+' fichas · '+esc(u.email)+'</span></div>'+
           '<div class="der"><span class="tag '+(color[u.estado]||'')+'">'+esc(u.estado)+'</span></div></div>';
       }).join('') +'</div>'
     : '<div class="vacio">'+ico('pacientes')+'<b>Padrón vacío</b><span>Todavía no hay socios registrados.</span></div>';
@@ -192,7 +192,7 @@ function fichaSocio(u){
 /* --------------------------------------------------------- Catálogos -- */
 function seccionCatalogos(c){
   const vu = DB.config.valoresUnidad || {};
-  const extraCie = extras('cie'), extraCx = extras('cx');
+  const extraPat = extras('pat'), extraCx = extras('cx');
   c.innerHTML = ''+
   '<div class="card"><h3>'+ico('dinero')+'Valor de la unidad anestésica por financiador</h3>'+
     '<p class="mini mb8">Se aplica automáticamente al abrir la solapa de honorarios de cada ficha. '+
@@ -214,16 +214,16 @@ function seccionCatalogos(c){
 
   '<div class="card"><h3>'+ico('lista')+'Agregados manualmente por los socios</h3>'+
     '<div class="grid c2">'+
-      '<div><b class="mini">Diagnósticos ('+extraCie.length+')</b>'+
-        (extraCie.length ? '<ul class="mini" style="padding-left:18px;line-height:1.7">'+
-          extraCie.slice(0,40).map(e => '<li>'+esc(e.d)+'</li>').join('')+'</ul>'
+      '<div><b class="mini">Antecedentes patológicos ('+extraPat.length+')</b>'+
+        (extraPat.length ? '<ul class="mini" style="padding-left:18px;line-height:1.7">'+
+          extraPat.slice(0,40).map(e => '<li>'+esc(e.n)+'</li>').join('')+'</ul>'
           : '<p class="mini">Ninguno.</p>')+'</div>'+
       '<div><b class="mini">Cirugías ('+extraCx.length+')</b>'+
         (extraCx.length ? '<ul class="mini" style="padding-left:18px;line-height:1.7">'+
           extraCx.slice(0,40).map(e => '<li>'+esc(e.n)+' — '+e.ua+' UA</li>').join('')+'</ul>'
           : '<p class="mini">Ninguna.</p>')+'</div>'+
     '</div>'+
-    '<p class="mini mt14">Catálogo de base: '+CIE10.length+' códigos CIE-10 y '+CIRUGIAS.length+
+    '<p class="mini mt14">Catálogo de base: '+PATOLOGIAS.length+' antecedentes patológicos, '+VADEMECUM.length+' fármacos del vademécum y '+CIRUGIAS.length+
     ' procedimientos quirúrgicos precargados.</p>'+
   '</div>'+
 

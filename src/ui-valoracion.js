@@ -21,23 +21,46 @@ function htmlValoracion(f){
   const p = DB.pacientes[f.pacienteId] || {};
   const ed = edadDe(p.fechaNac, f.fecha);
 
+  const desdePaciente = (p.antecedentes || []).length || (p.medicacion || []).length;
+
   return ''+
   '<div class="aviso info">'+ico('valoracion')+'<div><b>Valoración anestésica prequirúrgica</b><br>'+
     'Las escalas se calculan solas a medida que completás. Todo campo puede dejarse vacío: '+
     'el documento final sólo imprime lo que cargaste.</div></div>'+
 
-  /* -------- 1. Antecedentes patológicos (CIE-10) -------- */
-  acc('acDx','lista','1 · Diagnósticos y antecedentes patológicos (CIE-10)',
-    '<div class="campo"><label>Antecedentes codificados — buscá por palabra o por código</label>'+
-      '<div class="buscador"><input type="search" id="dxBuscar" placeholder="Ej.: hipertensión, diabetes, I10, asma…" autocomplete="off">'+
+  /* -------- 1. Antecedentes patologicos -------- */
+  acc('acDx','lista','1 · Antecedentes patológicos',
+    (desdePaciente ? '<div class="aviso ok">'+ico('pacientes')+'<div>'+
+      '<b>Traído de la historia de '+esc(p.apellido||'el paciente')+'.</b> '+
+      'Lo que cambies acá vale sólo para esta ficha; para dejarlo asentado en la historia, '+
+      'editá el paciente.<br>'+
+      '<button type="button" class="btn ghost chico mt8" id="dxTraer">'+ico('atras')+
+      ' Volver a traer de la historia</button></div></div>' : '')+
+
+    '<label class="toggle-verde'+(v.sinAntecedentes?' on':'')+'" id="dxSinL">'+
+      '<input type="checkbox" id="dxSin"'+(v.sinAntecedentes?' checked':'')+'>'+
+      ico('check')+' Sin antecedentes relevantes</label>'+
+
+    '<label class="mini strong mt14" style="display:block">Antecedentes relevantes</label>'+
+    '<div class="chips" id="dxChips">'+ PATOLOGIAS_CHIP.map(x =>
+      '<button type="button" class="chip" data-dxchip="'+esc(x.n)+'">'+esc(x.chip)+'</button>').join('')+
+    '</div>'+
+
+    '<div class="campo mt14"><label>Buscar en el catálogo de antecedentes</label>'+
+      '<div class="buscador"><input type="search" id="dxBuscar" placeholder="Ej.: hipertensión, diabetes, asma…" autocomplete="off">'+
       '<div class="res" id="dxRes"></div></div>'+
-      '<div class="ayuda">Escribí al menos 2 letras. Si el diagnóstico no figura, podés agregarlo manualmente desde el propio buscador.</div>'+
+      '<div class="ayuda">Escribí al menos 2 letras. Si el antecedente no figura, podés agregarlo '+
+      'manualmente desde el propio buscador. La app ya no usa codificación CIE-10.</div>'+
       '<div class="seleccionados" id="dxSel"></div></div>'+
+    '<div id="dxMeds"></div>'+
     '<hr class="sep">'+
-    '<label style="font-size:12px;font-weight:700;color:var(--texto-2)">Revisión rápida por sistemas</label>'+
-    Object.keys(ANTECEDENTES_SISTEMAS).map((s,i) =>
-      '<div class="mt8"><div class="mini strong" style="margin-bottom:5px">'+esc(s)+'</div>'+
-      chksHTML('antSis'+i, ANTECEDENTES_SISTEMAS[s], (v.antecedentes||{})[s])+'</div>').join('')+
+    '<details class="acc"><summary><span class="n">'+ico('corazon')+'</span>'+
+      'Revisión por sistemas<span class="flecha">'+ico('flecha')+'</span></summary>'+
+      '<div class="cuerpo">'+ Object.keys(ANTECEDENTES_SISTEMAS).map(s =>
+        '<div class="mt8"><div class="mini strong" style="margin-bottom:5px">'+esc(s)+'</div>'+
+        '<div class="chks">'+ ANTECEDENTES_SISTEMAS[s].map(n =>
+          '<label class="chk"><input type="checkbox" class="dx-sis" value="'+esc(n)+'">'+
+          esc(n)+'</label>').join('') +'</div></div>').join('') +'</div></details>'+
     campoArea('antOtros','Otros antecedentes y detalles', v.antecedentesOtros,
       'Cronología, tratamientos, cirugías previas, internaciones…'), true)+
 
@@ -53,6 +76,8 @@ function htmlValoracion(f){
 
   /* -------- 3. Medicación habitual -------- */
   acc('acMed','jeringa','3 · Medicación habitual y manejo perioperatorio',
+    (desdePaciente ? '<div class="ayuda">La medicación viene de la historia del paciente. '+
+      'Acá se ajusta para esta cirugía.</div>' : '')+
     '<div class="campo"><label>Buscar fármaco</label>'+
       '<div class="buscador"><input type="search" id="medBuscar" placeholder="Ej.: aspirina, metformina, enalapril…" autocomplete="off">'+
       '<div class="res" id="medRes"></div></div>'+
@@ -275,7 +300,70 @@ function htmlValoracion(f){
       campoFecha('rgFechaEval','Fecha de la evaluación', (v.riesgo||{}).fecha || hoyISO())+
       campoSel('rgAmbito','Ámbito de la evaluación',
         ['Consultorio de preanestesia','Sala de internación','Antecámara de quirófano','Guardia / urgencia','Telemedicina'], (v.riesgo||{}).ambito)+
-    '</div>');
+    '</div>')+
+
+  /* -------- 12 y 13. Plan anestesico propuesto -------- */
+  htmlPlan(f);
+}
+
+/* =========================================================================
+   PLAN ANESTESICO PROPUESTO
+   Es la segunda mitad del paso 2: lo que se piensa hacer, antes de hacerlo.
+   ========================================================================= */
+function htmlPlan(f){
+  const pl = f.plan || {};
+  return ''+
+  acc('acPlan','jeringa','12 · Plan anestésico propuesto',
+    '<label class="mini strong">Técnica</label>'+
+    chksHTML('plTecnica', TECNICAS_ANESTESICAS, pl.tecnica)+
+    '<label class="mini strong mt14" style="display:block">Manejo de la vía aérea</label>'+
+    chksHTML('plVA', DISPOSITIVOS_VA, pl.dispositivosVA)+
+    '<label class="mini strong mt14" style="display:block">Monitoreo estándar ASA</label>'+
+    chksHTML('plMonEst', MONITOREO_ESTANDAR, pl.monitoreoEstandar || MONITOREO_ESTANDAR.slice(0,5))+
+    '<label class="mini strong mt14" style="display:block">Monitoreo avanzado</label>'+
+    chksHTML('plMonAv', MONITOREO_AVANZADO, pl.monitoreoAvanzado)+
+    campoTxt('plAccesos','Accesos vasculares previstos', pl.accesos))+
+
+  acc('acProfilaxis','escudo','13 · Profilaxis, analgesia y destino',
+    '<div class="campo"><label>Profilaxis antibiótica</label><select id="plATB">'+
+      '<option value="">— No indicada —</option>'+
+      PROFILAXIS_ATB.map(a => '<option value="'+esc(a.c)+'"'+(pl.atb===a.c?' selected':'')+'>'+
+        esc(a.c)+' — '+esc(a.d)+'</option>').join('')+
+      '<option value="Otro"'+(pl.atb==='Otro'?' selected':'')+'>Otro (detallar)</option>'+
+    '</select><div class="ayuda">Administrar dentro de los 60 minutos previos a la incisión (120 min para vancomicina).</div></div>'+
+    campoTxt('plATBOtro','Detalle del antibiótico', pl.atbOtro)+
+    campoSel('plTEV','Tromboprofilaxis',
+      ['Deambulación precoz','Compresión neumática intermitente','Enoxaparina 40 mg/día',
+       'Enoxaparina 30 mg c/12 h','HNF 5000 U c/8-12 h','Anticoagulante oral directo',
+       'Mecánica + farmacológica','No indicada'], pl.tev)+
+    '<label class="mini strong mt14" style="display:block">Profilaxis de náuseas y vómitos</label>'+
+    chksHTML('plNVPO', ['Ondansetrón 4 mg','Dexametasona 4-8 mg','Droperidol 0,625-1,25 mg',
+      'Metoclopramida 10 mg','Dimenhidrinato','TIVA con propofol','Aprepitant'], pl.nvpo)+
+    '<label class="mini strong mt14" style="display:block">Analgesia postoperatoria multimodal</label>'+
+    chksHTML('plAnalgesia', ANALGESIA_POP, pl.analgesia)+
+    campoArea('plAnalgesiaDet','Esquema analgésico detallado', pl.analgesiaDetalle,
+      'Fármaco, dosis, vía, intervalo y duración prevista')+
+    '<div class="grid c2">'+
+      campoSel('plDestino','Destino postoperatorio previsto', [''].concat(DESTINOS_POP), pl.destino)+
+      campoSel('plTransfusion','Previsión transfusional',
+        ['No prevista','Grupo y factor solicitados','Reserva de 2 unidades','Reserva de 4 unidades',
+         'Protocolo de transfusión masiva','Paciente que rechaza transfusión'], pl.transfusion)+
+    '</div>'+
+    campoArea('plIndicaciones','Indicaciones preoperatorias al paciente', pl.indicaciones,
+      'Ayuno, medicación a suspender y a continuar, higiene, acompañante, horario de presentación')+
+    campoArea('plObs','Observaciones del plan', pl.observaciones));
+}
+
+function leerPlan(){
+  return {
+    tecnica: leerChks('plTecnica'), dispositivosVA: leerChks('plVA'),
+    monitoreoEstandar: leerChks('plMonEst'), monitoreoAvanzado: leerChks('plMonAv'),
+    accesos: val('plAccesos'), atb: val('plATB'), atbOtro: val('plATBOtro'),
+    tev: val('plTEV'), nvpo: leerChks('plNVPO'),
+    analgesia: leerChks('plAnalgesia'), analgesiaDetalle: val('plAnalgesiaDet'),
+    destino: val('plDestino'), transfusion: val('plTransfusion'),
+    indicaciones: val('plIndicaciones'), observaciones: val('plObs')
+  };
 }
 
 /* ============================== Cableado ============================== */
@@ -283,23 +371,55 @@ let dxSeleccionados = [], medSeleccionados = [];
 
 function cablearValoracion(f){
   const v = f.v || {};
-  dxSeleccionados = (v.cie10 || []).slice();
-  medSeleccionados = (v.medicacion || []).slice();
+  const p = DB.pacientes[f.pacienteId] || {};
 
-  /* --- buscador CIE-10 --- */
+  /* La ficha arranca con lo que ya esta en la historia del paciente. Si el
+     anestesiologo despues lo cambia, el cambio vale para esta ficha. */
+  const traerDelPaciente = () => {
+    dxSeleccionados  = (p.antecedentes || []).map(a => ({ n:a.n, sis:a.sis }));
+    medSeleccionados = (p.medicacion || []).map(m => Object.assign({}, m));
+  };
+  if(v.antecedentes2 || v.medicacion){
+    dxSeleccionados  = (v.antecedentes2 || []).slice();
+    medSeleccionados = (v.medicacion || []).slice();
+  } else traerDelPaciente();
+
+  const alternarDx = n => {
+    const i = dxSeleccionados.findIndex(d => (d.n || d.d) === n);
+    if(i >= 0) dxSeleccionados.splice(i, 1);
+    else {
+      const cat = patologiaPorNombre(n);
+      dxSeleccionados.push({ n:n, sis: cat ? cat.sis : 'Otros' });
+    }
+    pintarDx();
+    if(window.__recalcValoracion) window.__recalcValoracion();
+  };
+  window.__alternarDx = alternarDx;
+
+  /* --- buscador de antecedentes patologicos --- */
   montarBuscador({
     input: $('#dxBuscar'), caja: $('#dxRes'), manual: true,
-    fuente: () => todosCIE().map(x => ({
-      cod:x.c, etiqueta:x.d, sub:x.cap, busca: norm(x.c+' '+x.d+' '+x.cap), dato:x })),
-    onElegir: x => { if(!dxSeleccionados.some(d => d.c === x.dato.c && d.d === x.dato.d))
-        dxSeleccionados.push({ c:x.dato.c, d:x.dato.d }); pintarDx(); },
+    fuente: () => todasPatologias().map(x => ({
+      etiqueta:x.n, sub:x.sis, busca: norm(x.n+' '+x.sis+' '+(x.chip||'')), dato:x })),
+    onElegir: x => { if(!dxSeleccionados.some(d => (d.n||d.d) === x.dato.n)) alternarDx(x.dato.n); },
     onManual: txt => {
       if(!txt) return;
-      agregarExtra('cie', { c:'', d:txt });
-      dxSeleccionados.push({ c:'—', d:txt, manual:true }); pintarDx();
-      toast('Diagnóstico agregado al catálogo.', 'ok');
+      agregarExtra('pat', { n:txt, sis:'Agregado manualmente' });
+      if(!dxSeleccionados.some(d => (d.n||d.d) === txt))
+        dxSeleccionados.push({ n:txt, sis:'Agregado manualmente' });
+      pintarDx();
+      toast('Antecedente agregado al catálogo.', 'ok');
     }
   });
+  $$('#dxChips [data-dxchip]').forEach(b => b.onclick = () => alternarDx(b.dataset.dxchip));
+  $$('.dx-sis').forEach(i => i.onclick = e => { e.preventDefault(); alternarDx(i.value); });
+  if($('#dxTraer')) $('#dxTraer').onclick = () => {
+    traerDelPaciente(); pintarDx(); pintarMed();
+    toast('Antecedentes y medicación traídos de la historia.', 'ok');
+    if(window.__recalcValoracion) window.__recalcValoracion();
+  };
+  $('#dxSinL').onclick = () => setTimeout(() =>
+    $('#dxSinL').classList.toggle('on', chk('dxSin')), 0);
   pintarDx();
 
   /* --- buscador de fármacos --- */
@@ -317,8 +437,8 @@ function cablearValoracion(f){
   pintarMed();
 
   /* --- checkboxes con estilo --- */
-  Object.keys(ANTECEDENTES_SISTEMAS).forEach((s,i) => cablearChks('antSis'+i));
   ['antAnest','alerg','vaOtros','ayRiesgo','ayProfilaxis'].forEach(cablearChks);
+  ['plTecnica','plVA','plMonEst','plMonAv','plNVPO','plAnalgesia'].forEach(cablearChks);
   $$('#vFicha .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
   });
@@ -417,17 +537,20 @@ function cablearValoracion(f){
     } else $('#ayOut').innerHTML = '';
 
     /* estudios sugeridos */
+    /* Las marcas salen del catálogo de patologías, no de adivinar por texto */
+    const fl = flagsDeAntecedentes(dxSeleccionados);
     const cond = {
-      anticoagulado: medSeleccionados.some(m => /anticoagul|warfar|rivarox|apix|dabig|edox|heparin/i.test(m.n+m.g)),
-      renal: !!val('labCrea') && Number(val('labCrea')) > 1.5,
-      hta: dxSeleccionados.some(d => /hipertens/i.test(d.d)),
-      diabetes: dxSeleccionados.some(d => /diabet/i.test(d.d)),
-      cardiopatia: rc.cardiopatia || rc.icc,
-      arritmia: dxSeleccionados.some(d => /arritm|fibrilaci/i.test(d.d)),
-      respiratorio: dxSeleccionados.some(d => /asma|epoc|respirat|pulmon/i.test(d.d)),
-      tabaquismo: val('habTabaco') === 'Fumador activo',
-      hepatopatia: dxSeleccionados.some(d => /hepat|cirros/i.test(d.d)),
-      sangrado: ar.nivel === 'alto',
+      anticoagulado: fl.anticoagulado ||
+        medSeleccionados.some(m => /anticoagul|warfar|rivarox|apix|dabig|edox|heparin/i.test(m.n+m.g)),
+      renal: fl.renal || (!!val('labCrea') && Number(val('labCrea')) > 1.5),
+      hta: !!fl.hta,
+      diabetes: !!fl.diabetes,
+      cardiopatia: rc.cardiopatia || rc.icc || !!fl.cardiopatia,
+      arritmia: !!fl.arritmia,
+      respiratorio: !!fl.respiratorio,
+      tabaquismo: val('habTabaco') === 'Fumador activo' || !!fl.tabaquismo,
+      hepatopatia: !!fl.hepatopatia,
+      sangrado: ar.nivel === 'alto' || !!fl.sangrado,
       soplo: false, disnea: false,
       embarazoPosible: p.sexo === 'F' && ed !== null && ed >= 12 && ed <= 55
     };
@@ -467,13 +590,46 @@ function cablearValoracion(f){
   recalcular();
 }
 
+function nombreAnt(d){ return d.n || d.d || ''; }
+
 function pintarDx(){
-  $('#dxSel').innerHTML = dxSeleccionados.map((d,i) =>
-    '<span class="pill"><b>'+esc(d.c)+'</b><span>'+esc(d.d)+'</span>'+
-    '<button data-dx="'+i+'">&times;</button></span>').join('') ||
-    '<span class="mini">Sin diagnósticos cargados.</span>';
+  const c = $('#dxSel'); if(!c) return;
+  c.innerHTML = dxSeleccionados.length
+    ? dxSeleccionados.map((d,i) =>
+        '<span class="pill"><span>'+esc(nombreAnt(d))+'</span>'+
+        (d.sis ? '<b class="comp">'+esc(d.sis)+'</b>' : '')+
+        '<button data-dx="'+i+'">&times;</button></span>').join('')
+    : '<span class="mini">Sin antecedentes cargados.</span>';
   $$('#dxSel button').forEach(b => b.onclick = () => {
     dxSeleccionados.splice(Number(b.dataset.dx), 1); pintarDx();
+    if(window.__recalcValoracion) window.__recalcValoracion();
+  });
+  /* los chips y la revisión por sistemas reflejan lo mismo */
+  const tiene = n => dxSeleccionados.some(d => nombreAnt(d) === n);
+  $$('#dxChips [data-dxchip]').forEach(b => b.classList.toggle('on', tiene(b.dataset.dxchip)));
+  $$('.dx-sis').forEach(i => {
+    const on = tiene(i.value);
+    i.checked = on;
+    const l = i.closest('.chk'); if(l) l.classList.toggle('sel', on);
+  });
+  pintarMedsDeAntecedentes();
+}
+
+/* Al cargar una patología se ofrece la medicación que suele acompañarla */
+function pintarMedsDeAntecedentes(){
+  const c = $('#dxMeds'); if(!c) return;
+  const sug = medicacionSugerida(dxSeleccionados)
+    .filter(m => !medSeleccionados.some(x => x.n === m.n));
+  if(!sug.length){ c.innerHTML = ''; return; }
+  c.innerHTML = '<div class="aviso info">'+ico('jeringa')+'<div>'+
+    '<b>Medicación habitual asociada a estos antecedentes.</b> Tocá la que el paciente toma; '+
+    'cada una trae su conducta perioperatoria.<div class="chips mt8">'+
+    sug.map((m,i) => '<button type="button" class="chip" data-vsug="'+i+'">'+ico('mas')+
+      esc(m.n)+'</button>').join('')+'</div></div></div>';
+  $$('#dxMeds [data-vsug]').forEach(b => b.onclick = () => {
+    const m = sug[Number(b.dataset.vsug)];
+    medSeleccionados.push({ n:m.n, g:m.g, accion:m.accion, nota:m.nota, dosis:'', porque:m.porque });
+    pintarMed(); pintarMedsDeAntecedentes();
     if(window.__recalcValoracion) window.__recalcValoracion();
   });
 }
@@ -512,10 +668,11 @@ function pintarMed(){
 
 /* ============================ Lectura de datos ========================= */
 function leerValoracion(){
+  /* La agrupación por sistemas se deriva de lo cargado, no se pide aparte */
   const antecedentes = {};
-  Object.keys(ANTECEDENTES_SISTEMAS).forEach((s,i) => {
-    const sel = leerChks('antSis'+i);
-    if(sel.length) antecedentes[s] = sel;
+  dxSeleccionados.forEach(d => {
+    const sis = d.sis || 'Otros';
+    (antecedentes[sis] = antecedentes[sis] || []).push(nombreAnt(d));
   });
   const rcri = []; RCRI_ITEMS.forEach((it,i) => { if(chk('rcri'+i)) rcri.push(i); });
   const stopbang = {}; STOPBANG_ITEMS.forEach(it => stopbang[it.k] = chk('sb_'+it.k));
@@ -524,7 +681,8 @@ function leerValoracion(){
   const aptBtn = $('#segAptitud button.on');
 
   return {
-    cie10: dxSeleccionados,
+    antecedentes2: dxSeleccionados,
+    sinAntecedentes: chk('dxSin'),
     antecedentes, antecedentesOtros: val('antOtros'),
     antAnestesicos: leerChks('antAnest'), antAnestDetalle: val('antAnestDet'),
     medicacion: medSeleccionados, medicacionOtros: val('medOtros'),

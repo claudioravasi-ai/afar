@@ -55,7 +55,7 @@ function vistaStats(){
     obraSocial:    ['Financiador',   f => f.obraSocial || 'Sin cobertura'],
     cirugia:       ['Cirugía',       f => f.cirugia || 'Sin especificar'],
     especialidad:  ['Especialidad',  f => f.especialidad || 'Sin especificar'],
-    patologia:     ['Patología (CIE-10)', f => ((f.v||{}).cie10 || []).map(c => c.d)],
+    patologia:     ['Antecedente patológico', f => ((f.v||{}).antecedentes2 || []).map(c => c.n || c.d)],
     anestesiologo: ['Anestesiólogo (valoración)', f => nombreUsuario(f.ownerUid)],
     actor:         ['Anestesiólogo (acto)',        f => nombreActor(f)],
     caracter:      ['Carácter',      f => (f.caracter||'programada').charAt(0).toUpperCase() + (f.caracter||'programada').slice(1)],

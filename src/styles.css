@@ -582,3 +582,403 @@ body.imprimiendo{background:#fff}
 .demo-banner svg{width:19px;height:19px;flex:none}
 .demo-banner b{font-weight:800}
 .demo-banner .btn{margin-left:auto;flex:none}
+
+/* =========================================================================
+   FLUJO DE TRABAJO
+   Barra de pasos, solapas internas, chips, y todas las pantallas nuevas
+   del registro anestesico.
+   ========================================================================= */
+
+/* --------------------------------- cabecera de la ficha --------------- */
+.fi-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.fi-top-txt{flex:1;min-width:150px}
+.fi-top-txt h1{font-size:18px;line-height:1.25}
+.fi-top-txt p{margin:2px 0 0;font-size:12.5px;color:var(--texto-2)}
+.fi-extras{flex-wrap:wrap;gap:7px;justify-content:center;
+  border-top:1px dashed var(--borde);padding-top:14px}
+
+/* ------------------------------------------------ barra de pasos ------ */
+.stepper{display:flex;align-items:flex-start;gap:0;margin-bottom:12px;
+  overflow-x:auto;scrollbar-width:none;padding:2px}
+.stepper::-webkit-scrollbar{display:none}
+.step{flex:1;min-width:74px;position:relative;border:0;background:transparent;
+  padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px}
+.step .dot{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
+  background:var(--bg-2);color:var(--texto-3);border:2px solid var(--borde);
+  transition:.18s;position:relative;z-index:2}
+.step .dot svg{width:18px;height:18px}
+.step .lbl{font-size:11px;color:var(--texto-2);font-weight:600;text-align:center;
+  line-height:1.25;padding:0 2px}
+.step .linea{position:absolute;top:19px;left:calc(50% + 22px);right:calc(-50% + 22px);
+  height:2px;background:var(--borde);z-index:1}
+.step.medio .dot{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.step.ok .dot{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.step.ok .linea{background:var(--ok)}
+.step.on .dot{background:var(--azul-600);color:#fff;border-color:var(--azul-600);
+  box-shadow:0 0 0 4px var(--azul-100)}
+.step.on .lbl{color:var(--azul-600);font-weight:750}
+html[data-tema="oscuro"] .step.on .dot{box-shadow:0 0 0 4px rgba(42,107,168,.3)}
+
+.paso-cabecera{margin-bottom:14px}
+.paso-cabecera > div:first-child{font-size:12.5px;color:var(--texto-2);margin-bottom:6px}
+.paso-cabecera b{color:var(--texto)}
+.paso-cabecera .barra{height:4px;background:var(--bg-2);border-radius:999px;overflow:hidden}
+.paso-cabecera .barra span{display:block;height:100%;border-radius:999px;
+  background:linear-gradient(90deg,var(--azul-600),var(--aqua-500));transition:width .3s}
+
+.paso-nav{display:flex;align-items:center;gap:10px;margin-top:20px}
+.paso-nav .btn{flex:1}
+.paso-nav > span{flex:1}
+@media(max-width:520px){
+  .paso-nav{flex-wrap:wrap}
+  .paso-nav .btn.grande{order:3;flex-basis:100%}
+}
+
+/* --------------------------------------- solapas internas ------------- */
+.pac-solapas,.acto-solapas{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;
+  margin-bottom:16px;padding-bottom:3px;border-bottom:1px solid var(--borde)}
+.pac-solapas::-webkit-scrollbar,.acto-solapas::-webkit-scrollbar{display:none}
+.pac-solapas button,.acto-solapas button{border:0;background:transparent;cursor:pointer;
+  padding:9px 13px;font-size:13px;font-weight:620;color:var(--texto-2);white-space:nowrap;
+  border-bottom:2.5px solid transparent;margin-bottom:-1px;display:flex;align-items:center}
+.pac-solapas button.on,.acto-solapas button.on{color:var(--azul-600);
+  border-bottom-color:var(--azul-600)}
+.pac-solapas .badge,.acto-solapas .badge{margin-left:6px;background:var(--aqua-200);
+  color:var(--aqua-600);border-radius:999px;padding:1px 6px;font-size:10.5px;font-weight:800}
+
+/* --------------------------------------------------- chips ------------ */
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:999px;
+  border:1.5px solid var(--borde);background:var(--panel);cursor:pointer;font-size:12.5px;
+  font-weight:620;color:var(--texto-2);transition:.15s}
+.chip svg{width:13px;height:13px}
+.chip:hover{border-color:var(--azul-300);color:var(--texto)}
+.chip.on{background:var(--aqua-200);border-color:var(--aqua-500);color:#04494f;font-weight:720}
+.chip.mas{border-style:dashed;color:var(--azul-600)}
+
+/* -------------------------------------- interruptor verde ------------- */
+.toggle-verde{display:flex;align-items:center;gap:9px;padding:12px 15px;border-radius:var(--radio-sm);
+  border:1.5px solid var(--borde);background:var(--panel);cursor:pointer;font-size:13.5px;
+  font-weight:640;color:var(--texto-2);transition:.15s;width:100%}
+.toggle-verde svg{width:17px;height:17px;flex:none;opacity:.35}
+.toggle-verde input{width:16px;height:16px;margin:0;accent-color:var(--ok);flex:none}
+.toggle-verde.on{background:var(--ok-bg);border-color:var(--ok);color:var(--ok);font-weight:720}
+.toggle-verde.on svg{opacity:1}
+.atenuado{opacity:.42;pointer-events:none;filter:grayscale(.4)}
+
+/* --------------------------------------------------- IMC -------------- */
+.imc-box{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding:12px 15px;
+  border-radius:var(--radio-sm);background:var(--bg-2);margin-bottom:13px;
+  border-left:4px solid var(--borde-2)}
+.imc-box .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--texto-2);font-weight:700}
+.imc-box .val{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.imc-box .um{font-size:12px;color:var(--texto-2)}
+.imc-box .tag{margin-left:auto}
+.imc-box.ok{border-left-color:var(--ok)}      .imc-box.ok .val{color:var(--ok)}
+.imc-box.warn{border-left-color:var(--warn)}  .imc-box.warn .val{color:var(--warn)}
+.imc-box.danger{border-left-color:var(--danger)} .imc-box.danger .val{color:var(--danger)}
+
+/* ---------------------------------------------- medicacion ------------ */
+.med-card{border:1.5px solid var(--borde);border-radius:var(--radio-sm);padding:12px;
+  margin-bottom:9px;background:var(--panel)}
+.med-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.med-head b{flex:1;min-width:120px}
+.med-nota{font-size:11.5px;color:var(--texto-2);background:var(--bg-2);padding:8px 10px;
+  border-radius:8px;margin-top:9px;line-height:1.5}
+
+/* -------------------------------------- detalle del paciente ---------- */
+.pac-cabecera{display:flex;gap:13px;align-items:center;margin-bottom:15px}
+.avatar.grande{width:54px;height:54px;border-radius:15px;font-size:19px;display:grid;
+  place-items:center;background:var(--azul-100);color:var(--azul-700);font-weight:800;flex:none}
+.pac-nombre{font-size:17px;font-weight:750}
+.sec-t{font-size:13.5px;margin:20px 0 9px;color:var(--texto-2);text-transform:uppercase;
+  letter-spacing:.05em;font-weight:750}
+.lista.chica .item.plano{padding:9px 11px;box-shadow:none}
+
+/* =========================================================================
+   PASO 3 - ANESTESIA
+   ========================================================================= */
+
+/* ------------------------------------------------ tecnica ------------- */
+.tec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
+.tec{border:1.5px solid var(--borde);background:var(--panel);border-radius:var(--radio-sm);
+  padding:13px 11px;cursor:pointer;font-size:13px;font-weight:640;color:var(--texto-2);
+  text-align:center;transition:.15s;line-height:1.3}
+.tec:hover{border-color:var(--azul-300)}
+.tec.on{background:var(--azul-600);border-color:var(--azul-600);color:#fff;font-weight:720}
+
+.hora-campo{display:flex;gap:7px;align-items:center}
+.hora-campo input{flex:1;min-width:0}
+.hora-campo .btn{flex:none;white-space:nowrap}
+.ta-campo{display:flex;gap:6px;align-items:center}
+.ta-campo input{flex:1;min-width:0;text-align:center}
+.ta-campo span{color:var(--texto-3);font-weight:700}
+.seg.si-no{max-width:180px}
+.seg.wrap{flex-wrap:wrap}
+.seg.wrap button{flex:1 1 auto;min-width:110px;border-bottom:1px solid var(--borde)}
+.chks.compacto .chk{padding:6px 11px;font-size:12.5px}
+
+.tiempos{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.tiempo{flex:1;min-width:140px;background:var(--bg-2);border-radius:var(--radio-sm);
+  padding:10px 13px}
+.tiempo span{display:block;font-size:11px;color:var(--texto-2);text-transform:uppercase;
+  letter-spacing:.05em;font-weight:700}
+.tiempo b{font-size:17px;letter-spacing:-.01em}
+
+/* ------------------------------------------------ drogas -------------- */
+.u-mcg{color:var(--violeta);font-weight:800;letter-spacing:.01em}
+.u-mg{color:var(--azul-600);font-weight:800}
+.u-otra{color:var(--texto-2);font-weight:700}
+html[data-tema="oscuro"] .u-mcg{color:#c4b5fd}
+input.u-mcg-campo{color:var(--violeta);font-weight:800}
+html[data-tema="oscuro"] input.u-mcg-campo{color:#c4b5fd}
+
+.drogas-lista{display:flex;flex-direction:column;gap:1px;background:var(--borde);
+  border:1px solid var(--borde);border-radius:var(--radio-sm);overflow:hidden}
+.droga-fila{display:grid;grid-template-columns:1fr auto 62px 66px;gap:9px;align-items:center;
+  background:var(--panel);padding:11px 13px}
+.droga-fila .dr-n b{display:block;font-size:13.5px}
+.droga-fila .dr-n .mini{font-size:11px}
+.droga-fila .dr-d{font-weight:750;font-size:13.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.droga-fila .dr-v{font-size:12px;color:var(--texto-2)}
+.droga-fila .dr-a{display:flex;gap:3px;justify-content:flex-end}
+.droga-fila .dr-alerta{grid-column:1/-1;font-size:11.5px;color:var(--danger);
+  display:flex;gap:6px;align-items:flex-start;background:var(--danger-bg);
+  padding:7px 9px;border-radius:7px;line-height:1.4}
+.droga-fila .dr-alerta svg{width:14px;height:14px;flex:none;margin-top:1px}
+@media(max-width:520px){
+  .droga-fila{grid-template-columns:1fr auto 60px}
+  .droga-fila .dr-v{grid-column:1;font-size:11px}
+}
+.ico-btn{border:0;background:var(--bg-2);width:30px;height:30px;border-radius:8px;
+  display:grid;place-items:center;cursor:pointer;color:var(--texto-2);flex:none}
+.ico-btn svg{width:15px;height:15px}
+.ico-btn:hover{background:var(--azul-100);color:var(--azul-600)}
+.ico-btn.danger:hover{background:var(--danger-bg);color:var(--danger)}
+
+.droga-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:13px}
+.droga-head h2{font-size:20px;letter-spacing:-.02em}
+.estrella{border:0;background:transparent;font-size:25px;line-height:1;cursor:pointer;
+  color:var(--borde-2);margin-left:auto;padding:0;transition:.15s}
+.estrella.on{color:#f59e0b}
+
+.dosis-ops{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;
+  margin-bottom:9px}
+.dosis-op{border:1.5px solid var(--borde);background:var(--panel);border-radius:var(--radio-sm);
+  padding:11px 13px;cursor:pointer;text-align:left;transition:.15s;display:block}
+.dosis-op:hover{border-color:var(--aqua-500);background:var(--panel-2)}
+.dosis-op.on{border-color:var(--aqua-500);background:var(--aqua-200)}
+.dosis-op b{display:block;font-size:12px;color:var(--texto-2);font-weight:700;margin-bottom:3px}
+.dosis-op .calc{display:block;font-size:18px;font-weight:800;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.dosis-op i{display:block;font-size:11px;color:var(--texto-3);font-style:normal;margin-top:2px}
+.dosis-op.falta{opacity:.55;cursor:default}
+.dosis-op.on b,.dosis-op.on i{color:#04494f}
+
+.card.plano.local{border:1.5px solid var(--aqua-500);background:var(--panel-2)}
+.card.plano.ref{border:1px solid var(--borde);background:var(--bg-2);box-shadow:none}
+.ref-fila{display:flex;gap:11px;padding:8px 0;border-bottom:1px solid var(--borde);font-size:12.5px}
+.ref-fila:last-child{border-bottom:0}
+.ref-fila > span{min-width:86px;font-weight:700;color:var(--texto-2);flex:none}
+.ref-fila p{margin:0;line-height:1.55}
+.ref-fila.destacada{background:var(--info-bg);margin:0 -8px;padding:8px;border-radius:7px;
+  border-bottom:0}
+
+.vd-grupo.emergencia{border-color:var(--danger)}
+.vd-grupo.emergencia > summary{background:var(--danger-bg);color:var(--danger)}
+.vd-grupo .cuenta{margin-left:auto;margin-right:9px;background:var(--bg-2);
+  border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800;color:var(--texto-2)}
+.vd-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.vd-item{border:1.5px solid var(--borde);background:var(--panel);border-radius:var(--radio-sm);
+  padding:11px 13px;cursor:pointer;text-align:left;transition:.15s;position:relative}
+.vd-item:hover{border-color:var(--aqua-500);background:var(--panel-2)}
+.vd-item b{display:block;font-size:13.5px;margin-bottom:3px}
+.vd-item span{display:block;font-size:11px;color:var(--texto-2);line-height:1.4}
+.vd-item.fav b::after{content:" ★";color:#f59e0b}
+.vd-item .ale{position:absolute;top:9px;right:9px;color:var(--danger)}
+.vd-item .ale svg{width:14px;height:14px}
+.reglas{margin:0;padding-left:19px;font-size:12.5px;line-height:1.85;color:var(--texto-2)}
+
+table tr.alto td{background:var(--warn-bg)}
+
+/* ------------------------------------------- signos vitales ----------- */
+.ultimo-control{border:1.5px solid var(--aqua-500)}
+.vitales-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:9px}
+.vital{background:var(--bg-2);border-radius:var(--radio-sm);padding:11px 8px;text-align:center}
+.vital .t{display:block;font-size:11px;color:var(--texto-2);font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em}
+.vital .v{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;margin:3px 0 1px;
+  font-variant-numeric:tabular-nums}
+.vital .u{display:block;font-size:10.5px;color:var(--texto-3)}
+.vitales-tabla th{font-size:11px}
+.vitales-tabla td{font-variant-numeric:tabular-nums}
+.vitales-tabla tbody tr{cursor:pointer}
+.vitales-tabla tbody tr:hover td{background:var(--panel-2)}
+
+.grafico-vitales{background:var(--bg-2);border-radius:var(--radio-sm);padding:12px;
+  color:var(--texto)}
+.grafico-vitales svg{width:100%;height:auto}
+.leyenda-vitales{display:flex;flex-wrap:wrap;gap:14px;margin-top:11px;font-size:11.5px;
+  color:var(--texto-2);justify-content:center}
+.leyenda-vitales span{display:flex;align-items:center;gap:6px}
+.leyenda-vitales i{width:13px;height:3px;border-radius:2px;display:block}
+
+/* --------------------------------------------- balance hidrico -------- */
+.balance{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.balance{grid-template-columns:1fr}}
+.bal-col h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--aqua-600);margin-bottom:9px;font-weight:800}
+.bal-col:last-child h4{color:var(--warn)}
+.bal-fila{display:flex;align-items:center;gap:9px;padding:6px 0;
+  border-bottom:1px solid var(--borde)}
+.bal-fila label{flex:1;font-size:13px;color:var(--texto-2)}
+.bal-fila input{width:88px;padding:6px 9px;text-align:right;font-variant-numeric:tabular-nums}
+.bal-fila > span{font-size:11.5px;color:var(--texto-3);width:24px}
+.bal-total{display:flex;justify-content:space-between;align-items:baseline;
+  padding:10px 0 0;font-size:13px}
+.bal-total span{color:var(--texto-2);font-weight:650}
+.bal-total b{font-size:16px;font-variant-numeric:tabular-nums}
+.bal-resultado{display:flex;justify-content:space-between;align-items:center;
+  margin-top:16px;padding:14px 16px;border-radius:var(--radio-sm);background:var(--bg-2);
+  border-left:4px solid var(--aqua-500)}
+.bal-resultado .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--texto-2);font-weight:750}
+.bal-resultado .val{font-size:24px;font-weight:800;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.bal-resultado .val.ok{color:var(--ok)}
+.bal-resultado .val.warn{color:var(--warn)}
+
+/* ------------------------------------------------- eventos ------------ */
+.eventos{display:flex;flex-direction:column;gap:9px}
+.evento{border:1.5px solid var(--danger);background:var(--danger-bg);
+  border-radius:var(--radio-sm);padding:12px 14px;cursor:pointer}
+.ev-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.ev-head .mini{color:var(--texto-2)}
+.ev-head .ico-btn{margin-left:auto}
+.ev-desc{margin:8px 0 0;font-size:13px;line-height:1.5}
+.ev-cond{margin:6px 0 0;font-size:12.5px;color:var(--texto-2);line-height:1.5}
+.vacio.chico{padding:26px 16px}
+.vacio.chico svg{width:34px;height:34px}
+
+/* =========================================================================
+   PASO 4 - RECUPERACION
+   ========================================================================= */
+.aldrete{display:flex;flex-direction:column;gap:2px}
+.ald-fila{display:grid;grid-template-columns:1fr auto;gap:9px 13px;align-items:center;
+  padding:10px 0;border-bottom:1px solid var(--borde)}
+.ald-fila > label{font-size:13.5px;font-weight:640}
+.ald-ops{display:flex;gap:5px}
+.ald-ops button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--borde);
+  background:var(--panel);cursor:pointer;font-weight:800;font-size:15px;color:var(--texto-2);
+  transition:.15s}
+.ald-ops button:hover{border-color:var(--azul-300)}
+.ald-ops button.on{background:var(--azul-600);border-color:var(--azul-600);color:#fff}
+.ald-txt{grid-column:1/-1;font-size:11.5px;color:var(--texto-3);margin-top:-4px}
+.ald-total{display:flex;justify-content:space-between;align-items:center;margin-top:14px;
+  padding:14px 16px;border-radius:var(--radio-sm);background:var(--bg-2)}
+.ald-total .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--texto-2);font-weight:750}
+.ald-total .val{font-size:24px;font-weight:800;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.ald-total .val.ok{color:var(--ok)} .ald-total .val.warn{color:var(--warn)}
+
+.eva{display:flex;align-items:center;gap:14px}
+.eva input[type=range]{flex:1;accent-color:var(--ok);height:26px}
+.eva input.warn{accent-color:var(--warn)}
+.eva input.danger{accent-color:var(--danger)}
+.eva output{width:46px;height:38px;display:grid;place-items:center;border-radius:10px;
+  background:var(--bg-2);font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+
+/* =========================================================================
+   PASO 5 - FIRMAR
+   ========================================================================= */
+.resumen{display:flex;flex-direction:column}
+.res-fila{display:flex;gap:12px;justify-content:space-between;align-items:baseline;
+  padding:9px 0;border-bottom:1px solid var(--borde);font-size:13.5px}
+.res-fila:last-child{border-bottom:0}
+.res-fila > span{color:var(--texto-2);flex:none}
+.res-fila > b{text-align:right;font-weight:700}
+.res-fila .ok{color:var(--ok)} .res-fila .warn{color:var(--warn)}
+.res-fila .danger{color:var(--danger)}
+.res-fila b.ok{color:var(--ok)} .res-fila b.warn{color:var(--warn)}
+.res-fila b.danger{color:var(--danger)}
+
+.firmado{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;
+  border-radius:var(--radio-sm);background:var(--ok-bg);color:var(--ok);line-height:1.55}
+.firmado svg{width:22px;height:22px;flex:none}
+.firma-img{max-width:230px;margin:14px auto 0;display:block;
+  filter:contrast(1.2)}
+html[data-tema="oscuro"] .firma-img{filter:invert(1) contrast(1.2)}
+
+.final{text-align:center;padding:26px 18px;background:var(--panel);
+  border:1px solid var(--borde);border-radius:var(--radio);box-shadow:var(--sombra);
+  margin-bottom:14px}
+.final-check{width:78px;height:78px;margin:0 auto 16px;border-radius:50%;
+  display:grid;place-items:center;background:var(--ok-bg);color:var(--ok);
+  border:3px solid var(--ok)}
+.final-check svg{width:40px;height:40px;stroke-width:2.6}
+.final h2{font-size:23px;line-height:1.25;letter-spacing:-.02em;margin-bottom:7px}
+.final-firma{display:flex;flex-direction:column;gap:2px;margin-top:16px;
+  font-size:12.5px;color:var(--texto-2)}
+.final-firma b{font-size:14px;color:var(--texto)}
+.final-acciones{display:flex;flex-direction:column;gap:9px;margin-top:22px;
+  max-width:340px;margin-left:auto;margin-right:auto}
+
+.leyenda-estados{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;
+  padding:14px 16px;margin-top:16px;border-radius:var(--radio-sm);background:var(--bg-2);
+  font-size:11.5px;color:var(--texto-2)}
+.leyenda-estados > b{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--texto-3)}
+.leyenda-estados span{display:flex;align-items:center;gap:6px}
+.leyenda-estados i{width:10px;height:10px;border-radius:50%;display:block}
+.leyenda-estados i.ok{background:var(--ok)}
+.leyenda-estados i.warn{background:var(--warn)}
+.leyenda-estados i.danger{background:var(--danger)}
+.leyenda-estados i.pend{background:var(--texto-3)}
+
+/* =========================================================================
+   INICIO - accesos del flujo
+   ========================================================================= */
+.inst-campo{margin-bottom:16px}
+.inst-sel{position:relative;display:flex;align-items:center}
+.inst-sel > svg{position:absolute;left:12px;width:18px;height:18px;color:var(--aqua-600);
+  pointer-events:none}
+.inst-sel select{padding-left:38px}
+
+.acceso{width:100%;display:flex;align-items:center;gap:13px;padding:16px 18px;
+  border-radius:var(--radio);border:1.5px solid var(--borde);background:var(--panel);
+  cursor:pointer;text-align:left;margin-bottom:10px;transition:.15s;color:inherit}
+.acceso:hover{border-color:var(--azul-300);transform:translateY(-1px);box-shadow:var(--sombra)}
+.acceso > svg{width:20px;height:20px;flex:none;color:var(--azul-600)}
+.acceso span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.acceso b{font-size:14.5px;letter-spacing:-.01em}
+.acceso i{font-style:normal;font-size:11.5px;color:var(--texto-2);line-height:1.35}
+.acceso.pri{background:var(--azul-800);border-color:var(--azul-800);color:#fff}
+.acceso.pri > svg{color:var(--aqua-400)}
+.acceso.pri i{color:rgba(255,255,255,.72)}
+.acceso.pri:hover{background:var(--azul-700);border-color:var(--azul-700)}
+
+.filas-estado{display:flex;flex-direction:column;gap:1px;background:var(--borde);
+  border:1px solid var(--borde);border-radius:var(--radio);overflow:hidden;margin:16px 0}
+.fila-estado{display:flex;align-items:center;gap:12px;padding:14px 16px;border:0;
+  background:var(--panel);cursor:pointer;text-align:left;color:inherit;transition:.13s}
+.fila-estado:hover{background:var(--panel-2)}
+.fila-estado .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+  background:var(--bg-2);color:var(--texto-2);flex:none}
+.fila-estado .ic svg{width:16px;height:16px}
+.fila-estado .tx{flex:1;font-size:13.5px;font-weight:620}
+.fila-estado .n{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;
+  color:var(--texto-2)}
+.fila-estado.ok .ic{background:var(--ok-bg);color:var(--ok)}
+.fila-estado.ok .n{color:var(--ok)}
+.fila-estado.warn .ic{background:var(--warn-bg);color:var(--warn)}
+.fila-estado.warn .n{color:var(--warn)}
+.fila-estado.danger .ic{background:var(--danger-bg);color:var(--danger)}
+.fila-estado.danger .n{color:var(--danger)}
+
+/* La ficha del paciente dentro del paso 1 */
+.ficha-pac{background:var(--bg-2);border-radius:var(--radio-sm);padding:14px}
+
+/* La flechita de las filas que llevan a otra seccion */
+.fila-estado .n .ir{color:var(--texto-3);font-weight:400;font-size:20px;line-height:1}

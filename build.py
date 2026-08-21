@@ -19,8 +19,8 @@ CSS_FILES = [
 JS_FILES = [
     'data-logo.js',
     'data-catalogos.js',
-    'data-cie10.js',
-    'data-cie10-extra.js',
+    'data-antecedentes.js',
+    'data-vademecum.js',
     'data-cirugias.js',
     'data-cirugias-extra.js',
     'data-nomenclador.js',
@@ -35,6 +35,7 @@ JS_FILES = [
     'ui-pacientes.js',
     'ui-valoracion.js',
     'ui-ficha.js',
+    'ui-intra.js',
     'ui-stats.js',
     'ui-facturacion.js',
     'ui-coordinador.js',

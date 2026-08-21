@@ -263,8 +263,13 @@ function vistaPerfil(){
   const insts = instituciones();
   const cont = $('#vPerfil');
   cont.innerHTML = ''+
-  '<div class="vista-head"><div><h1>Mi perfil profesional</h1>'+
-    '<p>Estos datos encabezan cada ficha anestésica y cada resumen de facturación.</p></div></div>'+
+  '<div class="vista-head"><div><h1>Ajustes</h1>'+
+    '<p>Tus datos profesionales y el resto de las secciones de la aplicación.</p></div></div>'+
+
+  menuAjustes()+
+
+  '<h3 class="sec-t">Mi perfil profesional</h3>'+
+  '<p class="mini mb8">Estos datos encabezan cada ficha anestésica y cada resumen de facturación.</p>'+
 
   '<div class="card"><h3>'+ico('usuario')+'Identificación</h3>'+
     '<div class="grid c2">'+
@@ -368,6 +373,33 @@ function vistaPerfil(){
   };
   $('#pfSalir').onclick = () => confirmar('Cerrar sesión',
     '¿Querés salir del portal? Los datos quedan guardados.', cerrarSesion, 'Cerrar sesión');
+
+  /* El menú se cablea acá: pintarNavegacion() corre antes de que exista */
+  $$('#vPerfil [data-ajuste]').forEach(b => b.onclick = () => irA(b.dataset.ajuste));
+}
+
+/* Las secciones que salieron de la barra inferior para que quede igual al
+   manual (Inicio · Pacientes · Historial · Ajustes) se entran por acá.
+   Cada una respeta el permiso del rol: el contable no ve nada clínico. */
+function menuAjustes(){
+  const msg = conteoMensajes();
+  const nMsg = msg.noLeidos + msg.vencidos;
+  const pend = esCoordinador() ? pendientes().length : 0;
+  const filas = [
+    ['stats',       'stats',  'Estadísticas',       ''],
+    ['facturacion', 'dinero', 'Facturación',        ''],
+    ['guias',       'guias',  'Guías y protocolos', ''],
+    ['mensajes',    'correo', 'Mensajes',           nMsg ? String(nMsg) : ''],
+    ['coordinador', 'escudo', 'Coordinación',       pend ? String(pend) : ''],
+    ['contable',    'dinero', 'Portal contable',    '']
+  ].filter(f => puedeVerVista(f[0]));
+  if(!filas.length) return '';
+  return '<div class="filas-estado">'+ filas.map(f =>
+    '<button class="fila-estado'+(f[3] ? ' warn' : '')+'" data-ajuste="'+f[0]+'">'+
+      '<span class="ic">'+ico(f[1])+'</span>'+
+      '<span class="tx">'+esc(f[2])+'</span>'+
+      '<span class="n">'+(f[3] || '<span class="ir">›</span>')+'</span>'+
+    '</button>').join('') +'</div>';
 }
 
 function verComprobante(u){

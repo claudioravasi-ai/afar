@@ -156,40 +156,12 @@ const FARMACOS_PERIOP = [
   { n:'Buprenorfina', g:'Opioide', accion:'evaluar', nota:'Se recomienda continuar y sumar opioides de alta afinidad; consultar con dolor crónico.' }
 ];
 
-/* ---------- Antecedentes patologicos por sistema (chequeo rapido) ---------- */
-const ANTECEDENTES_SISTEMAS = {
-  'Cardiovascular':['Hipertensión arterial','Cardiopatía isquémica / IAM previo','Angina de pecho',
-    'Insuficiencia cardíaca','Fibrilación auricular','Otras arritmias','Valvulopatía',
-    'Portador de marcapasos / CDI','Stent coronario','Cirugía cardíaca previa',
-    'Miocardiopatía','Hipertensión pulmonar','Enfermedad arterial periférica','ACV / AIT previo'],
-  'Respiratorio':['Asma','EPOC','Tabaquismo activo','Ex tabaquista','SAHOS / apnea del sueño',
-    'Neumopatía intersticial','Tuberculosis previa','Infección respiratoria reciente (<6 sem)',
-    'Oxígeno domiciliario','CPAP/BiPAP nocturno','Bronquiectasias','Traqueostomía'],
-  'Endocrino-metabólico':['Diabetes tipo 1','Diabetes tipo 2','Obesidad','Hipotiroidismo',
-    'Hipertiroidismo','Insuficiencia suprarrenal','Corticoterapia crónica','Dislipemia',
-    'Feocromocitoma','Cirugía bariátrica previa'],
-  'Renal-urológico':['Insuficiencia renal crónica','Diálisis','Trasplante renal',
-    'Litiasis renal','Infección urinaria a repetición'],
-  'Digestivo-hepático':['Reflujo gastroesofágico','Hernia hiatal','Úlcera péptica',
-    'Hepatopatía crónica / cirrosis','Hepatitis B/C','Enfermedad inflamatoria intestinal',
-    'Gastroparesia','Várices esofágicas'],
-  'Neurológico':['Epilepsia','Enfermedad de Parkinson','Demencia','Esclerosis múltiple',
-    'Miastenia gravis','Neuropatía periférica','Hipertensión endocraneana','Lesión medular',
-    'Cefalea crónica','Aneurisma cerebral'],
-  'Hematológico':['Anemia','Anticoagulación crónica','Antiagregación crónica','Trombofilia',
-    'TVP / TEP previos','Coagulopatía','Trombocitopenia','Hemofilia','Anemia falciforme',
-    'Rechazo a transfusión (Testigo de Jehová)'],
-  'Reumatológico-osteoarticular':['Artritis reumatoidea','Lupus','Espondilitis anquilosante',
-    'Artrosis cervical','Escoliosis / cifosis','Fibromialgia','Osteoporosis'],
-  'Psiquiátrico':['Depresión','Ansiedad','Trastorno bipolar','Esquizofrenia',
-    'Consumo problemático de alcohol','Consumo de sustancias','Dolor crónico / opioides'],
-  'Infectológico-inmunológico':['VIH','Inmunosupresión','Trasplante de órgano sólido',
-    'Colonización por gérmenes multirresistentes','COVID-19 previo con secuelas'],
-  'Oncológico':['Neoplasia activa','Quimioterapia reciente','Radioterapia cervical/torácica',
-    'Neoplasia en remisión'],
-  'Obstétrico':['Embarazo actual','Preeclampsia','Diabetes gestacional','Cesárea previa',
-    'Hemorragia postparto previa','Placenta previa / acretismo']
-};
+/* ---------- Antecedentes patologicos por sistema ----------
+   La lista vive ahora en data-antecedentes.js: ANTECEDENTES_SISTEMAS se arma
+   sola desde PATOLOGIAS para que no haya dos catalogos que mantener.
+   Aca no queda nada: el CIE-10 se quito de la app y el unico nomenclador
+   que sigue vigente es el anestesico.
+------------------------------------------------------------ */
 
 /* ---------- Antecedentes anestesicos ---------- */
 const ANTECEDENTES_ANESTESICOS = [
@@ -313,3 +285,64 @@ const ALDRETE = [
   { k:'conciencia', t:'Conciencia',       o:[[2,'Totalmente despierto'],[1,'Despierta al llamado'],[0,'No responde']] },
   { k:'saturacion', t:'Saturación',       o:[[2,'SpO₂ > 92 % al aire ambiente'],[1,'Requiere O₂ para SpO₂ > 90 %'],[0,'SpO₂ < 90 % con O₂']] }
 ];
+
+/* =========================================================================
+   FLUJO DE TRABAJO - catalogos de las pantallas del asistente
+   Paciente > Preanestesia > Anestesia > Recuperacion > Firmar
+   ========================================================================= */
+
+/* ---------- Tecnica anestesica: los botones grandes de la pantalla ---------- */
+const TECNICAS_FLUJO = [
+  { k:'general',   t:'General',    det:'Anestesia general' },
+  { k:'sedacion',  t:'Sedación',   det:'Sedación / cuidado anestésico monitorizado' },
+  { k:'raquidea',  t:'Raquídea',   det:'Anestesia raquídea (subaracnoidea)' },
+  { k:'peridural', t:'Peridural',  det:'Anestesia peridural' },
+  { k:'combinada', t:'Combinada',  det:'Combinada raqui-peridural' },
+  { k:'bloqueo',   t:'Bloqueo periférico ecoguiado', det:'Bloqueo de nervio o plexo bajo ecografía' },
+  { k:'dolorev',   t:'Dolor EV sistémico 24 h en sala', det:'Analgesia endovenosa sistémica en sala, 24 horas' }
+];
+
+/* ---------- Dispositivos de via aerea del flujo ---------- */
+const DISPOSITIVOS_FLUJO = [
+  { k:'ninguno', t:'Ninguno / máscara facial', tam:[] },
+  { k:'tet',     t:'Tubo endotraqueal (TET)',  tam:['5.0','5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0'], um:'mm' },
+  { k:'ml',      t:'Máscara laríngea (ML)',    tam:['1','1.5','2','2.5','3','4','5','6'], um:'N.º' },
+  { k:'canula',  t:'Cánula nasal / bigotera',  tam:[] },
+  { k:'tqt',     t:'Traqueostomía',            tam:[] },
+  { k:'doble',   t:'Tubo de doble lumen',      tam:['32','35','37','39','41'], um:'Fr' }
+];
+
+/* ---------- Monitorizacion del flujo: estandar arriba, adicional abajo ---------- */
+const MONITOR_FLUJO      = ['ECG','PANI','SpO₂','EtCO₂','Temperatura','TOF'];
+const MONITOR_FLUJO_EXTRA = ['PA invasiva','PVC','BIS / EEG','Diuresis horaria','NIRS','POCUS','Otros'];
+
+/* ---------- Balance hidrico ---------- */
+const BALANCE_INGRESOS = [
+  { k:'cristaloides', t:'Cristaloides' },
+  { k:'coloides',     t:'Coloides' },
+  { k:'sangre',       t:'GR / Sangre' },
+  { k:'plasma',       t:'Plasma' },
+  { k:'otrosIn',      t:'Otros' }
+];
+const BALANCE_EGRESOS = [
+  { k:'diuresis',   t:'Diuresis' },
+  { k:'sangrado',   t:'Pérdida sanguínea' },
+  { k:'otrosOut',   t:'Otros' }
+];
+
+/* ---------- Tipos de evento intraoperatorio (desplegable) ---------- */
+const TIPOS_EVENTO = [
+  'Hipotensión','Hipertensión','Bradicardia','Taquicardia','Arritmia','Desaturación',
+  'Broncoespasmo','Laringoespasmo','Intubación dificultosa','Intubación fallida',
+  'Aspiración de contenido gástrico','Sangrado mayor','Transfusión','Reacción alérgica / anafilaxia',
+  'Hipotermia','Hipertermia maligna','Isquemia miocárdica','Paro cardiorrespiratorio',
+  'Punción dural accidental','Bloqueo fallido','Toxicidad por anestésicos locales (LAST)',
+  'Despertar intraoperatorio','Lesión dentaria','Cambio de técnica anestésica','Otro'
+];
+
+/* ---------- Vias de administracion ---------- */
+const VIAS_ADMIN = ['IV','IM','SC','VO','Inhalatoria','Intratecal','Peridural','Perineural',
+                    'Infiltración','Tópica','IO','Intranasal','Rectal'];
+
+/* ---------- Destino desde recuperacion ---------- */
+const DESTINOS_RECUPERACION = ['Sala de recuperación','Habitación','UTI','Alta ambulatoria','Otro'];

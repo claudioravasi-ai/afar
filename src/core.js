@@ -70,6 +70,14 @@ function edadDe(fechaNac, ref){
   if(m < 0 || (m === 0 && r.getDate() < n.getDate())) e--;
   return e >= 0 ? e : null;
 }
+/* El socio a veces escribe "M.P. 1842" en el campo de la matricula y la app
+   ya antepone el rotulo. Se muestra una sola vez. */
+function matriculaTxt(v, pref){
+  const t = String(v || '').trim();
+  if(!t || t === '—') return '—';
+  return t.replace(new RegExp('^' + pref.replace(/\./g, '\\.') + '\\s*', 'i'), '');
+}
+
 function iniciales(nombre, apellido){
   return ((apellido||'').trim().charAt(0) + (nombre||'').trim().charAt(0)).toUpperCase() || '?';
 }
@@ -272,12 +280,25 @@ function cargarLocal(){
    Los registros de demostracion se quedan SIEMPRE en el dispositivo: son
    pacientes y fichas inventados, y si llegaran a la base compartida los
    verian todos los socios mezclados con los datos reales. */
+/* Firebase rechaza el objeto entero si encuentra un undefined en cualquier
+   rama. Se limpia antes de subir: un campo sin valor no debe cortar la
+   sincronizacion de toda la ficha. */
+function sinUndefined(v){
+  if(Array.isArray(v)) return v.map(sinUndefined);
+  if(v && typeof v === 'object'){
+    const o = {};
+    Object.keys(v).forEach(k => { if(v[k] !== undefined) o[k] = sinUndefined(v[k]); });
+    return o;
+  }
+  return v;
+}
+
 function escribir(col, id, obj){
   DB[col][id] = obj;
   guardarLocal();
   if(obj && obj.demo) return;
   if(nubeOK && fbDb && !aplicandoRemoto){
-    try{ fbDb.ref('afar/'+col+'/'+id).set(obj); }
+    try{ fbDb.ref('afar/'+col+'/'+id).set(sinUndefined(obj)); }
     catch(e){ console.warn('sync', e); }
   }
 }
@@ -435,17 +456,12 @@ function subirTodoLocal(){
   });
 }
 
-/* ------------------------------------------------------- Catalogos base */
-let CIE10 = [], CIRUGIAS = [];
+/* ------------------------------------------------------- Catalogos base
+   El CIE-10 se retiro de la app: en el consultorio de preanestesia no se
+   codifica, se describe. Los antecedentes salen de PATOLOGIAS
+   (data-antecedentes.js) y el unico nomenclador vigente es el anestesico. */
+let CIRUGIAS = [];
 function parsearCatalogos(){
-  let cap = '';
-  CIE10 = [];
-  (CIE10_TXT + (typeof CIE10_TXT_EXTRA !== 'undefined' ? CIE10_TXT_EXTRA : '')).split('\n').forEach(l => {
-    l = l.trim(); if(!l) return;
-    if(l[0] === '#'){ cap = l.slice(1).trim(); return; }
-    const i = l.indexOf('|'); if(i < 0) return;
-    CIE10.push({ c: l.slice(0,i).trim(), d: l.slice(i+1).trim(), cap });
-  });
   let esp = '';
   CIRUGIAS = [];
   (CIRUGIAS_TXT + (typeof CIRUGIAS_TXT_EXTRA !== 'undefined' ? CIRUGIAS_TXT_EXTRA : '')).split('\n').forEach(l => {
@@ -493,8 +509,11 @@ function agregarExtra(tipo, datos){
     porUid: SESION ? SESION.uid : ''}, datos));
   return id;
 }
-function todosCIE(){
-  return CIE10.concat(extras('cie').map(e => ({ c:e.c || 'LIBRE', d:e.d, cap:'Agregado manualmente', extra:true })));
+/* Catalogo de antecedentes patologicos: el curado mas lo que sumo la
+   asociacion desde el propio buscador. Reemplaza al viejo todosCIE(). */
+function todasPatologias(){
+  return PATOLOGIAS.concat(extras('pat').map(e => ({
+    n:e.n, sis:e.sis || 'Agregado manualmente', meds:[], flags:[], extra:true })));
 }
 function todasCirugias(){
   return CIRUGIAS.concat(extras('cx').map(e => ({ n:e.n, ua:e.ua || 10, esp:e.esp || 'Agregado manualmente', extra:true })));
@@ -1178,7 +1197,7 @@ function montoQueMeCorresponde(f){
    de campos economicos, de modo que ningun dato clinico pueda llegar a su
    portal aunque se agreguen campos a la ficha mas adelante.
 
-   Deliberadamente NO viajan: paciente, DNI, cirugia, diagnostico CIE-10,
+   Deliberadamente NO viajan: paciente, DNI, cirugia, diagnostico,
    valoracion, plan, acto, eventos adversos ni consentimiento.
    De los adicionales del nomenclador se pasa SOLO el porcentaje total
    (pctAdicional): permite auditar la aritmetica de la factura sin revelar
@@ -1226,4 +1245,198 @@ function usuarioPorUid(u){ return DB.usuarios[u] || null; }
 function nombreUsuario(u){
   const x = usuarioPorUid(u);
   return x ? (x.apellido + ', ' + x.nombre) : '—';
+}
+
+/* =========================================================================
+   MOTOR DE DOSIS - VADEMECUM ANESTESICO AFAAR
+   Traduce los rangos del vademecum a numeros concretos para el peso del
+   paciente. Calcula y muestra; nunca registra solo. La confirmacion del
+   anestesiologo es siempre un acto explicito (regla 4 del capitulo 14).
+   ========================================================================= */
+
+/* mg y mcg tienen que distinguirse a simple vista: el mcg va con su propia
+   clase para que la hoja de estilo lo pinte distinto. */
+function unidadHTML(u){
+  const clase = /mcg/.test(u) ? 'u-mcg' : (/^mg/.test(u) ? 'u-mg' : 'u-otra');
+  return '<span class="' + clase + '">' + esc(u) + '</span>';
+}
+
+/* Formato de dosis: los decimales que hacen falta y ninguno mas.
+   188 mg se escribe "188", no "188,000"; 0,625 mg se escribe entero. */
+function fDosis(n){
+  const v = redondearDosis(n);
+  const a = Math.abs(v);
+  const dec = a >= 100 ? 0 : (a >= 10 ? 1 : (a >= 1 ? 2 : 3));
+  return fNum(v, dec).replace(/,(\d*?)0+$/, (m, g) => g ? ','+g : '');
+}
+
+/* Redondeo util en la jeringa: nada de 2,4999999 mg */
+function redondearDosis(n){
+  if(!isFinite(n)) return 0;
+  const a = Math.abs(n);
+  if(a >= 100) return Math.round(n);
+  if(a >= 10)  return Math.round(n * 10) / 10;
+  if(a >= 1)   return Math.round(n * 100) / 100;
+  return Math.round(n * 1000) / 1000;
+}
+
+function farmacoPorNombre(n){
+  return VADEMECUM.find(x => x.n === n) || null;
+}
+function grupoVademecum(k){
+  return VADEMECUM_GRUPOS.find(g => g.k === k) || { k:k, t:k, ico:'lista' };
+}
+
+/* Un paciente es "pediatrico" a los efectos del vademecum por debajo de los
+   16 anios. Si no hay fecha de nacimiento cargada no se adivina: se pide. */
+function esPediatrico(edad){
+  return edad !== null && edad !== undefined && edad !== '' && Number(edad) < 16;
+}
+
+/* Reglas de calculo aplicables a este paciente */
+function reglasAplicables(farmaco, edad){
+  if(!farmaco || !farmaco.calc) return [];
+  const p = esPediatrico(edad);
+  return farmaco.calc.filter(r => r.pob === 'ap' || r.pob === (p ? 'p' : 'a'));
+}
+
+/* Resuelve una regla para un peso dado.
+   Devuelve { texto, min, max, unidad, porPeso, tope, aplicado }
+   Si la regla es por peso y no hay peso, devuelve pesoFalta:true. */
+function calcularDosis(regla, pesoKg){
+  const peso = Number(pesoKg) || 0;
+  const porPeso = /\/kg/.test(regla.u);
+  if(porPeso && !peso) return { pesoFalta:true, unidad:regla.u, t:regla.t };
+
+  /* unidad de destino: mg/kg -> mg, mcg/kg/min -> mcg/min, mg -> mg */
+  const unidad = porPeso ? regla.u.replace('/kg', '') : regla.u;
+  let min = porPeso ? regla.min * peso : regla.min;
+  let max = porPeso ? regla.max * peso : regla.max;
+
+  let tope = false;
+  if(regla.tope){
+    if(max > regla.tope){ max = regla.tope; tope = true; }
+    if(min > regla.tope){ min = regla.tope; }
+  }
+  min = redondearDosis(min); max = redondearDosis(max);
+  return {
+    t: regla.t, min, max, unidad, porPeso, tope,
+    rango: regla.min === regla.max ? fDosis(regla.min) : fDosis(regla.min) + '–' + fDosis(regla.max),
+    rangoUnidad: regla.u,
+    texto: (min === max ? fDosis(min) : fDosis(min) + '–' + fDosis(max)) + ' ' + unidad
+  };
+}
+
+/* % de un anestesico local -> mg/mL. 0,5 % = 5 mg/mL */
+function pctAmgml(pct){ return (Number(pct) || 0) * 10; }
+
+/* mg administrados de un anestesico local a partir de concentracion y volumen */
+function mgAnestesicoLocal(pct, mL){
+  return redondearDosis(pctAmgml(pct) * (Number(mL) || 0));
+}
+
+/* Acumulado de anestesicos locales de una ficha.
+   Devuelve por farmaco y el total, con el aviso de toxicidad aditiva cuando
+   se mezclan dos o mas. Nunca presenta el maximo como una garantia. */
+function acumuladoAnestesicosLocales(drogas, pesoKg){
+  const peso = Number(pesoKg) || 0;
+  const porFarmaco = {};
+  (drogas || []).forEach(d => {
+    const f = farmacoPorNombre(d.n);
+    if(!f || !f.local) return;
+    const mg = Number(d.mg || d.dosis) || 0;
+    if(!mg) return;
+    const e = porFarmaco[d.n] || (porFarmaco[d.n] = { n:d.n, mg:0, conAdrenalina:false, f:f });
+    e.mg += mg;
+    if(d.adrenalina) e.conAdrenalina = true;
+  });
+  const items = Object.values(porFarmaco).map(e => {
+    const maxKg = e.conAdrenalina ? e.f.maxMgKgAdr : e.f.maxMgKg;
+    const maxAbs = e.conAdrenalina ? e.f.maxAbsAdr : e.f.maxAbs;
+    const mgKg = peso ? redondearDosis(e.mg / peso) : null;
+    const refKg = maxKg ? redondearDosis(maxKg * peso) : 0;
+    const ref = maxAbs && refKg ? Math.min(refKg, maxAbs) : (refKg || maxAbs || 0);
+    return {
+      n: e.n, mg: redondearDosis(e.mg), mgKg: mgKg, conAdrenalina: e.conAdrenalina,
+      referencia: ref || 0, maxMgKg: maxKg || 0,
+      pct: ref ? Math.round(e.mg / ref * 100) : null,
+      sinTope: !maxKg && !maxAbs
+    };
+  });
+  return { items, mezcla: items.length > 1, peso: peso };
+}
+
+/* Concentracion de una infusion: mg totales en el volumen final -> mcg/mL,
+   y los mL/h que hacen falta para la dosis objetivo en mcg/kg/min. */
+function calcularInfusion(mgTotales, mLFinal, pesoKg, objetivoMcgKgMin){
+  const mg = Number(mgTotales) || 0, mL = Number(mLFinal) || 0;
+  const peso = Number(pesoKg) || 0, obj = Number(objetivoMcgKgMin) || 0;
+  if(!mg || !mL) return null;
+  const mcgPorML = (mg * 1000) / mL;
+  const r = { mcgPorML: redondearDosis(mcgPorML), mgPorML: redondearDosis(mg / mL) };
+  if(peso && obj) r.mLh = redondearDosis((obj * peso * 60) / mcgPorML);
+  return r;
+}
+
+/* mL a cargar en la jeringa a partir de la presentacion "10 mg/mL" */
+function mLDePresentacion(pres, dosis, unidad){
+  const m = String(pres || '').match(/([\d.,]+)\s*(mg|mcg|g)\s*\/\s*m[lL]/);
+  if(!m) return null;
+  let conc = Number(String(m[1]).replace(',', '.'));
+  let u = m[2];
+  if(!conc) return null;
+  /* llevar todo a la unidad de la dosis */
+  if(u === 'g' && unidad === 'mg') conc = conc * 1000;
+  else if(u === 'mg' && unidad === 'mcg') conc = conc * 1000;
+  else if(u === 'mcg' && unidad === 'mg') conc = conc / 1000;
+  else if(u !== unidad) return null;
+  return redondearDosis((Number(dosis) || 0) / conc);
+}
+
+/* -------------------------------------------------- Favoritos personales */
+function favoritosDrogas(){
+  const u = USUARIO || {};
+  return (u.favoritosDrogas && u.favoritosDrogas.length) ? u.favoritosDrogas.slice() : FAVORITOS_BASE.slice();
+}
+function alternarFavorito(nombre){
+  if(!USUARIO) return;
+  const f = favoritosDrogas();
+  const i = f.indexOf(nombre);
+  if(i >= 0) f.splice(i, 1); else f.push(nombre);
+  USUARIO.favoritosDrogas = f;
+  escribir('usuarios', USUARIO.uid, USUARIO);
+  return f;
+}
+
+/* =========================================================================
+   BALANCE HIDRICO
+   ========================================================================= */
+function calcularBalance(b){
+  b = b || {};
+  const suma = arr => arr.reduce((a, x) => a + (Number(b[x.k]) || 0), 0);
+  const ingresos = suma(BALANCE_INGRESOS);
+  const egresos  = suma(BALANCE_EGRESOS);
+  return { ingresos, egresos, balance: ingresos - egresos };
+}
+
+/* =========================================================================
+   SIGNOS VITALES - controles seriados
+   ========================================================================= */
+function ultimoControl(controles){
+  const c = (controles || []).slice().sort((a, b) => (a.hora || '') < (b.hora || '') ? 1 : -1);
+  return c[0] || null;
+}
+
+/* Duracion en minutos entre dos horas HH:MM, cruzando la medianoche */
+function minutosEntre(desde, hasta){
+  if(!desde || !hasta) return null;
+  const [h1, m1] = desde.split(':').map(Number);
+  const [h2, m2] = hasta.split(':').map(Number);
+  let min = (h2 * 60 + m2) - (h1 * 60 + m1);
+  if(min < 0) min += 1440;
+  return min;
+}
+function duracionTexto(min){
+  if(min === null || min === undefined) return '—';
+  return Math.floor(min / 60) + ' h ' + (min % 60) + ' min';
 }

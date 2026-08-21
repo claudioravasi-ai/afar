@@ -28,13 +28,13 @@ function membrete(f, titulo){
         '</b><br>'+
       esc((u.apellido||'') + ', ' + (u.nombre||''))+'<br>'+
       '<span style="font-size:10px">'+esc(u.titulo || 'Médico Especialista en Anestesiología')+'<br>'+
-      'M.N. '+esc(u.matriculaNacional||'—')+' · M.P. '+esc(u.matriculaProvincial||'—')+'</span>'+
+      'M.N. '+esc(matriculaTxt(u.matriculaNacional,'M.N.'))+' · M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+'</span>'+
       (f.actoPorUid && f.actoPorUid !== f.ownerUid ? (function(){
         const w = DB.usuarios[f.actoPorUid] || {};
         return '<br><b style="color:#0b2545;font-size:10px">ACTO ANESTÉSICO</b><br>'+
           esc((w.apellido||'') + ', ' + (w.nombre||''))+'<br>'+
-          '<span style="font-size:10px">M.N. '+esc(w.matriculaNacional||'—')+
-          ' · M.P. '+esc(w.matriculaProvincial||'—')+'</span>'; })() : '')+
+          '<span style="font-size:10px">M.N. '+esc(matriculaTxt(w.matriculaNacional,'M.N.'))+
+          ' · M.P. '+esc(matriculaTxt(w.matriculaProvincial,'M.P.'))+'</span>'; })() : '')+
     '</td>'+
   '</tr></table>'+
   '<h1>'+esc(titulo)+'</h1>'+
@@ -127,14 +127,16 @@ function documentoFicha(f, opts){
     '<tr><td colspan="2"><b>Cirugía:</b> '+esc(f.cirugia||'—')+
       (f.lateralidad && f.lateralidad !== 'No aplica' ? ' ('+esc(f.lateralidad)+')' : '')+'</td></tr>'+
     '<tr><td><b>Especialidad:</b> '+esc(f.especialidad||'—')+'</td>'+
-      '<td><b>Diagnóstico (CIE-10):</b> '+esc(f.dxQuirurgico ? f.dxQuirurgico.c+' — '+f.dxQuirurgico.d : '—')+'</td></tr>'+
+      '<td><b>Diagnóstico:</b> '+esc(f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '—')+'</td></tr>'+
     '<tr><td><b>Cirujano/a:</b> '+esc(f.cirujano||'—')+'</td>'+
       '<td><b>Ayudante:</b> '+esc(f.ayudante||'—')+'</td></tr>'+
     '</table>')+
 
   seccion('Antecedentes patológicos',
-    ((v.cie10||[]).length ? '<div class="par"><b>Codificados (CIE-10):</b><span>'+
-      esc(v.cie10.map(c => c.c+' — '+c.d).join(' · '))+'</span></div>' : '')+
+    ((v.antecedentes2||[]).length
+      ? '<div class="par"><b>Antecedentes:</b><span>'+
+        esc(v.antecedentes2.map(c => c.n || c.d).join(' · '))+'</span></div>'
+      : (v.sinAntecedentes ? '<div class="par"><span>Sin antecedentes relevantes.</span></div>' : ''))+
     antec + par('Otros antecedentes', v.antecedentesOtros))+
 
   seccion('Antecedentes anestésicos',
@@ -227,25 +229,8 @@ function documentoFicha(f, opts){
     par('Fecha de la evaluación', fFecha((v.riesgo||{}).fecha))+
     par('Ámbito', (v.riesgo||{}).ambito))+
 
-  (paraPaciente ? '' : seccion('Registro del acto anestésico',
-    (f.actoPorUid && f.actoPorUid !== f.ownerUid
-      ? par('Realizado por', nombreUsuario(f.actoPorUid)) : '')+
-    par('Ingreso a quirófano', a.ingreso) + par('Inicio de la anestesia', a.inicioAnestesia)+
-    par('Fin de la anestesia', a.finAnestesia) + par('Salida', a.salida)+
-    par('Técnica realizada', a.tecnica) + par('Dispositivo de vía aérea', a.dispositivosVA)+
-    par('Cormack-Lehane', a.cormack) + par('Intentos de intubación', a.intentos)+
-    par('Tubo / dispositivo', a.tubo) + par('Fármacos administrados', a.farmacos)+
-    par('Cristaloides', a.cristaloides ? a.cristaloides+' ml' : '')+
-    par('Coloides', a.coloides ? a.coloides+' ml' : '')+
-    par('Sangrado estimado', a.sangrado ? a.sangrado+' ml' : '')+
-    par('Diuresis', a.diuresis ? a.diuresis+' ml' : '')+
-    par('Hemoderivados', a.hemoderivados) + par('Drogas vasoactivas', a.vasoactivos)+
-    par('Lista de verificación OMS', (a.oms||[]).map(o =>
-      ({entrada:'Entrada',pausa:'Pausa quirúrgica',salida:'Salida'})[o]))+
-    par('Eventos intraoperatorios', a.eventos) + par('Detalle de eventos', a.eventosDetalle)+
-    par('Aldrete al egreso', a.aldreteTotal !== undefined ? a.aldreteTotal + '/10' : '')+
-    par('Destino real', a.destinoReal) + par('Estado al egreso', a.estadoEgreso)+
-    par('Observaciones', a.observaciones)))+
+  (paraPaciente ? '' : documentoActo(f))+
+  (paraPaciente ? '' : documentoRecuperacion(f))+
 
   (co.quien ? seccion('Consentimiento informado anestésico',
     '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
@@ -275,22 +260,148 @@ function documentoFicha(f, opts){
       'Firma del paciente o representante</div>'+
     '<div>'+((co.firmaAnestesiologo || u.firmaDataUrl) ?
       '<img src="'+(co.firmaAnestesiologo || u.firmaDataUrl)+'" style="height:48px;display:block;margin:0 auto -6px">' : '<div style="height:42px"></div>')+
-      esc((u.apellido||'')+', '+(u.nombre||''))+'<br>M.P. '+esc(u.matriculaProvincial||'—')+
+      esc((u.apellido||'')+', '+(u.nombre||''))+'<br>M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+
       (f.actoPorUid && f.actoPorUid !== f.ownerUid ? '<br>Valoración prequirúrgica' : '')+'</div>'+
     (f.actoPorUid && f.actoPorUid !== f.ownerUid ? (function(){
       const w = DB.usuarios[f.actoPorUid] || {};
       return '<div>'+(w.firmaDataUrl
           ? '<img src="'+w.firmaDataUrl+'" style="height:48px;display:block;margin:0 auto -6px">'
           : '<div style="height:42px"></div>')+
-        esc((w.apellido||'')+', '+(w.nombre||''))+'<br>M.P. '+esc(w.matriculaProvincial||'—')+
+        esc((w.apellido||'')+', '+(w.nombre||''))+'<br>M.P. '+esc(matriculaTxt(w.matriculaProvincial,'M.P.'))+
         '<br>Acto anestésico</div>'; })() : '')+
   '</div>'+
   '<div style="margin-top:22px;font-size:9px;color:#678;text-align:center;border-top:1px solid #ccd">'+
     'Documento generado por AFAAR · Ficha '+esc(f.id)+' · '+
     'Última modificación: '+esc(f.modificado ? fFecha(f.modificado)+' '+String(f.modificado).slice(11,16) : '—')+
     ' por '+esc(f.modificadoPorNombre || nombreUsuario(f.modificadoPor||f.ownerUid))+'<br>'+
+    ((f.firma||{}).firmado
+      ? 'Registro finalizado y firmado el '+fFecha(f.firma.fecha)+' '+esc(f.firma.hora||'')+
+        ' por '+esc(f.firma.nombre||'')+(f.firma.mp?' — M.P. '+esc(matriculaTxt(f.firma.mp,'M.P.')):'')+'<br>'
+      : 'Registro NO finalizado: la ficha todavía no fue firmada.<br>')+
     'Historia clínica sujeta a la Ley 26.529. Conservación mínima: 10 años.'+
   '</div>';
+}
+
+/* =========================================================================
+   REGISTRO DEL ACTO ANESTESICO EN EL DOCUMENTO
+   Las tres tablas del intraoperatorio: drogas, signos vitales y eventos,
+   mas el balance hidrico. Es la parte que antes era un campo de texto libre.
+   ========================================================================= */
+function documentoActo(f){
+  const a = f.acto || {};
+  const p = DB.pacientes[f.pacienteId] || {};
+  const peso = Number(p.peso) || 0;
+  const drogas = a.drogas || [];
+  const ctrls = (a.controles || []).slice().sort((x,y) => (x.hora||'') < (y.hora||'') ? -1 : 1);
+  const evs = a.eventos2 || [];
+  const bal = calcularBalance(a.balance);
+  const disp = DISPOSITIVOS_FLUJO.find(d => d.k === a.dispositivo);
+  const durCx = minutosEntre(a.inicioCirugia, a.finCirugia);
+  const durAn = minutosEntre(a.inicioAnestesia, a.finAnestesia);
+  const acum = acumuladoAnestesicosLocales(drogas, peso);
+
+  return seccion('Registro del acto anestésico',
+    (f.actoPorUid && f.actoPorUid !== f.ownerUid
+      ? par('Realizado por', nombreUsuario(f.actoPorUid)) : '')+
+    '<table><tr>'+
+      '<td style="width:50%"><b>Ingreso a quirófano:</b> '+esc(a.ingreso||'—')+'</td>'+
+      '<td><b>Salida a recuperación:</b> '+esc(a.salida||'—')+'</td></tr>'+
+    '<tr><td><b>Cirugía:</b> '+esc(a.inicioCirugia||'—')+' a '+esc(a.finCirugia||'—')+
+      (durCx !== null ? ' ('+duracionTexto(durCx)+')' : '')+'</td>'+
+      '<td><b>Anestesia:</b> '+esc(a.inicioAnestesia||'—')+' a '+esc(a.finAnestesia||'—')+
+      (durAn !== null ? ' ('+duracionTexto(durAn)+')' : '')+'</td></tr>'+
+    '</table>'+
+    par('Técnica anestésica', (a.tecnicas||[]).map(k =>
+      (TECNICAS_FLUJO.find(t => t.k === k)||{}).t).filter(Boolean))+
+    par('Detalle de la técnica', a.tecnicaDetalle)+
+    par('Vía aérea', (disp ? disp.t : '') + (a.tamano ? ' '+a.tamano : '') +
+      (a.vaDificil === 'si' ? ' — VÍA AÉREA DIFÍCIL' : ''))+
+    par('Cormack-Lehane', a.cormack) + par('Intentos de intubación', a.intentos)+
+    par('Monitorización', (a.monitor||[]).concat(a.monitorExtra||[]))+
+    par('Accesos vasculares', a.accesos)+
+    par('Lista de verificación OMS', (a.oms||[]).map(o =>
+      ({entrada:'Entrada',pausa:'Pausa quirúrgica',salida:'Salida'})[o]))+
+
+    /* ---------------------------- drogas ---------------------------- */
+    '<h3>Drogas administradas</h3>'+
+    (drogas.length
+      ? '<table><tr><th>Hora</th><th>Fármaco</th><th>Dosis</th><th>Vía</th><th>Observación</th></tr>'+
+        drogas.map(d => '<tr><td>'+esc(d.hora||'—')+'</td><td>'+esc(d.n)+'</td>'+
+          '<td>'+esc(fDosis(d.dosis)+' '+(d.unidad||''))+
+          (peso && d.unidad === 'mg' ? ' ('+fDosis(d.dosis/peso)+' mg/kg)' : '')+'</td>'+
+          '<td>'+esc(d.via||'—')+'</td>'+
+          '<td style="font-size:10px">'+esc([d.nota,
+            d.pct ? fDosis(d.pct)+' % · '+d.mL+' mL' : '',
+            d.infMLh ? d.infMLh+' mL/h' : ''].filter(Boolean).join(' · '))+'</td></tr>').join('')+
+        '</table>'
+      : '<p style="font-size:10.5px">Sin drogas registradas.</p>')+
+    par('Notas de fármacos', a.drogasNota)+
+    (acum.items.length
+      ? '<div class="par"><b>Anestésicos locales:</b><span>'+
+        esc(acum.items.map(x => x.n+' '+fDosis(x.mg)+' mg'+
+          (x.mgKg !== null ? ' ('+fDosis(x.mgKg)+' mg/kg)' : '')).join(' · '))+
+        (acum.mezcla ? ' — combinación de anestésicos locales: toxicidad aditiva.' : '')+
+        '</span></div>' : '')+
+
+    /* ------------------------ signos vitales ------------------------ */
+    '<h3>Signos vitales intraoperatorios</h3>'+
+    (ctrls.length
+      ? '<table><tr><th>Hora</th><th>TA (mmHg)</th><th>FC (lpm)</th><th>SpO₂ (%)</th>'+
+        '<th>EtCO₂ (mmHg)</th><th>Temp (°C)</th><th>TOF</th></tr>'+
+        ctrls.map(c => '<tr><td>'+esc(c.hora||'—')+'</td>'+
+          '<td>'+esc(valorVital(c,'ta')||'—')+'</td><td>'+esc(c.fc||'—')+'</td>'+
+          '<td>'+esc(c.spo2||'—')+'</td><td>'+esc(c.etco2||'—')+'</td>'+
+          '<td>'+esc(c.temp||'—')+'</td><td>'+esc(c.tof||'—')+'</td></tr>').join('')+
+        '</table>'
+      : '<p style="font-size:10.5px">Sin controles registrados.</p>')+
+
+    /* -------------------------- balance ----------------------------- */
+    '<h3>Balance hídrico</h3>'+
+    '<table><tr><th>Ingresos</th><th>mL</th><th>Egresos</th><th>mL</th></tr>'+
+      BALANCE_INGRESOS.map((x,i) => {
+        const e = BALANCE_EGRESOS[i];
+        return '<tr><td>'+esc(x.t)+'</td><td>'+((a.balance||{})[x.k]||0)+'</td>'+
+          '<td>'+(e ? esc(e.t) : '')+'</td><td>'+(e ? ((a.balance||{})[e.k]||0) : '')+'</td></tr>';
+      }).join('')+
+      '<tr><td><b>Total ingresos</b></td><td><b>'+bal.ingresos+'</b></td>'+
+      '<td><b>Total egresos</b></td><td><b>'+bal.egresos+'</b></td></tr>'+
+      '<tr><td colspan="3"><b>BALANCE</b></td><td><b>'+
+        (bal.balance>=0?'+':'')+bal.balance+' mL</b></td></tr>'+
+    '</table>'+
+    par('Hemoderivados', a.hemoderivados) + par('Drogas vasoactivas', a.vasoactivos)+
+
+    /* --------------------------- eventos ---------------------------- */
+    '<h3>Eventos intraoperatorios</h3>'+
+    (evs.length
+      ? '<table><tr><th>Hora</th><th>Evento</th><th>Descripción</th><th>Conducta</th></tr>'+
+        evs.map(e => '<tr><td>'+esc(e.hora||'—')+'</td><td><b>'+esc(e.tipo)+'</b></td>'+
+          '<td>'+esc(e.descripcion||'—')+'</td><td>'+esc(e.conducta||'—')+'</td></tr>').join('')+
+        '</table>'
+      : '<p style="font-size:10.5px">'+(a.sinEventos
+          ? 'Sin eventos adversos durante el procedimiento.'
+          : 'No se registraron eventos.')+'</p>')+
+    par('Observaciones del acto', a.observaciones));
+}
+
+function documentoRecuperacion(f){
+  const r = f.recup || {};
+  if(!r.aldreteTotal && !r.destino && !r.observaciones) return '';
+  return seccion('Recuperación postanestésica',
+    par('Hora de ingreso a la URPA', r.hora)+
+    par('Oxigenoterapia', r.oxigeno)+
+    (r.aldreteCompleto
+      ? '<table><tr>'+ALDRETE.map(i => '<th>'+esc(i.t)+'</th>').join('')+'<th>Total</th></tr><tr>'+
+        ALDRETE.map(i => '<td>'+((r.aldrete||{})[i.k])+'</td>').join('')+
+        '<td><b>'+r.aldreteTotal+'/10</b></td></tr></table>'+
+        '<div class="par"><span>'+(r.aldreteTotal >= 9
+          ? 'Cumple criterios de alta de la recuperación postanestésica.'
+          : 'No alcanza el puntaje de alta (≥ 9).')+'</span></div>'
+      : '')+
+    par('Dolor (EVA)', r.eva !== '' && r.eva !== undefined ? r.eva + '/10' : '')+
+    par('Náuseas / vómitos', r.nauseas === 'si' ? 'Sí' : (r.nauseas === 'no' ? 'No' : ''))+
+    par('Rescate administrado', r.rescate)+
+    par('Destino', r.destino) + par('Estado al egreso', r.estado)+
+    par('Observaciones', r.observaciones));
 }
 
 /* --------------------------------------------------------------- Word */
@@ -298,6 +409,8 @@ const CSS_DOC = 'body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:
   'h1{font-size:13pt;text-align:center;margin:2px 0 4px}'+
   'h2{font-size:10pt;text-transform:uppercase;letter-spacing:.06em;color:#0b2545;'+
     'border-bottom:1.2pt solid #0b2545;padding-bottom:2px;margin:12px 0 6px}'+
+  'h3{font-size:9pt;text-transform:uppercase;letter-spacing:.04em;color:#1b4e85;'+
+    'margin:9px 0 4px}'+
   '.membrete{border-bottom:2.5pt double #0b2545;padding-bottom:7px;margin-bottom:9px;text-align:center}'+
   '.membrete .a{font-size:17pt;font-weight:bold;letter-spacing:.16em;color:#0b2545}'+
   '.membrete .b{font-size:8pt;letter-spacing:.05em;color:#345}'+
@@ -374,7 +487,7 @@ function exportarFacturacionExcel(l, mes){
     const f = x.ficha, p = DB.pacientes[f.pacienteId] || {}, h = f.hon || {};
     return [ fFecha(f.fecha), x.tipo === 'consulta' ? 'Consulta prequirúrgica' : 'Acto anestésico',
       (p.apellido||'')+', '+(p.nombre||''), p.dni||'',
-      f.cirugia||'', f.dxQuirurgico ? f.dxQuirurgico.c+' — '+f.dxQuirurgico.d : '',
+      f.cirugia||'', f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '',
       nombreInstitucion(f.institucion), f.obraSocial||'',
       (datosFinanciador(f.obraSocial)||{}).cuit || '', nombreUsuario(x.uid),
       f.caracter||'', ((f.v||{}).scores||{}).asa || '',
@@ -427,7 +540,7 @@ function imprimirFacturacion(l, mes, tot, porOS, porInst){
   '<h1>RESUMEN DE FACTURACIÓN — '+esc(nombreMes(mes).toUpperCase())+'</h1>'+
   '<table style="border:0;margin-bottom:10px"><tr>'+
     '<td style="border:0"><b>Profesional:</b> '+esc((u.apellido||'')+', '+(u.nombre||''))+'<br>'+
-      '<b>Matrícula:</b> M.N. '+esc(u.matriculaNacional||'—')+' · M.P. '+esc(u.matriculaProvincial||'—')+'</td>'+
+      '<b>Matrícula:</b> M.N. '+esc(matriculaTxt(u.matriculaNacional,'M.N.'))+' · M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+'</td>'+
     '<td style="border:0;text-align:right"><b>CUIT:</b> '+esc(u.cuit||'—')+'<br>'+
       '<b>Condición IVA:</b> '+esc(u.condicionIva||'—')+'</td>'+
   '</tr></table>'+
@@ -460,7 +573,7 @@ function imprimirFacturacion(l, mes, tot, porOS, porInst){
     '<td>'+fMoneda(tot.total)+'</td><td></td></tr></table>'+
   '<div class="firmas"><div style="margin-top:40px">'+
     (u.firmaDataUrl ? '<img src="'+u.firmaDataUrl+'" style="height:48px;display:block;margin:0 auto -6px">' : '')+
-    esc((u.apellido||'')+', '+(u.nombre||''))+'<br>M.P. '+esc(u.matriculaProvincial||'—')+'</div></div>';
+    esc((u.apellido||'')+', '+(u.nombre||''))+'<br>M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+'</div></div>';
   imprimir(html);
   auditar('export-pdf', 'Facturación '+mes);
 }

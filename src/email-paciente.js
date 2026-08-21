@@ -57,7 +57,7 @@ function htmlMailPaciente(f, prof){
         '<b style="color:#0b2545">Profesional actuante</b><br>'+
         esc(firma)+'<br>'+
         esc(prof.titulo || 'Médico/a Especialista en Anestesiología')+'<br>'+
-        'Matrícula provincial: '+esc(prof.matriculaProvincial || '—')+
+        'Matrícula provincial: '+esc(matriculaTxt(prof.matriculaProvincial,'M.P.'))+
         (prof.matriculaNacional ? ' · Matrícula nacional: '+esc(prof.matriculaNacional) : '')+'<br>'+
         'Correo: '+esc(prof.email || '—')+
       '</td></tr>'+

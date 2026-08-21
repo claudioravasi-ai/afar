@@ -4,18 +4,22 @@
 
 let vistaActual = 'panel';
 
+/* La barra inferior son los cuatro accesos del manual de flujo de trabajo:
+   Inicio · Pacientes · Historial · Ajustes. Lo que sale de la barra no se
+   pierde: se entra por Ajustes, y en pantalla grande sigue en el lateral.
+   `navTxt` es el rotulo corto que usa la barra; el lateral usa `txt`. */
 const NAV = [
   { id:'panel',       ico:'panel',       txt:'Inicio',        nav:true,  clinico:true },
   { id:'pacientes',   ico:'pacientes',   txt:'Pacientes',     nav:true,  clinico:true },
-  { id:'fichas',      ico:'ficha',       txt:'Fichas',        nav:true,  clinico:true },
+  { id:'fichas',      ico:'ficha',       txt:'Fichas',        navTxt:'Historial', nav:true, clinico:true },
   { id:'ficha',       ico:'ficha',       txt:'Ficha',         nav:false, oculto:true, clinico:true },
-  { id:'stats',       ico:'stats',       txt:'Estadísticas',  nav:true,  clinico:true },
+  { id:'stats',       ico:'stats',       txt:'Estadísticas',  nav:false, clinico:true },
   { id:'coordinador', ico:'escudo',      txt:'Coordinación',  nav:true,  soloCoord:true },
   { id:'contable',    ico:'dinero',      txt:'Contable',      nav:true,  soloCont:true },
-  { id:'mensajes',    ico:'correo',      txt:'Mensajes',      nav:true  },
+  { id:'mensajes',    ico:'correo',      txt:'Mensajes',      nav:false },
   { id:'facturacion', ico:'dinero',      txt:'Facturación',   nav:false, clinico:true },
   { id:'guias',       ico:'guias',       txt:'Guías',         nav:false, clinico:true },
-  { id:'perfil',      ico:'usuario',     txt:'Mi perfil',     nav:true  }
+  { id:'perfil',      ico:'ajustes',     txt:'Mi perfil',     navTxt:'Ajustes', nav:true }
 ];
 
 /* El contable no accede a ninguna vista con datos clinicos (Ley 25.326) */
@@ -36,21 +40,24 @@ function pintarNavegacion(){
   const pend = esCoordinador() ? pendientes().length : 0;
   const msg  = conteoMensajes();
   const items = itemsNav();
-  const badgeDe = n => {
+  const nMsg = msg.noLeidos + msg.vencidos;
+  const badgeDe = (n, corto) => {
     if(n.id === 'coordinador' && pend) return '<span class="badge">'+pend+'</span>';
-    if(n.id === 'mensajes'){
-      const t = msg.noLeidos + msg.vencidos;
-      if(t) return '<span class="badge">'+(t > 99 ? '99+' : t)+'</span>';
-    }
+    if(n.id === 'mensajes' && nMsg) return '<span class="badge">'+(nMsg > 99 ? '99+' : nMsg)+'</span>';
+    /* Mensajes ya no está en la barra inferior: su aviso viaja en Ajustes,
+       que es por donde se entra. Sin esto, un reclamo sin responder pasaría
+       inadvertido en el teléfono. */
+    if(corto && n.id === 'perfil' && nMsg)
+      return '<span class="badge">'+(nMsg > 99 ? '99+' : nMsg)+'</span>';
     return '';
   };
-  const botonNav = n =>
+  const botonNav = (n, corto) =>
     '<button data-ir="'+n.id+'"'+(vistaActual===n.id?' class="on"':'')+'>'+ico(n.ico)+
-    '<span>'+esc(n.txt)+'</span>'+badgeDe(n)+'</button>';
+    '<span>'+esc(corto && n.navTxt ? n.navTxt : n.txt)+'</span>'+badgeDe(n, corto)+'</button>';
 
   const grupo = (titulo, ids) => {
     const g = items.filter(n => ids.indexOf(n.id) >= 0);
-    return g.length ? '<div class="grupo">'+titulo+'</div>'+g.map(botonNav).join('') : '';
+    return g.length ? '<div class="grupo">'+titulo+'</div>'+g.map(n => botonNav(n)).join('') : '';
   };
 
   $('#sidebar').innerHTML =
@@ -59,7 +66,7 @@ function pintarNavegacion(){
     grupo('Asociación',['coordinador','mensajes'])+
     grupo('Cuenta',    ['perfil']);
 
-  $('#navbar').innerHTML = items.filter(n => n.nav).map(botonNav).join('');
+  $('#navbar').innerHTML = items.filter(n => n.nav).map(n => botonNav(n, true)).join('');
   $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
 }
 
@@ -101,7 +108,7 @@ function pintarEncabezado(){
     ? 'Portal del coordinador'
     : (esContable()
        ? 'Contable AFAAR · portal económico'
-       : esc((u.apellido||'') + ', ' + (u.nombre||'')) + ' · M.P. ' + esc(u.matriculaProvincial||'—'));
+       : esc((u.apellido||'') + ', ' + (u.nombre||'')) + ' · M.P. ' + esc(matriculaTxt(u.matriculaProvincial,'M.P.')));
   pintarNavegacion();
   pintarBadgeAvisos();
 }
@@ -115,7 +122,19 @@ function pintarBadgeAvisos(){
   b.classList.toggle('aviso-warn', c.urgentes === 0);
 }
 
-/* ============================== PANEL ============================== */
+/* ============================== PANEL ==============================
+   Pantalla de inicio del flujo de trabajo: institucion, los dos accesos
+   que abren el flujo y el estado de las fichas propias.
+   ================================================================== */
+
+/* La institucion elegida se recuerda y precarga cada ficha nueva */
+const LS_INST = 'afar_institucion_v1';
+function institucionActiva(){
+  const g = localStorage.getItem(LS_INST) || '';
+  return instituciones().some(i => i.id === g) ? g : '';
+}
+function fijarInstitucion(id){ localStorage.setItem(LS_INST, id || ''); }
+
 function vistaPanel(){
   const cont = $('#vPanel');
   const hoy = hoyISO();
@@ -124,40 +143,72 @@ function vistaPanel(){
   const dia = todas.filter(f => f.fecha === hoy);
   const delMes = todas.filter(f => mesDe(f.fecha) === mes);
   const semana = todas.filter(f => f.fecha && semanaISO(f.fecha) === semanaISO(hoy));
+  const borradores = todas.filter(f => (f.estado || 'borrador') === 'borrador');
+  const finalizadas = todas.filter(f => f.estado === 'cerrada');
+  const sinFirmar = todas.filter(f => f.fecha && f.fecha < hoy &&
+    f.estado !== 'cerrada' && (f.acto || {}).finCirugia);
   /* Los importes del mes y lo pendiente de cobro se consultan en Facturación,
      no en el inicio. */
   const proximas = todas.filter(f => f.fecha && f.fecha >= hoy && diasHasta(f.fecha) <= 7)
     .sort((a,b) => (a.fecha + (a.hora||'')) < (b.fecha + (b.hora||'')) ? -1 : 1);
-  const u = USUARIO || {};
-  const hora = new Date().getHours();
-  const saludo = hora < 13 ? 'Buenos días' : (hora < 20 ? 'Buenas tardes' : 'Buenas noches');
 
+  /* fila de la lista de estado: rotulo, cuenta y a donde lleva */
+  const filaEstado = (id, icono, txt, n, cls) =>
+    '<button class="fila-estado'+(cls?' '+cls:'')+'" id="pe'+id+'">'+
+      '<span class="ic">'+ico(icono)+'</span>'+
+      '<span class="tx">'+esc(txt)+'</span>'+
+      '<span class="n">'+n+'</span>'+
+    '</button>';
+
+  /* Sin encabezado de saludo: el manual arranca directo en «Institución».
+     La fecha y el estado de la sincronización ya están en la barra de
+     arriba, así que no se pierde nada. */
   cont.innerHTML = ''+
-  '<div class="vista-head"><div>'+
-    '<h1>'+saludo+(u.nombre?', '+esc(u.nombre):'')+'</h1>'+
-    '<p>'+fFechaLarga(hoy)+(nubeOK?' · sincronizado':' · datos en este dispositivo')+'</p>'+
-  '</div></div>'+
-
   (hayDemo() ? '<div class="demo-banner">'+ico('alerta')+
     '<div><b>Datos de demostración.</b> La anestesióloga Laura Fernández, sus pacientes y sus fichas '+
     'son de ejemplo, para que veas cómo funciona cada pantalla.</div>'+
     '<button class="btn danger chico" id="demoBorrar">Borrar</button></div>' : '')+
 
+  /* ----------------------- institución de trabajo ---------------------- */
+  '<div class="campo inst-campo"><label>Institución</label>'+
+    '<div class="inst-sel">'+ico('hospital')+
+      '<select id="pnInst"><option value="">— Todas / elegir en cada ficha —</option>'+
+      instituciones().map(i => '<option value="'+esc(i.id)+'"'+
+        (institucionActiva()===i.id?' selected':'')+'>'+
+        esc(i.nombre.split('"')[0].trim())+' · '+esc(i.ciudad)+'</option>').join('')+
+      '</select></div>'+
+    '<div class="ayuda">Se precarga en cada ficha nueva. Podés cambiarla dentro de la ficha.</div>'+
+  '</div>'+
+
+  /* ------------------------- accesos del flujo ------------------------- */
+  '<button class="acceso pri" id="pnValoracion">'+ico('mas')+
+    '<span><b>Nueva valoración preanestésica</b>'+
+    '<i>Paciente, antecedentes, escalas de riesgo y plan</i></span></button>'+
+  '<button class="acceso" id="pnFicha">'+ico('mas')+
+    '<span><b>Nueva ficha anestésica</b>'+
+    '<i>Registro del acto: drogas, signos vitales, balance y eventos</i></span></button>'+
+
+  /* ----------------------- estado de mis fichas ------------------------ */
+  '<div class="filas-estado">'+
+    filaEstado('Hoy','pacientes','Mis pacientes de hoy', dia.length)+
+    filaEstado('Borr','ficha','Borradores', borradores.length, borradores.length?'warn':'')+
+    filaEstado('Fin','check','Finalizadas', finalizadas.length, 'ok')+
+    (sinFirmar.length ? filaEstado('Firm','firma','Pendientes de firma', sinFirmar.length, 'danger') : '')+
+  '</div>'+
+
   tarjetaAvisosPanel()+
 
-  '<div class="grid c3 mb8">'+
-    kpi('Hoy', dia.length, 'aqua', ico('calendario'), 'fichas del día')+
+  '<div class="grid c3 mb8 mt20">'+
     kpi('Esta semana', semana.length, 'azul', ico('stats'), '')+
     kpi('Este mes', delMes.length, 'azul', ico('ficha'), nombreMes(mes))+
-    kpi('Pacientes', misPacientes().length, 'aqua', ico('pacientes'), 'en tu portal')+
+    kpi('Pacientes', misPacientes().length, 'aqua', ico('pacientes'), 'en el padrón')+
   '</div>'+
 
   '<h3 style="font-size:14px;margin:20px 0 10px">Accesos rápidos</h3>'+
   '<div class="tiles">'+
-    tile('nuevaFicha','ficha','aqua','Nueva ficha','Valoración y acto anestésico')+
-    tile('nuevoPaciente','paciente','','Nuevo paciente','Datos filiatorios y cobertura')+
-    tile('irPacientes','pacientes','','Pacientes','Buscar y editar')+
-    tile('irFichas','lista','','Mis fichas','Historial completo')+
+    tile('irPacientes','pacientes','','Pacientes','Historia completa')+
+    tile('irFichas','lista','','Historial','Todas mis fichas')+
+    tile('irVademecum','jeringa','aqua','Vademécum','Dosis de adultos y pediatría')+
     tile('irStats','stats','ok','Estadísticas','Día, semana y mes')+
     tile('irFacturacion','dinero','warn','Facturación','Resumen mensual y Excel')+
     tile('irGuias','guias','danger','Guías y protocolos','Vía aérea, LAST, HM')+
@@ -189,10 +240,10 @@ function vistaPanel(){
   ((misFichas().length === 0) ? '<div class="card mt20"><h3>'+ico('info')+'Cómo empezar</h3>'+
     '<ol class="mini" style="padding-left:19px;line-height:2">'+
     '<li>Completá tu perfil: matrícula, CUIT y firma digital.</li>'+
-    '<li>Cargá un paciente con sus datos filiatorios y su cobertura.</li>'+
-    '<li>Abrí una ficha: elegí institución, carácter, cirugía y diagnóstico CIE-10.</li>'+
-    '<li>Completá la valoración anestésica: las escalas se calculan solas.</li>'+
-    '<li>Registrá honorarios y descargá el documento en Word o PDF.</li>'+
+    '<li>Cargá un paciente con sus datos filiatorios y sus antecedentes.</li>'+
+    '<li>Abrí una valoración preanestésica: las escalas se calculan solas.</li>'+
+    '<li>El día de la cirugía, registrá el acto: drogas, signos vitales, balance y eventos.</li>'+
+    '<li>Cerrá con la recuperación, firmá y descargá el documento.</li>'+
     '</ol></div>' : '')+
 
   '<div class="mt20 txt-c"><svg class="ecg-line" viewBox="0 0 400 22" preserveAspectRatio="none">'+
@@ -200,10 +251,20 @@ function vistaPanel(){
     '<p class="mini mt8">AFAAR · Asociación Fueguina de Anestesia, Analgesia y Reanimación</p></div>';
 
   const ir = (id, fn) => { const e = $('#'+id); if(e) e.onclick = fn; };
-  ir('tlNuevaFicha', () => abrirFicha(null));
-  ir('tlNuevoPaciente', () => editarPaciente(null));
+  $('#pnInst').onchange = e => fijarInstitucion(e.target.value);
+  ir('pnValoracion', () => nuevaFichaEnInstitucion('preanestesia'));
+  ir('pnFicha',      () => nuevaFichaEnInstitucion('anestesia'));
+  ir('peHoy',  () => { filtroFichas = Object.assign({}, filtroFichas, { texto:'', estado:'' });
+                       irA('fichas'); });
+  ir('peBorr', () => { filtroFichas = Object.assign({}, filtroFichas, { estado:'borrador' });
+                       irA('fichas'); });
+  ir('peFin',  () => { filtroFichas = Object.assign({}, filtroFichas, { estado:'cerrada' });
+                       irA('fichas'); });
+  ir('peFirm', () => { filtroFichas = Object.assign({}, filtroFichas, { estado:'realizada' });
+                       irA('fichas'); });
   ir('tlIrPacientes', () => irA('pacientes'));
   ir('tlIrFichas', () => irA('fichas'));
+  ir('tlIrVademecum', abrirVademecumSuelto);
   ir('tlIrStats', () => irA('stats'));
   ir('tlIrFacturacion', () => irA('facturacion'));
   ir('tlIrGuias', () => irA('guias'));
@@ -214,6 +275,26 @@ function vistaPanel(){
   ir('demoBorrar', confirmarBorrarDemo);
   cablearAvisosPanel();
   $$('#vPanel .item[data-fic]').forEach(i => i.onclick = () => abrirFicha(i.dataset.fic));
+}
+
+/* Abre una ficha nueva ya ubicada en la institucion elegida y en el paso
+   que corresponde al acceso que se toco. */
+function nuevaFichaEnInstitucion(paso){
+  abrirFicha(null);
+  const inst = institucionActiva();
+  if(inst){ fichaActual.institucion = inst; }
+  if(paso === 'anestesia'){
+    /* el acceso directo a la ficha anestesica igual arranca por el paciente:
+       sin paciente no hay registro que valga */
+    toast('Elegí el paciente y la cirugía; después pasás al registro del acto.', 'ok');
+  }
+  pintarFicha();
+}
+
+/* El vademecum tambien se puede consultar suelto, sin una ficha abierta */
+function abrirVademecumSuelto(){
+  if(!fichaActual) fichaActual = { pacienteId:'', fecha:hoyISO(), acto:{ drogas:[] } };
+  abrirVademecum();
 }
 
 function tile(id, icono, cls, titulo, sub){

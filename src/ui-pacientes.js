@@ -1,8 +1,14 @@
 /* =========================================================================
-   PACIENTES - alta, edicion, busqueda y ficha del paciente
+   PACIENTES - historia clinica del paciente
+   Datos filiatorios, antecedentes patologicos, quirurgicos, anestesicos y
+   familiares, medicacion habitual, alergias y habitos.
+   El padron es comun a la asociacion: lo que se carga aca lo hereda cada
+   ficha anestesica, para no volver a preguntar lo mismo en el consultorio.
    ========================================================================= */
 
 let filtroPac = '';
+let pacEdit = null;          /* borrador del paciente en edicion */
+let solapaPac = 'fil';
 
 function vistaPacientes(){
   const cont = $('#vPacientes');
@@ -15,7 +21,7 @@ function vistaPacientes(){
   const palabras = q ? q.split(/\s+/) : [];
   const l = palabras.length
     ? todos.filter(p => {
-        const campos = norm([p.apellido, p.nombre, p.dni, p.obraSocial,
+        const campos = norm([p.apellido, p.nombre, p.dni, p.hc, p.obraSocial,
                              p.nroAfiliado, p.localidad].join(' '));
         return palabras.every(w => campos.indexOf(w) >= 0);
       })
@@ -28,23 +34,28 @@ function vistaPacientes(){
     '<div class="acciones"><button class="btn pri" id="btnNuevoPac">'+ico('mas')+' Nuevo paciente</button></div></div>'+
 
   '<div class="campo"><div style="position:relative">'+
-    '<input type="search" id="pacBuscar" placeholder="Buscar por apellido, nombre o DNI…" value="'+esc(filtroPac)+'" style="padding-left:38px" autocomplete="off">'+
+    '<input type="search" id="pacBuscar" placeholder="Buscar por apellido, nombre, DNI o HC…" value="'+esc(filtroPac)+'" style="padding-left:38px" autocomplete="off">'+
     '<span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--texto-3)">'+ico('buscar')+'</span>'+
   '</div></div>'+
 
   (todos.length ? '<div class="aviso info">'+ico('pacientes')+'<div>'+
     'El padrón es común a toda la asociación: antes de cargar un paciente, buscalo por DNI '+
-    'para no duplicarlo.</div></div>' : '')+
+    'para no duplicarlo. Los antecedentes que cargues acá los hereda cada ficha nueva.</div></div>' : '')+
 
   (l.length ? '<div class="lista">'+ l.map(p => {
       const fichas = fichasVisibles().filter(f => f.pacienteId === p.id);
       const mias = fichas.filter(esAutorFicha).length;
       const ed = edadDe(p.fechaNac);
+      const nAnt = (p.antecedentes || []).length;
+      const alergias = (p.alergias || []).filter(a => a !== 'Sin alergias conocidas');
       return '<div class="item" data-pac="'+p.id+'">'+
         '<div class="avatar">'+esc(iniciales(p.nombre,p.apellido))+'</div>'+
         '<div class="txt"><b>'+esc(p.apellido)+', '+esc(p.nombre)+'</b>'+
-          '<span>DNI '+esc(p.dni||'—')+(ed!==null?' · '+ed+' años':'')+' · '+esc(p.obraSocial||'Sin cobertura')+'</span></div>'+
-        '<div class="der"><span class="tag'+(fichas.length?' aqua':'')+'">'+fichas.length+' ficha'+(fichas.length===1?'':'s')+'</span>'+
+          '<span>DNI '+esc(p.dni||'—')+(ed!==null?' · '+ed+' años':'')+' · '+esc(p.obraSocial||'Sin cobertura')+
+          (nAnt ? ' · '+nAnt+' antecedente'+(nAnt===1?'':'s') : '')+'</span></div>'+
+        '<div class="der">'+
+          (alergias.length ? '<span class="tag danger" title="'+esc(alergias.join(' · '))+'">Alergias</span> ' : '')+
+          '<span class="tag'+(fichas.length?' aqua':'')+'">'+fichas.length+' ficha'+(fichas.length===1?'':'s')+'</span>'+
           (fichas.length && mias < fichas.length
             ? '<div class="mini mt8">'+(mias||'ninguna')+' tuya'+(mias===1?'':'s')+'</div>' : '')+
         '</div></div>';
@@ -60,26 +71,83 @@ function vistaPacientes(){
   });
 }
 
-/* ------------------------------------------------------- Alta / edicion */
-function editarPaciente(id){
-  const p = id ? DB.pacientes[id] : {};
+/* =========================================================================
+   ALTA / EDICION - historia completa en cuatro solapas
+   ========================================================================= */
+function editarPaciente(id, alGuardar){
+  const base = id ? JSON.parse(JSON.stringify(DB.pacientes[id] || {})) : {};
+  pacEdit = Object.assign({
+    antecedentes:[], antQuirurgicos:[], antAnestesicos:[], antFamiliares:[],
+    medicacion:[], alergias:[], habitos:{}
+  }, base);
+  pacEdit.__id = id || null;
+  pacEdit.__alGuardar = alGuardar || null;
+  solapaPac = 'fil';
+  pintarEditorPaciente();
+}
+
+const SOLAPAS_PAC = [
+  ['fil','paciente','Filiatorios'],
+  ['ant','lista','Antecedentes'],
+  ['med','jeringa','Medicación'],
+  ['ale','alerta','Alergias y hábitos']
+];
+
+function pintarEditorPaciente(){
+  const p = pacEdit;
+  const nAnt = (p.antecedentes||[]).length;
+  const nMed = (p.medicacion||[]).length;
+  const nAle = (p.alergias||[]).filter(a => a !== 'Sin alergias conocidas').length;
+  const cuenta = { ant:nAnt, med:nMed, ale:nAle };
+
+  abrirModal(p.__id ? 'Historia del paciente' : 'Nuevo paciente',
+    '<div class="pac-solapas">'+ SOLAPAS_PAC.map(s =>
+      '<button type="button" class="'+(solapaPac===s[0]?'on':'')+'" data-psolapa="'+s[0]+'">'+
+        ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
+        esc(s[2])+(cuenta[s[0]] ? '<span class="badge">'+cuenta[s[0]]+'</span>' : '')+
+      '</button>').join('') +'</div>'+
+    '<div id="pacCuerpo"></div>',
+    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+    '<button class="btn pri" id="paGuardar">'+ico('check')+' Guardar</button>', '980px');
+
+  $$('#modal [data-psolapa]').forEach(b => b.onclick = () => {
+    leerSolapaPaciente(); solapaPac = b.dataset.psolapa; pintarEditorPaciente();
+  });
+
+  const c = $('#pacCuerpo');
+  if(solapaPac === 'fil'){ c.innerHTML = htmlPacFiliatorios(p); cablearPacFiliatorios(); }
+  else if(solapaPac === 'ant'){ c.innerHTML = htmlPacAntecedentes(p); cablearPacAntecedentes(); }
+  else if(solapaPac === 'med'){ c.innerHTML = htmlPacMedicacion(p); cablearPacMedicacion(); }
+  else { c.innerHTML = htmlPacAlergias(p); cablearPacAlergias(); }
+
+  $('#paGuardar').onclick = guardarPacienteEditado;
+}
+
+/* ------------------------------------------------ Solapa 1: filiatorios */
+function htmlPacFiliatorios(p){
   const os = obrasSociales();
-  abrirModal(id ? 'Editar paciente' : 'Nuevo paciente',
+  return ''+
+  '<div class="card plano"><h3>'+ico('paciente')+'Identificación del paciente</h3>'+
     '<div class="grid c2">'+
       campoTxt('paApellido','Apellido *', p.apellido)+
       campoTxt('paNombre','Nombre *', p.nombre)+
     '</div>'+
-    '<div class="grid c2">'+
+    '<div class="grid c3">'+
       campoTxt('paDni','DNI *', p.dni)+
+      campoTxt('paHC','N.º de historia clínica', p.hc)+
       campoFecha('paNac','Fecha de nacimiento', p.fechaNac)+
     '</div>'+
     '<div id="paAvisoDni"></div>'+
-    '<div class="grid c3">'+
-      campoSel('paSexo','Sexo', [{v:'F',t:'Femenino'},{v:'M',t:'Masculino'},{v:'X',t:'X / No binario'}], p.sexo)+
+    '<div class="grid c4">'+
+      campoSel('paSexo','Sexo', [{v:'',t:'—'},{v:'F',t:'Femenino'},{v:'M',t:'Masculino'},{v:'X',t:'X / No binario'}], p.sexo)+
       campoNum('paPeso','Peso (kg)', p.peso, 'inputmode="decimal"')+
       campoNum('paTalla','Talla (cm)', p.talla, 'inputmode="decimal"')+
+      campoTxt('paEdadCalc','Edad', '', true)+
     '</div>'+
     '<div id="paIMC"></div>'+
+  '</div>'+
+
+  '<div class="card plano"><h3>'+ico('dinero')+'Cobertura</h3>'+
     '<div class="grid c2">'+
       '<div class="campo"><label>Obra social / financiador</label><select id="paOS">'+
         '<option value="">— Seleccionar —</option>'+
@@ -87,6 +155,9 @@ function editarPaciente(id){
       '</select></div>'+
       campoTxt('paAfiliado','N.º de afiliado', p.nroAfiliado)+
     '</div>'+
+  '</div>'+
+
+  '<div class="card plano"><h3>'+ico('correo')+'Contacto y domicilio</h3>'+
     '<div class="grid c2">'+
       campoTxt('paTel','Teléfono', p.telefono)+
       campoSel('paGrupo','Grupo y factor',
@@ -102,21 +173,36 @@ function editarPaciente(id){
       campoSel('paLocalidad','Localidad',
         ['','Ushuaia','Río Grande','Tolhuin','Otra localidad de TDF','Fuera de la provincia'], p.localidad)+
     '</div>'+
-    campoTxt('paEmergencia','Contacto de emergencia (nombre y teléfono)', p.contactoEmergencia)+
+    '<div class="grid c2">'+
+      campoTxt('paEmergencia','Contacto de emergencia (nombre y teléfono)', p.contactoEmergencia)+
+      campoTxt('paOcupacion','Ocupación', p.ocupacion)+
+    '</div>'+
     campoArea('paObs','Observaciones generales', p.observaciones,
-      'Datos relevantes que quieras tener a mano cada vez que abras este paciente'),
-    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
-    '<button class="btn pri" id="paGuardar">'+ico('check')+' Guardar</button>');
+      'Datos relevantes que quieras tener a mano cada vez que abras este paciente')+
+  '</div>';
+}
 
+function cablearPacFiliatorios(){
+  /* Peso y talla: sólo el IMC. Nada más se calcula acá. */
   const recalc = () => {
     const imc = calcIMC($('#paPeso').value, $('#paTalla').value);
-    $('#paIMC').innerHTML = imc ?
-      '<div class="aviso info" style="margin-bottom:13px">'+ico('info')+
-      '<div><b>IMC '+imc.toFixed(1)+' kg/m²</b> — '+clasificaIMC(imc)+
-      ' · Superficie corporal '+superficieCorporal($('#paPeso').value,$('#paTalla').value).toFixed(2)+' m²</div></div>' : '';
+    $('#paIMC').innerHTML = imc
+      ? '<div class="imc-box '+claseIMC(imc)+'">'+
+          '<span class="lbl">IMC</span>'+
+          '<span class="val">'+fNum(imc,1)+'</span>'+
+          '<span class="um">kg/m²</span>'+
+          '<span class="tag '+claseIMC(imc)+'">'+esc(clasificaIMC(imc))+'</span>'+
+        '</div>'
+      : '';
+    const ed = edadDe($('#paNac').value);
+    $('#paEdadCalc').value = ed !== null ? ed + ' años' : '—';
   };
-  $('#paPeso').oninput = recalc; $('#paTalla').oninput = recalc; recalc();
+  $('#paPeso').oninput = recalc;
+  $('#paTalla').oninput = recalc;
+  $('#paNac').onchange = recalc;
+  recalc();
 
+  const id = pacEdit.__id;
   const revisarDni = () => {
     const d = $('#paDni').value.trim();
     const ya = d ? lista('pacientes').find(x => x.id !== id && norm(x.dni) === norm(d)) : null;
@@ -131,67 +217,520 @@ function editarPaciente(id){
   };
   $('#paDni').oninput = debounce(revisarDni, 250);
   revisarDni();
-
-  $('#paGuardar').onclick = () => {
-    const g = i => $('#'+i).value.trim();
-    if(!g('paApellido') || !g('paNombre')) return toast('Apellido y nombre son obligatorios.', 'err');
-    if(!g('paDni')) return toast('El DNI es obligatorio.', 'err');
-    const dup = lista('pacientes').find(x => x.id !== id && norm(x.dni) === norm(g('paDni')));
-    if(dup && !id) return toast('Ya existe un paciente con ese DNI: '+dup.apellido+', '+dup.nombre, 'err');
-    const nid = id || uid('pac');
-    escribir('pacientes', nid, Object.assign({}, p, {
-      id:nid, ownerUid: p.ownerUid || SESION.uid,
-      apellido:g('paApellido'), nombre:g('paNombre'), dni:g('paDni'), fechaNac:g('paNac'),
-      sexo:$('#paSexo').value, peso:g('paPeso'), talla:g('paTalla'),
-      obraSocial:$('#paOS').value, nroAfiliado:g('paAfiliado'), telefono:g('paTel'),
-      email:g('paEmail'),
-      grupoSanguineo:$('#paGrupo').value, domicilio:g('paDom'), localidad:$('#paLocalidad').value,
-      contactoEmergencia:g('paEmergencia'), observaciones:g('paObs'),
-      creado: p.creado || new Date().toISOString(),
-      modificado: new Date().toISOString(), modificadoPor: SESION.uid
-    }));
-    auditar(id?'paciente-editar':'paciente-alta', g('paApellido')+', '+g('paNombre'));
-    cerrarModal();
-    toast(id ? 'Paciente actualizado.' : 'Paciente creado.', 'ok');
-    vistaPacientes();
-    if(!id) setTimeout(() => abrirPaciente(nid), 200);
-  };
 }
 
-/* -------------------------------------------------- Detalle de paciente */
+function claseIMC(imc){
+  if(imc === null) return '';
+  if(imc < 18.5) return 'warn';
+  if(imc < 25) return 'ok';
+  if(imc < 30) return 'warn';
+  return 'danger';
+}
+
+/* ----------------------------------------------- Solapa 2: antecedentes */
+function htmlPacAntecedentes(p){
+  const sinAnt = !!p.sinAntecedentes;
+  const sistemas = Object.keys(ANTECEDENTES_SISTEMAS);
+  return ''+
+  '<div class="card plano"><h3>'+ico('lista')+'Antecedentes patológicos</h3>'+
+
+    '<label class="toggle-verde'+(sinAnt?' on':'')+'" id="paSinAntL">'+
+      '<input type="checkbox" id="paSinAnt"'+(sinAnt?' checked':'')+'>'+
+      ico('check')+' Sin antecedentes relevantes</label>'+
+
+    '<div id="paAntBloque"'+(sinAnt?' class="atenuado"':'')+'>'+
+      '<label class="mini strong mt14" style="display:block">Antecedentes relevantes</label>'+
+      '<div class="chips" id="paChips">'+ PATOLOGIAS_CHIP.map(x =>
+        '<button type="button" class="chip'+(tieneAntecedente(p, x.n)?' on':'')+'" data-chip="'+esc(x.n)+'">'+
+          esc(x.chip)+'</button>').join('')+
+        '<button type="button" class="chip mas" id="paChipOtro">'+ico('mas')+' Otros</button>'+
+      '</div>'+
+
+      '<div class="campo mt14"><label>Buscar en el catálogo de antecedentes</label>'+
+        '<div class="buscador"><input type="search" id="paAntBuscar" '+
+          'placeholder="Ej.: hipertensión, asma, epilepsia…" autocomplete="off">'+
+        '<div class="res" id="paAntRes"></div></div>'+
+        '<div class="ayuda">Escribí al menos 2 letras. Si el antecedente no figura, lo agregás '+
+        'manualmente desde el mismo buscador.</div></div>'+
+
+      '<div class="seleccionados" id="paAntSel"></div>'+
+      '<div id="paAntMeds"></div>'+
+
+      '<details class="acc mt14"><summary><span class="n">'+ico('corazon')+'</span>'+
+        'Revisión por sistemas<span class="flecha">'+ico('flecha')+'</span></summary>'+
+        '<div class="cuerpo">'+ sistemas.map(s =>
+          '<div class="mt8"><div class="mini strong" style="margin-bottom:5px">'+esc(s)+'</div>'+
+          '<div class="chks">'+ ANTECEDENTES_SISTEMAS[s].map(n =>
+            '<label class="chk'+(tieneAntecedente(p,n)?' sel':'')+'">'+
+            '<input type="checkbox" class="pa-sis" value="'+esc(n)+'"'+
+            (tieneAntecedente(p,n)?' checked':'')+'>'+esc(n)+'</label>').join('')+
+          '</div></div>').join('') +'</div></details>'+
+
+      campoArea('paAntOtros','Otros antecedentes y detalles', p.antecedentesOtros,
+        'Cronología, tratamientos, internaciones, estudios previos…')+
+    '</div>'+
+  '</div>'+
+
+  '<div class="card plano"><h3>'+ico('bisturi')+'Antecedentes quirúrgicos</h3>'+
+    '<div class="chips" id="paQxChips">'+ CIRUGIAS_PREVIAS.map(n =>
+      '<button type="button" class="chip'+((p.antQuirurgicos||[]).some(q => q.n===n)?' on':'')+
+      '" data-qx="'+esc(n)+'">'+esc(n)+'</button>').join('') +'</div>'+
+    '<div class="campo mt14"><label>Agregar otra cirugía</label>'+
+      '<div style="display:flex;gap:8px">'+
+        '<input type="text" id="paQxOtra" placeholder="Nombre de la cirugía" style="flex:1">'+
+        '<input type="text" id="paQxAnio" placeholder="Año" style="width:90px" inputmode="numeric">'+
+        '<button type="button" class="btn ghost chico" id="paQxAdd">'+ico('mas')+'</button>'+
+      '</div></div>'+
+    '<div id="paQxSel"></div>'+
+  '</div>'+
+
+  '<div class="card plano"><h3>'+ico('jeringa')+'Antecedentes anestésicos</h3>'+
+    chksHTML('paAntAnest', ANTECEDENTES_ANESTESICOS, p.antAnestesicos)+
+    campoArea('paAntAnestDet','Detalle de eventos anestésicos previos', p.antAnestDetalle,
+      'Fecha, procedimiento, institución, qué ocurrió y cómo se resolvió')+
+    '<div class="aviso danger" id="paAlertaHM" style="display:none">'+ico('fuego')+
+      '<div><b>Antecedente de hipertermia maligna.</b> Planificar técnica libre de gatillantes '+
+      '(TIVA), máquina purgada o con filtros de carbón activado, dantrolene disponible y '+
+      'monitoreo de temperatura y EtCO₂.</div></div>'+
+  '</div>'+
+
+  '<div class="card plano"><h3>'+ico('pacientes')+'Antecedentes familiares</h3>'+
+    chksHTML('paAntFam', ANTECEDENTES_FAMILIARES, p.antFamiliares)+
+    campoArea('paAntFamDet','Detalle de los antecedentes familiares', p.antFamDetalle)+
+  '</div>';
+}
+
+function tieneAntecedente(p, n){
+  return (p.antecedentes || []).some(a => (a.n || a) === n);
+}
+
+function cablearPacAntecedentes(){
+  const p = pacEdit;
+
+  const refrescar = () => {
+    pintarAntSeleccionados();
+    pintarMedsSugeridas();
+    $$('#paChips [data-chip]').forEach(b =>
+      b.classList.toggle('on', tieneAntecedente(p, b.dataset.chip)));
+    $$('.pa-sis').forEach(i => {
+      const on = tieneAntecedente(p, i.value);
+      i.checked = on;
+      i.closest('.chk').classList.toggle('sel', on);
+    });
+  };
+
+  const alternar = n => {
+    const i = (p.antecedentes || []).findIndex(a => (a.n || a) === n);
+    if(i >= 0) p.antecedentes.splice(i, 1);
+    else {
+      const cat = patologiaPorNombre(n);
+      p.antecedentes.push({ n:n, sis: cat ? cat.sis : 'Otros' });
+    }
+    refrescar();
+  };
+
+  $$('#paChips [data-chip]').forEach(b => b.onclick = () => alternar(b.dataset.chip));
+  $('#paChipOtro').onclick = () => { const i = $('#paAntBuscar'); if(i) i.focus(); };
+  $$('.pa-sis').forEach(i => i.onclick = e => { e.preventDefault(); alternar(i.value); });
+
+  montarBuscador({
+    input: $('#paAntBuscar'), caja: $('#paAntRes'), manual: true,
+    fuente: () => todasPatologias().map(x => ({
+      etiqueta:x.n, sub:x.sis, busca: norm(x.n+' '+x.sis+' '+(x.chip||'')), dato:x })),
+    onElegir: x => { if(!tieneAntecedente(p, x.dato.n)) alternar(x.dato.n); else refrescar(); },
+    onManual: txt => {
+      if(!txt) return;
+      agregarExtra('pat', { n:txt, sis:'Agregado manualmente' });
+      if(!tieneAntecedente(p, txt)){ p.antecedentes.push({ n:txt, sis:'Agregado manualmente' }); }
+      refrescar();
+      toast('Antecedente agregado al catálogo de la asociación.', 'ok');
+    }
+  });
+
+  /* «Sin antecedentes relevantes» atenúa el bloque pero no borra nada:
+     si el paciente después resulta tener algo, no se perdió lo cargado. */
+  const sinAnt = () => {
+    const on = $('#paSinAnt').checked;
+    $('#paSinAntL').classList.toggle('on', on);
+    $('#paAntBloque').classList.toggle('atenuado', on);
+  };
+  $('#paSinAnt').onchange = sinAnt;
+
+  /* cirugías previas */
+  const pintarQx = () => {
+    const l = p.antQuirurgicos || [];
+    $('#paQxSel').innerHTML = l.length
+      ? '<div class="seleccionados">'+ l.map((q,i) =>
+          '<span class="pill"><span>'+esc(q.n)+(q.anio?' ('+esc(q.anio)+')':'')+'</span>'+
+          '<button data-qxq="'+i+'">&times;</button></span>').join('') +'</div>'
+      : '<span class="mini">Sin cirugías previas cargadas.</span>';
+    $$('#paQxSel [data-qxq]').forEach(b => b.onclick = () => {
+      p.antQuirurgicos.splice(Number(b.dataset.qxq), 1); pintarQx();
+      $$('#paQxChips [data-qx]').forEach(c =>
+        c.classList.toggle('on', (p.antQuirurgicos||[]).some(q => q.n === c.dataset.qx)));
+    });
+  };
+  $$('#paQxChips [data-qx]').forEach(b => b.onclick = () => {
+    const n = b.dataset.qx;
+    const i = (p.antQuirurgicos||[]).findIndex(q => q.n === n);
+    if(i >= 0) p.antQuirurgicos.splice(i, 1); else p.antQuirurgicos.push({ n:n, anio:'' });
+    b.classList.toggle('on', i < 0); pintarQx();
+  });
+  $('#paQxAdd').onclick = () => {
+    const n = $('#paQxOtra').value.trim(); if(!n) return;
+    p.antQuirurgicos.push({ n:n, anio:$('#paQxAnio').value.trim() });
+    $('#paQxOtra').value = ''; $('#paQxAnio').value = ''; pintarQx();
+  };
+  pintarQx();
+
+  cablearChks('paAntAnest'); cablearChks('paAntFam');
+  const revisarHM = () => {
+    const marcado = $$('#paAntAnest input:checked').some(i => i.value.indexOf('Hipertermia maligna') >= 0)
+      || $$('#paAntFam input:checked').some(i => i.value.indexOf('Hipertermia maligna') >= 0);
+    $('#paAlertaHM').style.display = marcado ? '' : 'none';
+  };
+  $('#paAntAnest').addEventListener('change', revisarHM);
+  $('#paAntFam').addEventListener('change', revisarHM);
+  revisarHM();
+
+  refrescar();
+}
+
+function pintarAntSeleccionados(){
+  const p = pacEdit;
+  const c = $('#paAntSel'); if(!c) return;
+  const l = p.antecedentes || [];
+  c.innerHTML = l.length
+    ? l.map((a,i) => '<span class="pill"><span>'+esc(a.n)+'</span>'+
+        '<b class="comp">'+esc(a.sis||'')+'</b><button data-ant="'+i+'">&times;</button></span>').join('')
+    : '<span class="mini">Sin antecedentes cargados.</span>';
+  $$('#paAntSel [data-ant]').forEach(b => b.onclick = () => {
+    p.antecedentes.splice(Number(b.dataset.ant), 1);
+    pintarAntSeleccionados(); pintarMedsSugeridas();
+    $$('#paChips [data-chip]').forEach(x =>
+      x.classList.toggle('on', tieneAntecedente(p, x.dataset.chip)));
+    $$('.pa-sis').forEach(i => {
+      const on = tieneAntecedente(p, i.value);
+      i.checked = on; i.closest('.chk').classList.toggle('sel', on);
+    });
+  });
+}
+
+/* Al cargar una patología se ofrece la medicación que habitualmente toma
+   ese paciente, con la conducta perioperatoria de cada fármaco. No se
+   agrega sola: hay que tocarla. */
+function pintarMedsSugeridas(){
+  const p = pacEdit;
+  const c = $('#paAntMeds'); if(!c) return;
+  const sug = medicacionSugerida(p.antecedentes)
+    .filter(m => !(p.medicacion || []).some(x => x.n === m.n));
+  if(!sug.length){ c.innerHTML = ''; return; }
+  c.innerHTML = '<div class="aviso info mt14">'+ico('jeringa')+'<div>'+
+    '<b>Medicación habitual asociada a estos antecedentes.</b> Tocá la que el paciente '+
+    'realmente toma; cada una viene con su conducta perioperatoria.<div class="chips mt8">'+
+    sug.map((m,i) => '<button type="button" class="chip" data-sug="'+i+'">'+ico('mas')+
+      esc(m.n)+'</button>').join('')+
+    '<button type="button" class="chip on" id="paSugTodas">Agregar todas</button>'+
+    '</div></div></div>';
+  const agregar = m => {
+    if((p.medicacion||[]).some(x => x.n === m.n)) return;
+    p.medicacion.push({ n:m.n, g:m.g, accion:m.accion, nota:m.nota, dosis:'', porque:m.porque });
+  };
+  $$('#paAntMeds [data-sug]').forEach(b => b.onclick = () => {
+    agregar(sug[Number(b.dataset.sug)]); pintarMedsSugeridas();
+    toast('Agregada a la medicación habitual.', 'ok');
+  });
+  $('#paSugTodas').onclick = () => { sug.forEach(agregar); pintarMedsSugeridas();
+    toast(sug.length+' fármacos agregados a la medicación.', 'ok'); };
+}
+
+/* ------------------------------------------------- Solapa 3: medicacion */
+function htmlPacMedicacion(p){
+  return ''+
+  '<div class="card plano"><h3>'+ico('jeringa')+'Medicación habitual</h3>'+
+    '<div class="campo"><label>Buscar fármaco</label>'+
+      '<div class="buscador"><input type="search" id="paMedBuscar" '+
+        'placeholder="Ej.: aspirina, metformina, enalapril…" autocomplete="off">'+
+      '<div class="res" id="paMedRes"></div></div>'+
+      '<div class="ayuda">Cada fármaco trae la conducta perioperatoria sugerida según las guías '+
+      'vigentes; podés modificarla.</div></div>'+
+    '<div id="paMedSug"></div>'+
+    '<div id="paMedLista" class="mt8"></div>'+
+    campoArea('paMedOtros','Otra medicación o aclaraciones', p.medicacionOtros)+
+  '</div>';
+}
+
+function cablearPacMedicacion(){
+  const p = pacEdit;
+  montarBuscador({
+    input: $('#paMedBuscar'), caja: $('#paMedRes'), manual: true,
+    fuente: () => FARMACOS_PERIOP.map(x => ({
+      etiqueta:x.n, sub:x.g+' · '+({continuar:'Continuar',suspender:'Suspender',evaluar:'Evaluar'}[x.accion]),
+      busca: norm(x.n+' '+x.g), dato:x })),
+    onElegir: x => { if(!p.medicacion.some(m => m.n === x.dato.n))
+        p.medicacion.push({ n:x.dato.n, g:x.dato.g, accion:x.dato.accion, nota:x.dato.nota, dosis:'' });
+      pintarMedPaciente(); },
+    onManual: txt => { if(!txt) return;
+      p.medicacion.push({ n:txt, g:'Otro', accion:'evaluar', nota:'', dosis:'' }); pintarMedPaciente(); }
+  });
+  pintarMedPaciente();
+
+  /* también acá se ofrece lo que sugieren los antecedentes ya cargados */
+  const sug = medicacionSugerida(p.antecedentes).filter(m => !p.medicacion.some(x => x.n === m.n));
+  const c = $('#paMedSug');
+  if(sug.length){
+    c.innerHTML = '<div class="aviso info">'+ico('info')+'<div>'+
+      '<b>Sugerida por los antecedentes cargados.</b><div class="chips mt8">'+
+      sug.map((m,i) => '<button type="button" class="chip" data-msug="'+i+'">'+ico('mas')+esc(m.n)+
+        '</button>').join('')+'</div></div></div>';
+    $$('#paMedSug [data-msug]').forEach(b => b.onclick = () => {
+      const m = sug[Number(b.dataset.msug)];
+      p.medicacion.push({ n:m.n, g:m.g, accion:m.accion, nota:m.nota, dosis:'', porque:m.porque });
+      cablearPacMedicacion();
+    });
+  } else c.innerHTML = '';
+}
+
+function pintarMedPaciente(){
+  const p = pacEdit;
+  const cont = $('#paMedLista'); if(!cont) return;
+  if(!p.medicacion.length){
+    cont.innerHTML = '<p class="mini">Sin medicación cargada.</p>'; return;
+  }
+  const color = { continuar:'ok', suspender:'danger', evaluar:'warn' };
+  const txt = { continuar:'CONTINUAR', suspender:'SUSPENDER', evaluar:'EVALUAR' };
+  cont.innerHTML = p.medicacion.map((m,i) =>
+    '<div class="med-card">'+
+      '<div class="med-head">'+
+        '<b>'+esc(m.n)+'</b>'+
+        '<span class="tag '+color[m.accion]+'">'+txt[m.accion]+'</span>'+
+        '<button class="btn ghost chico" data-mquitar="'+i+'">'+ico('borrar')+'</button>'+
+      '</div>'+
+      (m.porque ? '<div class="mini">Por su antecedente de '+esc(m.porque)+'</div>' : '')+
+      '<div class="grid c2 mt8">'+
+        '<div class="campo" style="margin:0"><label>Dosis y frecuencia</label>'+
+          '<input type="text" data-mdosis="'+i+'" value="'+esc(m.dosis||'')+'" placeholder="Ej.: 10 mg/día"></div>'+
+        '<div class="campo" style="margin:0"><label>Conducta perioperatoria</label>'+
+          '<select data-maccion="'+i+'">'+
+          ['continuar','suspender','evaluar'].map(a =>
+            '<option value="'+a+'"'+(m.accion===a?' selected':'')+'>'+txt[a]+'</option>').join('')+
+        '</select></div>'+
+      '</div>'+
+      (m.nota ? '<div class="med-nota">'+esc(m.nota)+'</div>' : '')+
+    '</div>').join('');
+  $$('#paMedLista [data-mquitar]').forEach(b => b.onclick = () => {
+    p.medicacion.splice(Number(b.dataset.mquitar), 1); pintarMedPaciente(); });
+  $$('#paMedLista [data-mdosis]').forEach(i => i.oninput = () =>
+    p.medicacion[Number(i.dataset.mdosis)].dosis = i.value);
+  $$('#paMedLista [data-maccion]').forEach(s => s.onchange = () => {
+    p.medicacion[Number(s.dataset.maccion)].accion = s.value; pintarMedPaciente(); });
+}
+
+/* -------------------------------------------- Solapa 4: alergias y habitos */
+function htmlPacAlergias(p){
+  const h = p.habitos || {};
+  const sinAle = (p.alergias||[]).indexOf('Sin alergias conocidas') >= 0;
+  return ''+
+  '<div class="card plano"><h3>'+ico('alerta')+'Alergias e intolerancias</h3>'+
+    '<label class="toggle-verde'+(sinAle?' on':'')+'" id="paSinAleL">'+
+      '<input type="checkbox" id="paSinAle"'+(sinAle?' checked':'')+'>'+
+      ico('check')+' Sin alergias conocidas</label>'+
+    '<div id="paAleBloque"'+(sinAle?' class="atenuado"':'')+' style="margin-top:12px">'+
+      chksHTML('paAlerg', ALERGENOS, p.alergias)+
+      campoArea('paAlergDet','Detalle de la reacción', p.alergiaDetalle,
+        'Tipo de reacción, gravedad, fecha, estudio alergológico realizado')+
+    '</div>'+
+  '</div>'+
+
+  '<div class="card plano"><h3>'+ico('hoja')+'Hábitos y estilo de vida</h3>'+
+    '<div class="grid c2">'+
+      campoSel('paTabaco','Tabaquismo', ['','No fumador','Ex fumador','Fumador activo'], h.tabaco)+
+      campoTxt('paTabacoCant','Carga tabáquica (paquetes/año)', h.tabacoCant)+
+    '</div>'+
+    '<div class="grid c2">'+
+      campoSel('paAlcohol','Alcohol', ['','No consume','Social','Consumo de riesgo','Dependencia'], h.alcohol)+
+      campoSel('paDrogas','Otras sustancias',
+        ['','No consume','Cannabis','Cocaína','Opioides','Múltiples','Prefiere no informar'], h.drogas)+
+    '</div>'+
+    campoSel('paActividad','Actividad física',
+      ['','Sedentario','Actividad leve','Actividad moderada','Deportista'], h.actividad)+
+  '</div>';
+}
+
+function cablearPacAlergias(){
+  cablearChks('paAlerg');
+  const sinAle = () => {
+    const on = $('#paSinAle').checked;
+    $('#paSinAleL').classList.toggle('on', on);
+    $('#paAleBloque').classList.toggle('atenuado', on);
+  };
+  $('#paSinAle').onchange = sinAle;
+}
+
+/* ------------------------------------------------------------ Guardado */
+function leerSolapaPaciente(){
+  const p = pacEdit;
+  const g = i => { const e = $('#'+i); return e ? e.value.trim() : undefined; };
+  if(solapaPac === 'fil'){
+    if($('#paApellido')){
+      p.apellido = g('paApellido'); p.nombre = g('paNombre'); p.dni = g('paDni');
+      p.hc = g('paHC'); p.fechaNac = g('paNac'); p.sexo = $('#paSexo').value;
+      p.peso = g('paPeso'); p.talla = g('paTalla');
+      p.obraSocial = $('#paOS').value; p.nroAfiliado = g('paAfiliado');
+      p.telefono = g('paTel'); p.grupoSanguineo = $('#paGrupo').value;
+      p.email = g('paEmail'); p.domicilio = g('paDom'); p.localidad = $('#paLocalidad').value;
+      p.contactoEmergencia = g('paEmergencia'); p.ocupacion = g('paOcupacion');
+      p.observaciones = g('paObs');
+    }
+  } else if(solapaPac === 'ant'){
+    if($('#paSinAnt')){
+      p.sinAntecedentes = $('#paSinAnt').checked;
+      p.antecedentesOtros = g('paAntOtros');
+      p.antAnestesicos = leerChks('paAntAnest'); p.antAnestDetalle = g('paAntAnestDet');
+      p.antFamiliares = leerChks('paAntFam');   p.antFamDetalle = g('paAntFamDet');
+    }
+  } else if(solapaPac === 'med'){
+    if($('#paMedOtros')) p.medicacionOtros = g('paMedOtros');
+  } else {
+    if($('#paAlerg')){
+      const sel = leerChks('paAlerg');
+      p.alergias = $('#paSinAle').checked
+        ? ['Sin alergias conocidas'].concat(sel.filter(x => x !== 'Sin alergias conocidas'))
+        : sel.filter(x => x !== 'Sin alergias conocidas');
+      p.alergiaDetalle = g('paAlergDet');
+      p.habitos = { tabaco:$('#paTabaco').value, tabacoCant:g('paTabacoCant'),
+                    alcohol:$('#paAlcohol').value, drogas:$('#paDrogas').value,
+                    actividad:$('#paActividad').value };
+    }
+  }
+}
+
+function guardarPacienteEditado(){
+  leerSolapaPaciente();
+  const p = pacEdit;
+  const id = p.__id;
+  if(!p.apellido || !p.nombre){
+    solapaPac = 'fil'; pintarEditorPaciente();
+    return toast('Apellido y nombre son obligatorios.', 'err');
+  }
+  if(!p.dni){
+    solapaPac = 'fil'; pintarEditorPaciente();
+    return toast('El DNI es obligatorio.', 'err');
+  }
+  const dup = lista('pacientes').find(x => x.id !== id && norm(x.dni) === norm(p.dni));
+  if(dup && !id) return toast('Ya existe un paciente con ese DNI: '+dup.apellido+', '+dup.nombre, 'err');
+
+  const nid = id || uid('pac');
+  const alGuardar = p.__alGuardar;
+  delete p.__id; delete p.__alGuardar;
+  const reg = Object.assign({}, p, {
+    id:nid, ownerUid: p.ownerUid || SESION.uid,
+    creado: p.creado || new Date().toISOString(),
+    modificado: new Date().toISOString(), modificadoPor: SESION.uid
+  });
+  escribir('pacientes', nid, reg);
+  auditar(id?'paciente-editar':'paciente-alta', reg.apellido+', '+reg.nombre);
+  cerrarModal();
+  toast(id ? 'Historia del paciente actualizada.' : 'Paciente creado.', 'ok');
+  if(vistaActual === 'pacientes') vistaPacientes();
+  if(alGuardar) alGuardar(nid);
+  else if(!id) setTimeout(() => abrirPaciente(nid), 200);
+}
+
+/* =========================================================================
+   DETALLE DEL PACIENTE
+   ========================================================================= */
 function abrirPaciente(id){
   const p = DB.pacientes[id]; if(!p) return;
   const fichas = fichasVisibles().filter(f => f.pacienteId === id)
     .sort((a,b) => (b.fecha||'') < (a.fecha||'') ? -1 : 1);
   const ed = edadDe(p.fechaNac);
   const imc = calcIMC(p.peso, p.talla);
+  const ant = p.antecedentes || [];
+  const alergias = (p.alergias || []).filter(a => a !== 'Sin alergias conocidas');
+  const meds = p.medicacion || [];
+  const h = p.habitos || {};
+
+  const bloqueLista = (titulo, items, vacio) =>
+    '<h3 class="sec-t">'+esc(titulo)+'</h3>'+
+    (items.length
+      ? '<div class="seleccionados">'+items.map(x => '<span class="pill"><span>'+esc(x)+'</span></span>').join('')+'</div>'
+      : '<p class="mini">'+esc(vacio)+'</p>');
 
   const cuerpo = ''+
-  '<div style="display:flex;gap:13px;align-items:center;margin-bottom:15px">'+
-    '<div class="avatar" style="width:54px;height:54px;border-radius:15px;font-size:19px;display:grid;place-items:center;background:var(--azul-100);color:var(--azul-700);font-weight:800">'+
-      esc(iniciales(p.nombre,p.apellido))+'</div>'+
-    '<div><div style="font-size:17px;font-weight:750">'+esc(p.apellido)+', '+esc(p.nombre)+'</div>'+
-    '<div class="mini">DNI '+esc(p.dni||'—')+(ed!==null?' · '+ed+' años':'')+
+  '<div class="pac-cabecera">'+
+    '<div class="avatar grande">'+esc(iniciales(p.nombre,p.apellido))+'</div>'+
+    '<div><div class="pac-nombre">'+esc(p.apellido)+', '+esc(p.nombre)+'</div>'+
+    '<div class="mini">DNI '+esc(p.dni||'—')+(p.hc?' · HC '+esc(p.hc):'')+
+      (ed!==null?' · '+ed+' años':'')+
       (p.sexo?' · '+({F:'Femenino',M:'Masculino',X:'X'}[p.sexo]||''):'')+'</div></div>'+
   '</div>'+
+
+  (alergias.length ? '<div class="aviso danger">'+ico('alerta')+'<div><b>Alergias: </b>'+
+    esc(alergias.join(' · '))+(p.alergiaDetalle ? '<br><span class="mini">'+esc(p.alergiaDetalle)+'</span>' : '')+
+    '</div></div>' : '')+
+
   '<div class="grid c3 mb8">'+
     kpiMini('Peso', p.peso ? p.peso+' kg' : '—')+
     kpiMini('Talla', p.talla ? p.talla+' cm' : '—')+
-    kpiMini('IMC', imc ? imc.toFixed(1) : '—')+
+    kpiMini('IMC', imc ? fNum(imc,1) : '—')+
   '</div>'+
+  (imc ? '<p class="mini mb8" style="text-align:center">'+esc(clasificaIMC(imc))+'</p>' : '')+
+
   '<div class="card plano" style="margin-bottom:12px">'+
     fila('Obra social', (p.obraSocial||'Sin cobertura') + (p.nroAfiliado ? ' — N.º '+p.nroAfiliado : ''))+
     fila('Grupo y factor', p.grupoSanguineo || '—')+
     fila('Teléfono', p.telefono || '—')+
     fila('Correo electrónico', p.email || '—')+
     fila('Domicilio', [p.domicilio, p.localidad].filter(Boolean).join(', ') || '—')+
+    fila('Ocupación', p.ocupacion || '—')+
     fila('Contacto de emergencia', p.contactoEmergencia || '—')+
     (p.observaciones ? fila('Observaciones', p.observaciones) : '')+
     fila('Cargado por', nombreUsuario(p.ownerUid) +
       (p.modificadoPor && p.modificadoPor !== p.ownerUid
         ? ' · última edición: ' + nombreUsuario(p.modificadoPor) : ''))+
   '</div>'+
-  '<h3 style="font-size:14px;margin:16px 0 9px">Fichas anestésicas ('+fichas.length+')</h3>'+
+
+  '<h3 class="sec-t">Antecedentes patológicos</h3>'+
+  (p.sinAntecedentes && !ant.length
+    ? '<div class="aviso ok">'+ico('check')+'<div>Sin antecedentes relevantes.</div></div>'
+    : (ant.length
+      ? '<div class="seleccionados">'+ant.map(a =>
+          '<span class="pill"><span>'+esc(a.n)+'</span><b class="comp">'+esc(a.sis||'')+'</b></span>').join('')+'</div>'
+      : '<p class="mini">Sin antecedentes cargados.</p>'))+
+  (p.antecedentesOtros ? '<p class="mini mt8">'+esc(p.antecedentesOtros)+'</p>' : '')+
+
+  '<h3 class="sec-t">Medicación habitual</h3>'+
+  (meds.length
+    ? '<div class="lista chica">'+meds.map(m => {
+        const color = { continuar:'ok', suspender:'danger', evaluar:'warn' }[m.accion] || '';
+        const txt = { continuar:'CONTINUAR', suspender:'SUSPENDER', evaluar:'EVALUAR' }[m.accion] || '';
+        return '<div class="item plano"><div class="txt"><b>'+esc(m.n)+'</b>'+
+          '<span>'+esc([m.g, m.dosis].filter(Boolean).join(' · '))+'</span></div>'+
+          '<div class="der"><span class="tag '+color+'">'+txt+'</span></div></div>';
+      }).join('')+'</div>'
+    : '<p class="mini">Sin medicación cargada.</p>')+
+  (p.medicacionOtros ? '<p class="mini mt8">'+esc(p.medicacionOtros)+'</p>' : '')+
+
+  bloqueLista('Antecedentes quirúrgicos',
+    (p.antQuirurgicos||[]).map(q => q.n + (q.anio ? ' ('+q.anio+')' : '')),
+    'Sin cirugías previas cargadas.')+
+
+  bloqueLista('Antecedentes anestésicos', p.antAnestesicos || [], 'Sin antecedentes anestésicos.')+
+  (p.antAnestDetalle ? '<p class="mini mt8">'+esc(p.antAnestDetalle)+'</p>' : '')+
+
+  bloqueLista('Antecedentes familiares', p.antFamiliares || [], 'Sin antecedentes familiares.')+
+  (p.antFamDetalle ? '<p class="mini mt8">'+esc(p.antFamDetalle)+'</p>' : '')+
+
+  '<h3 class="sec-t">Hábitos</h3>'+
+  '<div class="card plano">'+
+    fila('Tabaquismo', (h.tabaco || '—') + (h.tabacoCant ? ' — '+h.tabacoCant+' paq/año' : ''))+
+    fila('Alcohol', h.alcohol || '—')+
+    fila('Otras sustancias', h.drogas || '—')+
+    fila('Actividad física', h.actividad || '—')+
+  '</div>'+
+
+  '<h3 class="sec-t">Fichas anestésicas ('+fichas.length+')</h3>'+
   (fichas.length ? '<div class="lista">'+ fichas.map(f =>
       '<div class="item" data-ficha="'+f.id+'">'+
         '<div class="avatar" style="background:'+(f.caracter==='urgencia'?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
@@ -204,8 +743,8 @@ function abrirPaciente(id){
     : '<p class="mini">Todavía no hay fichas para este paciente.</p>');
 
   abrirModal('Paciente', cuerpo,
-    '<button class="btn ghost" id="pdEditar">'+ico('editar')+' Editar</button>'+
-    '<button class="btn pri" id="pdNuevaFicha">'+ico('mas')+' Nueva ficha</button>');
+    '<button class="btn ghost" id="pdEditar">'+ico('editar')+' Editar historia</button>'+
+    '<button class="btn pri" id="pdNuevaFicha">'+ico('mas')+' Nueva ficha</button>', '980px');
 
   $('#pdEditar').onclick = () => { cerrarModal(); setTimeout(() => editarPaciente(id), 180); };
   $('#pdNuevaFicha').onclick = () => { cerrarModal(); setTimeout(() => abrirFicha(null, id), 180); };
@@ -223,7 +762,7 @@ function fila(l, v){
     '<span style="flex:1">'+esc(v)+'</span></div>';
 }
 function etiquetaEstadoFicha(f){
-  if(f.estado === 'cerrada') return '<span class="tag ok">Cerrada</span>';
+  if(f.estado === 'cerrada')   return '<span class="tag ok">Finalizada</span>';
   if(f.estado === 'realizada') return '<span class="tag info">Realizada</span>';
   return '<span class="tag warn">Borrador</span>';
 }

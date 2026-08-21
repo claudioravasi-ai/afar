@@ -1,13 +1,24 @@
 /* =========================================================================
-   FICHA ANESTESICA
-   Un documento por acto anestesico: datos quirurgicos, valoracion
-   prequirurgica, plan, consentimiento, registro intraoperatorio y honorarios.
+   FICHA ANESTESICA - FLUJO DE TRABAJO
+   Cinco pasos, en el orden en que ocurre el acto medico:
+
+     Paciente  >  Preanestesia  >  Anestesia  >  Recuperacion  >  Firmar
+
+   Los honorarios quedan fuera del flujo clinico, en su propio acceso: son
+   un tramite administrativo y no forman parte del registro anestesico.
    ========================================================================= */
 
 let fichaActual = null;
-let solapaFicha = 'qx';
-let firmaPaciente = null, firmaAnest = null;
-let cxSeleccionada = null, dxQxSeleccionado = null;
+let pasoFicha = 'paciente';
+let cxSeleccionada = null;
+
+const PASOS_FICHA = [
+  { k:'paciente',     ico:'paciente',   t:'Paciente',     sub:'Identificación y procedimiento' },
+  { k:'preanestesia', ico:'valoracion', t:'Preanestesia', sub:'Valoración y plan' },
+  { k:'anestesia',    ico:'jeringa',    t:'Anestesia',    sub:'Registro intraoperatorio' },
+  { k:'recuperacion', ico:'corazon',    t:'Recuperación', sub:'Aldrete, dolor y destino' },
+  { k:'firma',        ico:'firma',      t:'Firmar',       sub:'Cierre del registro' }
+];
 
 /* ============================ LISTADO ============================ */
 let filtroFichas = { texto:'', caracter:'', institucion:'', estado:'', alcance:'mias' };
@@ -55,7 +66,7 @@ function vistaFichas(){
     '</select></div>'+
     '<div class="campo"><label>Estado</label><select id="fEstado">'+
       '<option value="">Todos</option>'+
-      [['borrador','Borrador'],['realizada','Realizada'],['cerrada','Cerrada']].map(e =>
+      [['borrador','Borrador'],['realizada','Realizada'],['cerrada','Finalizada']].map(e =>
         '<option value="'+e[0]+'"'+(filtroFichas.estado===e[0]?' selected':'')+'>'+e[1]+'</option>').join('')+
     '</select></div>'+
   '</div>'+
@@ -88,128 +99,241 @@ function vistaFichas(){
   $$('#vFichas .item').forEach(it => it.onclick = () => abrirFicha(it.dataset.f));
 }
 
-/* ============================ EDITOR ============================ */
+/* =========================================================================
+   APERTURA Y MIGRACION
+   ========================================================================= */
+
+/* Las fichas viejas guardaban el acto de otra manera. Se traduce al abrir,
+   sin tocar la base: si el anestesiologo guarda, se graba ya migrada. */
+function migrarFicha(f){
+  const a = f.acto = f.acto || {};
+  if(!a.__v2){
+    a.__v2 = true;
+    a.drogas   = a.drogas   || [];
+    a.controles= a.controles|| [];
+    a.eventos2 = a.eventos2 || [];
+    a.monitor  = a.monitor  || [];
+    a.monitorExtra = a.monitorExtra || [];
+    a.tecnicas = a.tecnicas || [];
+    a.balance  = a.balance || {};
+    /* el balance vivia en campos sueltos */
+    ['cristaloides','coloides','diuresis'].forEach(k => {
+      if(a[k] && a.balance[k] === undefined) a.balance[k] = a[k];
+    });
+    if(a.sangrado && a.balance.sangrado === undefined) a.balance.sangrado = a.sangrado;
+    /* el texto libre de farmacos se conserva como nota, no se inventa una
+       lista de drogas que nadie cargo asi */
+    if(a.farmacos && !a.drogasNota) a.drogasNota = a.farmacos;
+    /* los eventos eran una lista de casillas */
+    if((a.eventos || []).length && !a.eventos2.length){
+      a.eventos2 = a.eventos.filter(e => e !== 'Sin eventos').map(e => ({
+        id: uid('ev'), tipo:e, hora:'', descripcion: a.eventosDetalle || '', conducta:'' }));
+      if((a.eventos || []).indexOf('Sin eventos') >= 0) a.sinEventos = true;
+    }
+    /* tecnica y via aerea */
+    if(!a.tecnicas.length && (a.tecnica || []).length){
+      const mapa = [['general','general'],['sedaci','sedacion'],['raqu','raquidea'],
+                    ['peridural','peridural'],['combinada','combinada'],['bloqueo','bloqueo']];
+      a.tecnica.forEach(t => {
+        const m = mapa.find(x => norm(t).indexOf(x[0]) >= 0);
+        if(m && a.tecnicas.indexOf(m[1]) < 0) a.tecnicas.push(m[1]);
+      });
+      a.tecnicaDetalle = a.tecnica.join(' · ');
+    }
+    if(!a.dispositivo && (a.dispositivosVA || []).length){
+      const d = a.dispositivosVA.join(' ');
+      a.dispositivo = /endotraqueal/i.test(d) ? 'tet' : (/laríngea|laringea/i.test(d) ? 'ml' : 'ninguno');
+      a.tamano = a.tubo || '';
+    }
+    if(!a.monitor.length && (f.plan || {}).monitoreoEstandar){
+      const mapa = { 'ECG continuo':'ECG', 'Presión arterial no invasiva (PANI)':'PANI',
+        'Oximetría de pulso (SpO₂)':'SpO₂', 'Capnografía (EtCO₂)':'EtCO₂',
+        'Temperatura':'Temperatura', 'Monitoreo de bloqueo neuromuscular (TOF)':'TOF' };
+      f.plan.monitoreoEstandar.forEach(m => { if(mapa[m]) a.monitor.push(mapa[m]); });
+    }
+  }
+  /* la recuperacion se separo del acto */
+  if(!f.recup){
+    f.recup = {
+      aldrete: a.aldrete || {}, aldreteTotal: a.aldreteTotal || 0,
+      eva: '', nauseas: '', destino: a.destinoReal || '',
+      observaciones: a.observaciones || '', hora: a.salida || ''
+    };
+  }
+  f.firma = f.firma || {};
+  /* Antes del flujo de trabajo, «cerrada» era el equivalente de firmada.
+     Se respeta para que las fichas viejas no aparezcan como pendientes. */
+  if(f.estado === 'cerrada' && !f.firma.firmado){
+    const u = DB.usuarios[actorFicha(f)] || DB.usuarios[f.ownerUid] || {};
+    f.firma = {
+      firmado:true, uid: u.uid || f.ownerUid,
+      nombre: (u.apellido||'')+', '+(u.nombre||''),
+      mp: u.matriculaProvincial || '',
+      fecha: f.fecha || hoyISO(), hora: (f.acto||{}).salida || '',
+      firmaDataUrl: u.firmaDataUrl || '',
+      retroactiva: true
+    };
+  }
+  return f;
+}
+
 function abrirFicha(id, pacienteId){
   const nueva = !id;
   if(id && !DB.fichas[id]) return toast('No se encontró la ficha.', 'err');
-  fichaActual = id ? JSON.parse(JSON.stringify(DB.fichas[id])) : {
+  fichaActual = migrarFicha(id ? JSON.parse(JSON.stringify(DB.fichas[id])) : {
     id: uid('fic'), ownerUid: SESION.uid, pacienteId: pacienteId || '',
     fecha: hoyISO(), hora: ahoraHora(), caracter:'programada',
     institucion:'', obraSocial:'', estado:'borrador',
-    v:{}, plan:{}, acto:{}, hon:{}, consent:{},
+    v:{}, plan:{}, acto:{}, recup:{}, hon:{}, consent:{}, firma:{},
     creado:new Date().toISOString()
-  };
+  });
   if(pacienteId) fichaActual.pacienteId = pacienteId;
-  /* Si la ficha la hizo otro anestesiologo y el acto todavia no es mio,
-     abre directamente en la solapa para tomar el acto operatorio. */
-  const g = id ? DB.fichas[id] : null;
-  solapaFicha = (g && !puedeEditarFicha(g) && !esActorFicha(g)) ? 'tomar' : 'qx';
   cxSeleccionada = fichaActual.cirugia ? {
     n: fichaActual.cirugia, ua: fichaActual.cirugiaUA,
     cod: fichaActual.cirugiaCod || '', comp: fichaActual.cirugiaComp || '',
     grillaB: !!fichaActual.cirugiaGrillaB, nota: fichaActual.cirugiaNota || ''
   } : null;
-  dxQxSeleccionado = fichaActual.dxQuirurgico || null;
+  /* Si la ficha es de un colega y el acto no es mio, se entra por el paso
+     de anestesia: es lo unico que ese colega puede tocar. */
+  const g = id ? DB.fichas[id] : null;
+  pasoFicha = (g && !puedeEditarFicha(g) && !esActorFicha(g)) ? 'anestesia' : 'paciente';
   irA('ficha');
   pintarFicha();
   if(nueva) toast('Nueva ficha creada. Recordá guardarla.', 'ok');
 }
 
+/* Avanza al paso siguiente / anterior guardando lo que haya en pantalla */
+function irAPaso(k){
+  guardarPasoActual();
+  pasoFicha = k;
+  pintarFicha();
+  const m = $('main'); if(m) m.scrollTop = 0;
+  window.scrollTo({ top:0, behavior:'auto' });
+}
+function pasoVecino(delta){
+  const i = PASOS_FICHA.findIndex(p => p.k === pasoFicha);
+  const j = i + delta;
+  return (j >= 0 && j < PASOS_FICHA.length) ? PASOS_FICHA[j].k : null;
+}
+
+/* Cuánto tiene completo cada paso: el punto del stepper se pinta con esto */
+function estadoPaso(f, k){
+  const v = f.v || {}, a = f.acto || {}, r = f.recup || {};
+  if(k === 'paciente')     return f.pacienteId && f.cirugia && f.institucion ? 'ok' : 'pend';
+  if(k === 'preanestesia') return (v.scores||{}).asa ? ((v.riesgo||{}).fundamento ? 'ok' : 'medio') : 'pend';
+  if(k === 'anestesia')    return (a.tecnicas||[]).length ? (a.finCirugia ? 'ok' : 'medio') : 'pend';
+  if(k === 'recuperacion') return r.aldreteTotal ? 'ok' : 'pend';
+  if(k === 'firma')        return (f.firma||{}).firmado ? 'ok' : 'pend';
+  return 'pend';
+}
+
+/* =========================================================================
+   PANTALLA
+   ========================================================================= */
 function pintarFicha(){
   const f = fichaActual;
   const guardada = DB.fichas[f.id];
   const soloActo = !!guardada && !puedeEditarFicha(guardada);
   const p = DB.pacientes[f.pacienteId] || null;
   const cont = $('#vFicha');
-  /* La ficha son dos actos medicos distintos y se muestran como dos bloques
-     separados: la valoracion prequirurgica (datos filiatorios, valoracion y
-     plan) y el acto quirurgico. Honorarios queda aparte porque abarca los dos.
-     Si la ficha es de un colega, al principio aparece la solapa para tomar
-     el acto operatorio. */
-  const grupos = [
-    (soloActo ? { t:'Tomo la ficha', solapas:[['tomar','firma','Tomo ficha anestésica para acto operatorio']] } : null),
-    { t:'Valoración prequirúrgica', solapas:[
-        ['qx','ficha','Datos filiatorios'],
-        ['val','valoracion','Valoración'],
-        ['plan','lista','Plan']
-    ] },
-    { t:'Acto quirúrgico', solapas:[
-        ['acto','monitor','Acto quirúrgico']
-    ] },
-    { t:'Honorarios', solapas:[
-        ['hon','dinero','Honorarios']
-    ] }
-  ].filter(Boolean);
-  const solapas = grupos.reduce((a,g) => a.concat(g.solapas), []);
-  if(!solapas.some(s => s[0] === solapaFicha)) solapaFicha = solapas[0][0];
+  const idx = PASOS_FICHA.findIndex(x => x.k === pasoFicha);
+  const firmada = !!(f.firma || {}).firmado;
 
   cont.innerHTML = ''+
-  '<div class="vista-head no-print">'+
+  '<div class="fi-top no-print">'+
     '<button class="btn ghost chico" id="fiVolver">'+ico('atras')+' Fichas</button>'+
-    '<div style="flex:1;min-width:150px"><h1 style="font-size:18px">'+
-      (p ? esc(p.apellido+', '+p.nombre) : 'Ficha sin paciente')+'</h1>'+
-      '<p>'+fFecha(f.fecha)+' · '+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+
-      ' · '+etiquetaEstadoFicha(f)+'</p></div>'+
+    '<div class="fi-top-txt">'+
+      '<h1>'+(p ? esc(p.apellido+', '+p.nombre) : 'Ficha sin paciente')+'</h1>'+
+      '<p>'+(p && p.dni ? 'DNI/HC '+esc(p.hc || p.dni)+' · ' : '')+
+        (p ? (edadDe(p.fechaNac, f.fecha) !== null ? edadDe(p.fechaNac, f.fecha)+' años · ' : '') : '')+
+        esc(nombreInstitucion(f.institucion).split('"')[0].trim() || 'sin institución')+'</p>'+
+    '</div>'+
+    etiquetaEstadoFicha(f)+
   '</div>'+
 
-  '<div class="fi-secciones no-print mb8">'+ grupos.map(g =>
-    '<div class="fi-seccion">'+
-      '<span class="fi-seccion-t">'+esc(g.t)+'</span>'+
-      '<div class="fi-seccion-s">'+ g.solapas.map(s =>
-        '<span class="tag'+(solapaFicha===s[0]?' on':'')+'" data-solapa="'+s[0]+'">'+
-        ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px"')+
-        esc(s[2])+'</span>').join('') +'</div>'+
-    '</div>').join('') +'</div>'+
+  /* ------- barra de pasos, igual que el flujo de trabajo del manual ------- */
+  '<div class="stepper no-print">'+ PASOS_FICHA.map((s,i) => {
+    const est = estadoPaso(f, s.k);
+    return '<button type="button" class="step'+(s.k===pasoFicha?' on':'')+' '+est+
+      '" data-paso="'+s.k+'">'+
+      '<span class="dot">'+(est==='ok' ? ico('check') : ico(s.ico))+'</span>'+
+      '<span class="lbl">'+esc(s.t)+'</span>'+
+      (i < PASOS_FICHA.length-1 ? '<span class="linea"></span>' : '')+
+      '</button>';
+  }).join('') +'</div>'+
+  '<div class="paso-cabecera no-print">'+
+    '<div><b>Paso '+(idx+1)+' de '+PASOS_FICHA.length+'</b> · '+esc(PASOS_FICHA[idx].sub)+'</div>'+
+    '<div class="barra"><span style="width:'+Math.round((idx+1)/PASOS_FICHA.length*100)+'%"></span></div>'+
+  '</div>'+
 
+  (firmada ? '<div class="aviso ok no-print">'+ico('candado')+'<div><b>Registro finalizado y firmado.</b> '+
+    'Queda en sólo lectura. Si hay que corregir algo, reabrilo desde el paso «Firmar».</div></div>' : '')+
   (soloActo ? bannerFichaAjena(f) : bannerFaltantes(f))+
 
   '<div id="fiCuerpo"></div>'+
 
-  '<div class="btn-row mt20 no-print">'+
-    '<button class="btn pri grande" id="fiGuardar">'+ico('check')+' Guardar ficha</button>'+
-    '<button class="btn ghost" id="fiWord">'+ico('word')+' Word</button>'+
-    '<button class="btn ghost" id="fiPdf">'+ico('imprimir')+' PDF</button>'+
-    (soloActo ? '' : '<button class="btn ghost" id="fiConsent">'+ico('firma')+' Consentimiento</button>')+
-    (soloActo ? '' : '<button class="btn ghost" id="fiMail">'+ico('adjunto')+' Enviar al paciente</button>')+
-    (DB.fichas[f.id] && !soloActo ? '<button class="btn danger" id="fiBorrar">'+ico('borrar')+'</button>' : '')+
+  /* ---------------------- navegación entre pasos ---------------------- */
+  '<div class="paso-nav no-print">'+
+    (pasoVecino(-1) ? '<button class="btn ghost" id="fiAtras">'+ico('atras')+' Anterior</button>' : '<span></span>')+
+    '<button class="btn pri grande" id="fiGuardar">'+ico('check')+' Guardar</button>'+
+    (pasoVecino(1) ? '<button class="btn pri" id="fiSiguiente">Siguiente '+
+      ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg)"')+'</button>' : '<span></span>')+
+  '</div>'+
+
+  '<div class="btn-row mt14 no-print fi-extras">'+
+    '<button class="btn ghost chico" id="fiHon">'+ico('dinero')+' Honorarios</button>'+
+    (soloActo ? '' : '<button class="btn ghost chico" id="fiConsent">'+ico('firma')+' Consentimiento</button>')+
+    '<button class="btn ghost chico" id="fiWord">'+ico('word')+' Word</button>'+
+    '<button class="btn ghost chico" id="fiPdf">'+ico('imprimir')+' PDF</button>'+
+    (soloActo ? '' : '<button class="btn ghost chico" id="fiMail">'+ico('adjunto')+' Enviar al paciente</button>')+
+    (DB.fichas[f.id] && !soloActo ? '<button class="btn danger chico" id="fiBorrar">'+ico('borrar')+'</button>' : '')+
   '</div>';
 
-  $('#fiVolver').onclick = () => { irA('fichas'); vistaFichas(); };
-  $$('#vFicha [data-solapa]').forEach(t => t.onclick = () => {
-    guardarSolapaActual(); solapaFicha = t.dataset.solapa; pintarFicha();
-  });
-  $('#fiGuardar').onclick = () => { guardarSolapaActual(); guardarFicha(); };
-  $('#fiWord').onclick = () => { guardarSolapaActual(); exportarFichaWord(fichaActual); };
-  $('#fiPdf').onclick  = () => { guardarSolapaActual(); imprimirFicha(fichaActual); };
-  if($('#fiConsent')) $('#fiConsent').onclick = () => { guardarSolapaActual(); abrirConsentimiento(fichaActual); };
-  if($('#fiMail')) $('#fiMail').onclick = () => { guardarSolapaActual(); enviarDocumentacionPaciente(fichaActual); };
+  $('#fiVolver').onclick = () => { guardarPasoActual(); irA('fichas'); vistaFichas(); };
+  /* El banner de ficha ajena vive fuera del cuerpo del paso: su botón se
+     cablea acá para que funcione en los cinco pasos, no sólo en el primero. */
+  if($('#fiTomar')) $('#fiTomar').onclick = () => tomarActo(f);
+  $$('#vFicha [data-paso]').forEach(b => b.onclick = () => irAPaso(b.dataset.paso));
+  if($('#fiAtras'))     $('#fiAtras').onclick = () => irAPaso(pasoVecino(-1));
+  if($('#fiSiguiente')) $('#fiSiguiente').onclick = () => irAPaso(pasoVecino(1));
+  $('#fiGuardar').onclick = () => { guardarPasoActual(); guardarFicha(); };
+  $('#fiHon').onclick = () => { guardarPasoActual(); abrirHonorarios(fichaActual); };
+  $('#fiWord').onclick = () => { guardarPasoActual(); exportarFichaWord(fichaActual); };
+  $('#fiPdf').onclick  = () => { guardarPasoActual(); imprimirFicha(fichaActual); };
+  if($('#fiConsent')) $('#fiConsent').onclick = () => { guardarPasoActual(); abrirConsentimiento(fichaActual); };
+  if($('#fiMail')) $('#fiMail').onclick = () => { guardarPasoActual(); enviarDocumentacionPaciente(fichaActual); };
   if($('#fiBorrar')) $('#fiBorrar').onclick = () => confirmar('Eliminar ficha',
     'Se elimina de forma permanente en todos los dispositivos. Esta acción no se puede deshacer.',
     () => { eliminar('fichas', f.id); auditar('ficha-borrar', f.id);
             toast('Ficha eliminada.', 'ok'); irA('fichas'); vistaFichas(); }, 'Eliminar', true);
 
   const cuerpo = $('#fiCuerpo');
-  if(solapaFicha === 'tomar')     { cuerpo.innerHTML = htmlTomarActo(f);   cablearTomarActo(f); return; }
-  if(solapaFicha === 'qx')        { cuerpo.innerHTML = htmlQuirurgico(f);  cablearQuirurgico(f); }
-  else if(solapaFicha === 'val')  { cuerpo.innerHTML = htmlValoracion(f);  cablearValoracion(f); }
-  else if(solapaFicha === 'plan') { cuerpo.innerHTML = htmlPlan(f);        cablearGenerico(); }
-  else if(solapaFicha === 'acto') { cuerpo.innerHTML = htmlActo(f);        cablearActo(f); }
-  else                            { cuerpo.innerHTML = htmlHonorarios(f);  cablearHonorarios(f); }
+  if(pasoFicha === 'paciente')          { cuerpo.innerHTML = htmlPasoPaciente(f);     cablearPasoPaciente(f); }
+  else if(pasoFicha === 'preanestesia') { cuerpo.innerHTML = htmlValoracion(f);       cablearValoracion(f); }
+  else if(pasoFicha === 'anestesia')    { pintarPasoAnestesia(f); }
+  else if(pasoFicha === 'recuperacion') { cuerpo.innerHTML = htmlPasoRecuperacion(f); cablearPasoRecuperacion(f); }
+  else                                  { cuerpo.innerHTML = htmlPasoFirma(f);        cablearPasoFirma(f); }
 
-  /* Un colega puede tocar el acto siempre, y los honorarios del acto sólo si
-     el acto está a su nombre. El resto queda en lectura. */
-  const editable = !soloActo
-    || solapaFicha === 'acto'
-    || (solapaFicha === 'hon' && esActorFicha(guardada));
+  /* Un colega puede tocar el acto y la recuperación; el resto queda en
+     lectura. Y una ficha firmada no se toca hasta que se reabra. */
+  const editable = (!soloActo || pasoFicha === 'anestesia' || pasoFicha === 'recuperacion')
+    && (!firmada || pasoFicha === 'firma');
   if(!editable) bloquearCuerpo();
 }
 
-/* Deja la solapa en modo lectura: se ve todo, no se cambia nada */
+/* Deja el paso en modo lectura: se ve todo, no se cambia nada.
+   Lo que sirve para MIRAR sigue vivo: las solapas del acto, el detalle de
+   dosis, el gráfico y el vademécum. Bloquear también la navegación dejaría
+   una ficha firmada imposible de consultar. */
+const SOLO_LECTURA = '.acto-solapas button, [data-lectura], [data-drver]';
 function bloquearCuerpo(){
   $$('#fiCuerpo input, #fiCuerpo select, #fiCuerpo textarea').forEach(e => { e.disabled = true; });
-  $$('#fiCuerpo button').forEach(e => { e.disabled = true; e.style.opacity = '.5'; });
+  $$('#fiCuerpo button').forEach(e => {
+    if(e.closest(SOLO_LECTURA) || e.matches(SOLO_LECTURA)) return;
+    e.disabled = true; e.style.opacity = '.5';
+  });
   $$('#fiCuerpo .buscador').forEach(e => { e.style.opacity = '.55'; });
-  $$('#fiCuerpo .chk, #fiCuerpo .seg').forEach(e => { e.style.pointerEvents = 'none'; });
+  $$('#fiCuerpo .chk, #fiCuerpo .seg, #fiCuerpo .chips').forEach(e => { e.style.pointerEvents = 'none'; });
 }
 
 function bannerFichaAjena(f){
@@ -218,100 +342,45 @@ function bannerFichaAjena(f){
   return '<div class="aviso '+(mio?'ok':'info')+' no-print">'+ico(mio?'jeringa':'candado')+
     '<div><b>Valoración prequirúrgica de '+esc(a)+'.</b><br>'+
     (mio
-      ? 'El acto anestésico está a tu nombre: podés completarlo y cargar <b>tus honorarios del acto</b>. '
+      ? 'El acto anestésico está a tu nombre: podés completar los pasos <b>Anestesia</b> y '+
+        '<b>Recuperación</b> y cargar tus honorarios del acto. '
       : 'Podés leerla completa y registrar el acto anestésico si sos vos quien opera. ')+
-    'La valoración, el plan y la consulta prequirúrgica son de '+esc(a)+' y quedan bloqueados.'+
+    'El paso <b>Paciente</b> y la <b>Preanestesia</b> son de '+esc(a)+' y quedan bloqueados.'+
     (f.actoPorUid && f.actoPorUid !== f.ownerUid
       ? '<br>Acto registrado por <b>'+esc(nombreUsuario(f.actoPorUid))+'</b>.' : '')+
-    (mio ? '' : '<br>Si sos vos quien opera, tomá la ficha desde la solapa '+
-      '<b>«Tomo ficha anestésica para acto operatorio»</b>.')+
+    (mio ? '' : '<br><button class="btn pri chico mt8" id="fiTomar">'+ico('firma')+
+      ' Voy a realizar este acto</button>')+
     '</div></div>';
 }
 
-/* ================= TOMO FICHA ANESTESICA PARA ACTO OPERATORIO =============
-   Primera solapa cuando la ficha la abrio un anestesiologo distinto del que
-   hizo la valoracion. Muestra por defecto quien hizo el prequirurgico y deja
-   registrado quien se hace cargo del acto. */
-function htmlTomarActo(f){
-  const p    = DB.pacientes[f.pacienteId] || {};
-  const mio  = esActorFicha(f);
-  const prev = f.asignadoUid === 'sinasignar' || (!f.asignadoUid && !f.actorExterno)
-    ? '' : nombreActor(f);
-
-  return ''+
-  '<div class="card"><h3>'+ico('firma')+'Tomo ficha anestésica para acto operatorio</h3>'+
-
-    '<div class="campo"><label>Valoración prequirúrgica realizada por</label>'+
-      '<input type="text" value="'+esc(autorFicha(f))+'" readonly>'+
-      '<div class="ayuda">Es el anestesiólogo que hizo los datos filiatorios, la valoración '+
-      'y el plan. La consulta prequirúrgica se factura a su nombre.</div></div>'+
-
-    '<div class="campo"><label>Anestesiólogo previsto para el acto</label>'+
-      '<input type="text" value="'+esc(prev || 'Todavía no se sabe quién opera')+'" readonly>'+
-      '</div>'+
-
-    (p.apellido ? '<div class="campo"><label>Paciente</label>'+
-      '<input type="text" value="'+esc(p.apellido+', '+p.nombre)+'" readonly></div>' : '')+
-
-    (f.cirugia ? '<div class="campo"><label>Cirugía</label>'+
-      '<input type="text" value="'+esc(f.cirugia+(f.cirugiaComp ? ' — complejidad '+f.cirugiaComp : ''))+'" readonly>'+
-      '</div>' : '')+
-
-    (mio
-      ? '<div class="aviso ok">'+ico('check')+'<div><b>El acto operatorio ya está a tu nombre.</b><br>'+
-        'Completá la solapa <b>Acto quirúrgico</b> y cargá tus honorarios del acto.</div></div>'
-      : '<div class="aviso info">'+ico('info')+'<div>Al tomar la ficha quedás registrado como el '+
-        'anestesiólogo que realiza el acto operatorio. El honorario del acto pasa a tu nombre; '+
-        'la consulta prequirúrgica sigue siendo de <b>'+esc(autorFicha(f))+'</b>.</div></div>'+
-        '<button class="btn pri grande" id="fiTomar2">'+ico('firma')+
-        ' Tomo esta ficha para el acto operatorio</button>')+
-  '</div>';
-}
-
-function cablearTomarActo(f){
-  if(!$('#fiTomar2')) return;
-  $('#fiTomar2').onclick = () => confirmar('Tomar el acto operatorio',
-    'Vas a quedar registrado como el anestesiólogo que realiza este acto. '+
-    'El honorario del acto pasa a tu nombre; la consulta prequirúrgica sigue siendo de '+
-    esc(autorFicha(f))+'.',
-    () => {
-      const base = JSON.parse(JSON.stringify(DB.fichas[f.id]));
-      base.asignadoUid = SESION.uid;
-      base.actorExterno = '';
-      base.modificado = new Date().toISOString();
-      escribir('fichas', base.id, base);
-      auditar('ficha-tomar-acto', 'Acto de la ficha de ' + autorFicha(base));
-      fichaActual = base;
-      solapaFicha = 'acto';
-      pintarFicha();
-      toast('El acto quedó a tu nombre.', 'ok');
-    }, 'Tomar el acto');
-}
-
-function guardarSolapaActual(){
+/* =========================================================================
+   GUARDADO
+   ========================================================================= */
+function guardarPasoActual(){
   const f = fichaActual;
   const guardada = DB.fichas[f.id];
+  if((f.firma || {}).firmado && pasoFicha !== 'firma') return;   /* firmada: no se toca */
   if(guardada && !puedeEditarFicha(guardada)){
-    if(solapaFicha === 'acto') f.acto = leerActo();
-    if(solapaFicha === 'hon' && esActorFicha(guardada)) f.hon = leerHonorarios();
+    if(pasoFicha === 'anestesia')    f.acto = leerPasoAnestesia();
+    if(pasoFicha === 'recuperacion') f.recup = leerPasoRecuperacion();
     return;                                   /* lo demás no se toca */
   }
-  if(solapaFicha === 'qx')        Object.assign(f, leerQuirurgico());
-  else if(solapaFicha === 'val')  f.v = leerValoracion();
-  else if(solapaFicha === 'plan') f.plan = leerPlan();
-  else if(solapaFicha === 'acto') f.acto = leerActo();
-  else{ f.hon = leerHonorarios(); f.honConsulta = leerHonorariosConsulta(); }
+  if(pasoFicha === 'paciente')          Object.assign(f, leerPasoPaciente());
+  else if(pasoFicha === 'preanestesia'){ f.v = leerValoracion(); f.plan = leerPlan(); }
+  else if(pasoFicha === 'anestesia')     f.acto = leerPasoAnestesia();
+  else if(pasoFicha === 'recuperacion')  f.recup = leerPasoRecuperacion();
 }
 
-function guardarFicha(){
+function guardarFicha(silencioso){
   const f = fichaActual;
   const guardada = DB.fichas[f.id];
 
-  /* Ficha de un colega: se escribe únicamente el acto anestésico, sobre la
+  /* Ficha de un colega: se escribe únicamente lo que le corresponde, sobre la
      versión vigente en la base, para no pisar nada de lo que él cargó. */
   if(guardada && !puedeEditarFicha(guardada)){
-    const base = JSON.parse(JSON.stringify(guardada));
+    const base = migrarFicha(JSON.parse(JSON.stringify(guardada)));
     base.acto = f.acto || {};
+    base.recup = f.recup || {};
     if(esActorFicha(guardada) && f.hon) base.hon = f.hon;   /* su propio honorario */
     base.actoPorUid = SESION.uid;
     base.actoPorNombre = USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '';
@@ -322,35 +391,61 @@ function guardarFicha(){
     auditar('ficha-acto-colega',
       'Acto anestésico registrado en la ficha de ' + autorFicha(guardada));
     fichaActual = base;
-    toast('Acto anestésico guardado' + (nubeOK ? ' y sincronizado.' : '.'), 'ok');
+    if(!silencioso) toast('Acto anestésico guardado' + (nubeOK ? ' y sincronizado.' : '.'), 'ok');
     pintarFicha();
     return;
   }
 
-  if(!f.pacienteId) return toast('Seleccioná un paciente en la solapa Quirúrgico.', 'err');
+  if(!f.pacienteId){ pasoFicha = 'paciente'; pintarFicha();
+    return toast('Seleccioná un paciente en el paso 1.', 'err'); }
   f.modificado = new Date().toISOString();
   f.modificadoPor = SESION.uid;
   f.modificadoPorNombre = USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '';
   escribir('fichas', f.id, f);
   auditar('ficha-guardar', (DB.pacientes[f.pacienteId]||{}).apellido + ' — ' + (f.cirugia||''));
-  toast('Ficha guardada' + (nubeOK ? ' y sincronizada.' : ' en este dispositivo.'), 'ok');
+  if(!silencioso) toast('Ficha guardada' + (nubeOK ? ' y sincronizada.' : ' en este dispositivo.'), 'ok');
   pintarFicha();
 }
 
-/* ---------------------------------------------------- Solapa QUIRURGICO */
-function htmlQuirurgico(f){
+/* =========================================================================
+   PASO 1 - PACIENTE
+   Identificacion del paciente y datos del procedimiento.
+   ========================================================================= */
+function htmlPasoPaciente(f){
   const pacs = misPacientes().sort((a,b) => (a.apellido||'').localeCompare(b.apellido||'', 'es'));
   const p = DB.pacientes[f.pacienteId];
+  const ed = p ? edadDe(p.fechaNac, f.fecha) : null;
+  const imc = p ? calcIMC(p.peso, p.talla) : null;
+
   return ''+
-  '<div class="card"><h3>'+ico('paciente')+'Paciente</h3>'+
+  '<div class="card"><h3>'+ico('paciente')+'Identificación del paciente</h3>'+
     '<div class="campo"><label>Paciente <span class="req">*</span></label>'+
-      '<select id="qxPaciente"><option value="">— Seleccionar paciente —</option>'+
+      '<select id="qxPaciente"><option value="">— Seleccionar paciente del padrón —</option>'+
       pacs.map(x => '<option value="'+x.id+'"'+(f.pacienteId===x.id?' selected':'')+'>'+
         esc(x.apellido+', '+x.nombre)+' — DNI '+esc(x.dni||'')+'</option>').join('')+
       '</select></div>'+
-    '<button class="btn ghost chico" id="qxNuevoPac">'+ico('mas')+' Crear paciente nuevo</button>'+
-    (p ? '<div class="aviso info mt14">'+ico('info')+'<div><b>'+esc(p.apellido+', '+p.nombre)+'</b> · DNI '+
-      esc(p.dni||'—')+' · '+(edadDe(p.fechaNac, f.fecha)||'—')+' años · '+esc(p.obraSocial||'sin cobertura')+'</div></div>' : '')+
+    '<div class="btn-row">'+
+      '<button class="btn ghost chico" id="qxNuevoPac">'+ico('mas')+' Crear paciente nuevo</button>'+
+      (p ? '<button class="btn ghost chico" id="qxEditarPac">'+ico('editar')+' Editar historia</button>' : '')+
+    '</div>'+
+
+    (p ? '<div class="ficha-pac mt14">'+
+      '<div class="grid c3">'+
+        campoTxt('qxPacNombre','Apellido y nombre', p.apellido+', '+p.nombre, true)+
+        campoTxt('qxPacDni','DNI / HC', (p.dni||'') + (p.hc ? ' / '+p.hc : ''), true)+
+        campoTxt('qxPacEdad','Edad', ed !== null ? ed+' años' : '—', true)+
+      '</div>'+
+      '<div class="grid c3">'+
+        campoTxt('qxPacSexo','Sexo', ({F:'Femenino',M:'Masculino',X:'X / No binario'}[p.sexo]||'—'), true)+
+        campoNum('qxPeso','Peso (kg)', p.peso, 'inputmode="decimal"')+
+        campoNum('qxTalla','Talla (cm)', p.talla, 'inputmode="decimal"')+
+      '</div>'+
+      '<div id="qxIMC"></div>'+
+      '<div class="ayuda">El peso y la talla se guardan en la historia del paciente. El peso es '+
+        'obligatorio para calcular dosis: sin él, el vademécum no propone ninguna.</div>'+
+      campoTxt('qxPacOS','Obra social', (p.obraSocial||'Sin cobertura'), true)+
+    '</div>' : '<div class="aviso warn mt14">'+ico('alerta')+
+      '<div>Elegí un paciente del padrón o creá uno nuevo para poder continuar.</div></div>')+
   '</div>'+
 
   '<div class="card"><h3>'+ico('calendario')+'Datos de la cirugía</h3>'+
@@ -362,8 +457,8 @@ function htmlQuirurgico(f){
       '<div class="ayuda">Urgencia: debe resolverse en horas. Emergencia: riesgo vital inmediato, sin demora posible.</div></div>'+
     '<div class="grid c3">'+
       campoFecha('qxFecha','Fecha', f.fecha)+
-      '<div class="campo"><label>Hora de inicio</label><input type="time" id="qxHora" value="'+esc(f.hora||'')+'"></div>'+
-      campoSel('qxTurno','Turno', ['Mañana','Tarde','Noche','Fin de semana / feriado'], f.turno)+
+      '<div class="campo"><label>Hora prevista</label><input type="time" id="qxHora" value="'+esc(f.hora||'')+'"></div>'+
+      campoSel('qxTurno','Turno', ['','Mañana','Tarde','Noche','Fin de semana / feriado'], f.turno)+
     '</div>'+
     '<div class="campo"><label>Institución <span class="req">*</span></label>'+
       '<select id="qxInst"><option value="">— Seleccionar —</option>'+
@@ -383,15 +478,15 @@ function htmlQuirurgico(f){
 
   '<div class="card"><h3>'+ico('bisturi')+'Procedimiento</h3>'+
     campoSel('qxEsp','Especialidad quirúrgica', [''].concat(ESPECIALIDADES), f.especialidad)+
-    '<div class="campo"><label>Cirugía a realizar <span class="req">*</span></label>'+
-      '<div class="buscador"><input type="search" id="cxBuscar" placeholder="Buscar procedimiento… ej.: colecistectomía, cesárea, cadera" autocomplete="off">'+
+    '<div class="campo"><label>Diagnóstico <span class="req">*</span></label>'+
+      '<input type="text" id="qxDx" value="'+esc(f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : ''))+'" '+
+        'placeholder="Ej.: Colelitiasis" autocomplete="off">'+
+      '<div class="ayuda">Diagnóstico quirúrgico en texto claro. La app ya no usa codificación CIE-10.</div></div>'+
+    '<div class="campo"><label>Cirugía / procedimiento <span class="req">*</span></label>'+
+      '<div class="buscador"><input type="search" id="cxBuscar" placeholder="Buscar en el nomenclador anestésico… ej.: colecistectomía, cesárea, cadera" autocomplete="off">'+
       '<div class="res" id="cxRes"></div></div>'+
-      '<div class="ayuda">Si el procedimiento no está en el catálogo, lo agregás desde el mismo buscador.</div>'+
+      '<div class="ayuda">Nomenclador anestésico AFAAR. Si el procedimiento no está, lo agregás desde el mismo buscador.</div>'+
       '<div id="cxSel" class="mt8"></div></div>'+
-    '<div class="campo"><label>Diagnóstico quirúrgico (CIE-10)</label>'+
-      '<div class="buscador"><input type="search" id="dqBuscar" placeholder="Buscar diagnóstico o código…" autocomplete="off">'+
-      '<div class="res" id="dqRes"></div></div>'+
-      '<div id="dqSel" class="mt8"></div></div>'+
     campoSel('qxLateralidad','Lateralidad', ['No aplica','Derecha','Izquierda','Bilateral'], f.lateralidad)+
   '</div>'+
 
@@ -431,12 +526,34 @@ function htmlQuirurgico(f){
   '</div>';
 }
 
-function cablearQuirurgico(f){
-  $('#qxPaciente').onchange = e => { fichaActual.pacienteId = e.target.value;
+function cablearPasoPaciente(f){
+  $('#qxPaciente').onchange = e => {
+    fichaActual.pacienteId = e.target.value;
     const p = DB.pacientes[e.target.value];
     if(p && p.obraSocial && !$('#qxOS').value) $('#qxOS').value = p.obraSocial;
-    guardarSolapaActual(); pintarFicha(); };
-  $('#qxNuevoPac').onclick = () => editarPaciente(null);
+    guardarPasoActual(); pintarFicha();
+  };
+  $('#qxNuevoPac').onclick = () => editarPaciente(null, nid => {
+    fichaActual.pacienteId = nid; pintarFicha();
+  });
+  if($('#qxEditarPac')) $('#qxEditarPac').onclick = () => editarPaciente(f.pacienteId, () => pintarFicha());
+
+  /* peso y talla se editan acá y viajan a la historia del paciente */
+  if($('#qxPeso')){
+    const recalcIMC = () => {
+      const imc = calcIMC($('#qxPeso').value, $('#qxTalla').value);
+      $('#qxIMC').innerHTML = imc
+        ? '<div class="imc-box '+claseIMC(imc)+'"><span class="lbl">IMC</span>'+
+          '<span class="val">'+fNum(imc,1)+'</span><span class="um">kg/m²</span>'+
+          '<span class="tag '+claseIMC(imc)+'">'+esc(clasificaIMC(imc))+'</span></div>'
+        : '<div class="aviso warn">'+ico('alerta')+'<div>Sin peso y talla no se calcula el IMC '+
+          'ni se pueden proponer dosis.</div></div>';
+    };
+    $('#qxPeso').oninput = debounce(recalcIMC, 200);
+    $('#qxTalla').oninput = debounce(recalcIMC, 200);
+    recalcIMC();
+  }
+
   const avisarAsignado = () => {
     const v = $('#qxAsignado').value;
     $('#qxExternoBox').classList.toggle('oculto', v !== 'externo');
@@ -457,9 +574,11 @@ function cablearQuirurgico(f){
   };
   $('#qxAsignado').onchange = avisarAsignado;
   avisarAsignado();
+
   $$('#qxCaracter button').forEach(b => b.onclick = () => {
     $$('#qxCaracter button').forEach(x => x.classList.remove('on')); b.classList.add('on');
     fichaActual.caracter = b.dataset.v; });
+
   $('#qxNuevaInst').onclick = () => {
     abrirModal('Nueva institución',
       campoTxt('niNombre','Nombre de la institución')+
@@ -472,12 +591,12 @@ function cablearQuirurgico(f){
       if(!n) return toast('Ingresá el nombre.', 'err');
       const ya = instituciones().find(o => parecidoPrestador(n, o.nombre) === 'idéntico');
       if(ya){
-        cerrarModal(); guardarSolapaActual(); fichaActual.institucion = ya.id; pintarFicha();
+        cerrarModal(); guardarPasoActual(); fichaActual.institucion = ya.id; pintarFicha();
         return toast('Esa institución ya estaba en la lista.', 'warn');
       }
       const id = uid('ins');
       escribir('instituciones', id, { id, nombre:n, ciudad:$('#niCiudad').value, tipo:$('#niTipo').value });
-      cerrarModal(); guardarSolapaActual(); fichaActual.institucion = id; pintarFicha();
+      cerrarModal(); guardarPasoActual(); fichaActual.institucion = id; pintarFicha();
       toast('Institución agregada al catálogo.', 'ok');
     };
   };
@@ -498,7 +617,7 @@ function cablearQuirurgico(f){
           'Usar «'+esc(par[0])+'»</button></div></div>'
         : '';
       if($('#noUsar')) $('#noUsar').onclick = () => {
-        cerrarModal(); guardarSolapaActual(); fichaActual.obraSocial = sugerido; pintarFicha();
+        cerrarModal(); guardarPasoActual(); fichaActual.obraSocial = sugerido; pintarFicha();
         toast('Se usó el financiador que ya existía.', 'ok');
       };
     };
@@ -508,18 +627,18 @@ function cablearQuirurgico(f){
       if(!n) return toast('Ingresá el nombre.', 'err');
       const ya = obrasSociales().find(o => clavePrestador(o) === clavePrestador(n));
       if(ya){
-        cerrarModal(); guardarSolapaActual(); fichaActual.obraSocial = ya; pintarFicha();
+        cerrarModal(); guardarPasoActual(); fichaActual.obraSocial = ya; pintarFicha();
         return toast('Ese financiador ya estaba en la lista.', 'warn');
       }
       const id = uid('os');
       escribir('obrasSociales', id, { id, nombre:n });
       auditar('prestador-alta', 'Financiador «'+n+'» desde una ficha');
-      cerrarModal(); guardarSolapaActual(); fichaActual.obraSocial = n; pintarFicha();
+      cerrarModal(); guardarPasoActual(); fichaActual.obraSocial = n; pintarFicha();
       toast('Financiador agregado.', 'ok');
     };
   };
 
-  /* buscador de cirugías — nomenclador AFAAR 2021 + catálogo propio */
+  /* buscador de cirugías — nomenclador anestésico AFAAR + catálogo propio */
   const pintarCx = () => {
     $('#cxSel').innerHTML = cxSeleccionada
       ? '<span class="pill">'+
@@ -537,7 +656,7 @@ function cablearQuirurgico(f){
               .replace('INT:','Internación: '))+'</div>' : '')+
         (cxSeleccionada.cod && !cxSeleccionada.ua
           ? '<div class="ayuda">El nomenclador tabula por complejidad. Si tu convenio se liquida '+
-            'por unidades anestésicas, cargá las UA en la solapa Honorarios.</div>' : '')
+            'por unidades anestésicas, cargá las UA en Honorarios.</div>' : '')
       : '<span class="mini">Sin cirugía seleccionada.</span>';
     if($('#cxQuitar')) $('#cxQuitar').onclick = () => { cxSeleccionada = null; pintarCx(); };
   };
@@ -566,7 +685,7 @@ function cablearQuirurgico(f){
         campoTxt('ncNombre','Nombre del procedimiento', txt)+
         campoSel('ncEsp','Especialidad', ESPECIALIDADES)+
         campoNum('ncUA','Unidades anestésicas', 10)+
-        '<div class="ayuda">Sólo para prácticas que no figuran en el nomenclador AFAAR. '+
+        '<div class="ayuda">Sólo para prácticas que no figuran en el nomenclador anestésico AFAAR. '+
         'El nomenclador indica facturar por similitud antes que crear una práctica nueva.</div>',
         '<button class="btn ghost" data-cerrar>Cancelar</button>'+
         '<button class="btn pri" id="ncGuardar">Agregar</button>');
@@ -579,40 +698,34 @@ function cablearQuirurgico(f){
     }
   });
   pintarCx();
-
-  /* buscador de diagnóstico quirúrgico */
-  const pintarDq = () => {
-    $('#dqSel').innerHTML = dxQxSeleccionado
-      ? '<span class="pill"><b>'+esc(dxQxSeleccionado.c)+'</b><span>'+esc(dxQxSeleccionado.d)+'</span>'+
-        '<button id="dqQuitar">&times;</button></span>'
-      : '<span class="mini">Sin diagnóstico seleccionado.</span>';
-    if($('#dqQuitar')) $('#dqQuitar').onclick = () => { dxQxSeleccionado = null; pintarDq(); };
-  };
-  montarBuscador({
-    input:$('#dqBuscar'), caja:$('#dqRes'), manual:true,
-    fuente: () => todosCIE().map(x => ({ cod:x.c, etiqueta:x.d, sub:x.cap,
-      busca: norm(x.c+' '+x.d+' '+x.cap), dato:x })),
-    onElegir: x => { dxQxSeleccionado = { c:x.dato.c, d:x.dato.d }; pintarDq(); },
-    onManual: txt => { if(!txt) return; agregarExtra('cie', { c:'', d:txt });
-      dxQxSeleccionado = { c:'—', d:txt }; pintarDq(); }
-  });
-  pintarDq();
 }
 
-function leerQuirurgico(){
+function leerPasoPaciente(){
   const b = $('#qxCaracter button.on');
+  /* el peso y la talla se guardan en la historia del paciente, que es donde
+     viven: la ficha no lleva su propia copia que después queda vieja */
+  const pid = val('qxPaciente');
+  if(pid && DB.pacientes[pid] && $('#qxPeso')){
+    const p = JSON.parse(JSON.stringify(DB.pacientes[pid]));
+    const peso = val('qxPeso'), talla = val('qxTalla');
+    if(String(p.peso||'') !== String(peso) || String(p.talla||'') !== String(talla)){
+      p.peso = peso; p.talla = talla;
+      p.modificado = new Date().toISOString(); p.modificadoPor = SESION.uid;
+      escribir('pacientes', pid, p);
+    }
+  }
   return {
-    pacienteId: val('qxPaciente'), caracter: b ? b.dataset.v : 'programada',
+    pacienteId: pid, caracter: b ? b.dataset.v : 'programada',
     fecha: val('qxFecha'), hora: val('qxHora'), turno: val('qxTurno'),
     institucion: val('qxInst'), obraSocial: val('qxOS'), nroAfiliado: val('qxAfiliado'),
     especialidad: val('qxEsp'),
+    diagnostico: val('qxDx'),
     cirugia: cxSeleccionada ? cxSeleccionada.n : '',
     cirugiaUA: cxSeleccionada ? cxSeleccionada.ua : 0,
     cirugiaCod: cxSeleccionada ? (cxSeleccionada.cod || '') : '',
     cirugiaComp: cxSeleccionada ? (cxSeleccionada.comp || '') : '',
     cirugiaGrillaB: cxSeleccionada ? !!cxSeleccionada.grillaB : false,
     cirugiaNota: cxSeleccionada ? (cxSeleccionada.nota || '') : '',
-    dxQuirurgico: dxQxSeleccionado,
     lateralidad: val('qxLateralidad'),
     cirujano: val('qxCirujano'), ayudante: val('qxAyudante'),
     instrumentador: val('qxInstrumentador'), anestesista2: val('qxAnestesista2'),
@@ -621,185 +734,371 @@ function leerQuirurgico(){
   };
 }
 
-/* --------------------------------------------------------- Solapa PLAN */
-function htmlPlan(f){
-  const pl = f.plan || {};
+/* Un colega toma el acto operatorio a su nombre */
+function tomarActo(f){
+  confirmar('Voy a realizar este acto',
+    'Vas a quedar registrado como el anestesiólogo que realiza este acto. '+
+    'El honorario del acto pasa a tu nombre; la consulta prequirúrgica sigue siendo de '+
+    esc(autorFicha(f))+'.',
+    () => {
+      const base = migrarFicha(JSON.parse(JSON.stringify(DB.fichas[f.id])));
+      base.asignadoUid = SESION.uid;
+      base.actorExterno = '';
+      base.modificado = new Date().toISOString();
+      escribir('fichas', base.id, base);
+      auditar('ficha-tomar-acto', 'Acto de la ficha de ' + autorFicha(base));
+      fichaActual = base;
+      pasoFicha = 'anestesia';
+      pintarFicha();
+      toast('El acto quedó a tu nombre.', 'ok');
+    }, 'Tomar el acto');
+}
+
+/* =========================================================================
+   PASO 4 - RECUPERACION
+   Aldrete modificado, dolor EVA, nauseas y destino.
+   ========================================================================= */
+function htmlPasoRecuperacion(f){
+  const r = f.recup || {};
+  const a = f.acto || {};
   return ''+
-  '<div class="card"><h3>'+ico('jeringa')+'Plan anestésico propuesto</h3>'+
-    '<label class="mini strong">Técnica</label>'+
-    chksHTML('plTecnica', TECNICAS_ANESTESICAS, pl.tecnica)+
-    '<label class="mini strong mt14" style="display:block">Manejo de la vía aérea</label>'+
-    chksHTML('plVA', DISPOSITIVOS_VA, pl.dispositivosVA)+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('monitor')+'Monitoreo previsto</h3>'+
-    '<label class="mini strong">Estándar ASA</label>'+
-    chksHTML('plMonEst', MONITOREO_ESTANDAR, pl.monitoreoEstandar || MONITOREO_ESTANDAR.slice(0,5))+
-    '<label class="mini strong mt14" style="display:block">Avanzado</label>'+
-    chksHTML('plMonAv', MONITOREO_AVANZADO, pl.monitoreoAvanzado)+
-    campoTxt('plAccesos','Accesos vasculares previstos', pl.accesos)+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('escudo')+'Profilaxis</h3>'+
-    '<div class="campo"><label>Profilaxis antibiótica</label><select id="plATB">'+
-      '<option value="">— No indicada —</option>'+
-      PROFILAXIS_ATB.map(a => '<option value="'+esc(a.c)+'"'+(pl.atb===a.c?' selected':'')+'>'+
-        esc(a.c)+' — '+esc(a.d)+'</option>').join('')+
-      '<option value="Otro"'+(pl.atb==='Otro'?' selected':'')+'>Otro (detallar)</option>'+
-    '</select><div class="ayuda">Administrar dentro de los 60 minutos previos a la incisión (120 min para vancomicina).</div></div>'+
-    campoTxt('plATBOtro','Detalle del antibiótico', pl.atbOtro)+
-    campoSel('plTEV','Tromboprofilaxis',
-      ['Deambulación precoz','Compresión neumática intermitente','Enoxaparina 40 mg/día',
-       'Enoxaparina 30 mg c/12 h','HNF 5000 U c/8-12 h','Anticoagulante oral directo',
-       'Mecánica + farmacológica','No indicada'], pl.tev)+
-    chksHTML('plNVPO', ['Ondansetrón 4 mg','Dexametasona 4-8 mg','Droperidol 0,625-1,25 mg',
-      'Metoclopramida 10 mg','Dimenhidrinato','TIVA con propofol','Aprepitant'], pl.nvpo)+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('gota')+'Analgesia postoperatoria multimodal</h3>'+
-    chksHTML('plAnalgesia', ANALGESIA_POP, pl.analgesia)+
-    campoArea('plAnalgesiaDet','Esquema detallado', pl.analgesiaDetalle,
-      'Fármaco, dosis, vía, intervalo y duración prevista')+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('hospital')+'Previsiones y destino</h3>'+
+  '<div class="card"><h3>'+ico('reloj')+'Ingreso a recuperación</h3>'+
     '<div class="grid c2">'+
-      campoSel('plDestino','Destino postoperatorio', [''].concat(DESTINOS_POP), pl.destino)+
-      campoSel('plTransfusion','Previsión transfusional',
-        ['No prevista','Grupo y factor solicitados','Reserva de 2 unidades','Reserva de 4 unidades',
-         'Protocolo de transfusión masiva','Paciente que rechaza transfusión'], pl.transfusion)+
+      '<div class="campo"><label>Hora de ingreso a la URPA</label>'+
+        '<input type="time" id="reHora" value="'+esc(r.hora || a.salida || '')+'"></div>'+
+      campoSel('reOxigeno','Oxigenoterapia al ingreso',
+        ['','Aire ambiente','Cánula nasal','Máscara con reservorio','Ventilación mecánica',
+         'VNI / CPAP'], r.oxigeno)+
     '</div>'+
-    campoArea('plIndicaciones','Indicaciones preoperatorias al paciente', pl.indicaciones,
-      'Ayuno, medicación a suspender y a continuar, higiene, acompañante, horario de presentación')+
-    campoArea('plObs','Observaciones del plan', pl.observaciones)+
+  '</div>'+
+
+  '<div class="card"><h3>'+ico('monitor')+'Aldrete modificado</h3>'+
+    '<div class="aldrete">'+ ALDRETE.map(item =>
+      '<div class="ald-fila"><label>'+esc(item.t)+'</label>'+
+        '<div class="ald-ops" data-ald="'+item.k+'">'+ item.o.map(o =>
+          '<button type="button" data-v="'+o[0]+'"'+
+          (String((r.aldrete||{})[item.k]) === String(o[0]) ? ' class="on"' : '')+
+          ' title="'+esc(o[1])+'">'+o[0]+'</button>').join('') +'</div>'+
+        '<div class="ald-txt" id="aldTxt_'+item.k+'"></div>'+
+      '</div>').join('') +'</div>'+
+    '<div class="ald-total" id="aldTotal"></div>'+
+    '<div id="aldOut"></div>'+
+  '</div>'+
+
+  '<div class="card"><h3>'+ico('gota')+'Dolor y náuseas</h3>'+
+    '<div class="campo"><label>Dolor — escala visual analógica (0 a 10)</label>'+
+      '<div class="eva">'+
+        '<input type="range" id="reEva" min="0" max="10" step="1" value="'+esc(r.eva || 0)+'">'+
+        '<output id="reEvaOut">'+esc(r.eva || 0)+'</output>'+
+      '</div>'+
+      '<div id="reEvaTxt"></div></div>'+
+    '<div class="grid c2">'+
+      '<div class="campo"><label>Náuseas / vómitos</label>'+
+        '<div class="seg" id="reNauseas">'+
+          [['no','No'],['si','Sí']].map(o => '<button type="button" data-v="'+o[0]+'"'+
+            ((r.nauseas||'no')===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join('')+
+        '</div></div>'+
+      campoTxt('reRescate','Analgesia / antiemético de rescate', r.rescate)+
+    '</div>'+
+  '</div>'+
+
+  '<div class="card"><h3>'+ico('hospital')+'Destino</h3>'+
+    '<div class="campo"><label>Destino del paciente</label>'+
+      '<div class="seg wrap" id="reDestino">'+ DESTINOS_RECUPERACION.map(d =>
+        '<button type="button" data-v="'+esc(d)+'"'+
+        ((r.destino||'Sala de recuperación')===d?' class="on"':'')+'>'+esc(d)+'</button>').join('')+
+      '</div></div>'+
+    campoSel('reEstado','Estado al egreso',
+      ['','Estable, sin complicaciones','Estable con analgesia en curso','Requiere vigilancia estrecha',
+       'Complicación resuelta','Traslado a UTI','Óbito intraoperatorio'], r.estado)+
+    campoArea('reObs','Observaciones', r.observaciones,
+      'Indicaciones al alta, controles pendientes, avisos al equipo tratante')+
   '</div>';
 }
+
+function cablearPasoRecuperacion(f){
+  const segs = id => $$('#'+id+' button').forEach(b => b.onclick = () => {
+    $$('#'+id+' button').forEach(x => x.classList.remove('on')); b.classList.add('on'); });
+  segs('reNauseas'); segs('reDestino');
+
+  const recalc = () => {
+    let total = 0;
+    ALDRETE.forEach(item => {
+      const on = $('#fiCuerpo [data-ald="'+item.k+'"] button.on');
+      const v = on ? Number(on.dataset.v) : null;
+      if(v !== null) total += v;
+      const t = $('#aldTxt_'+item.k);
+      const op = v !== null ? item.o.find(o => String(o[0]) === String(v)) : null;
+      if(t) t.textContent = op ? op[1] : 'Sin evaluar';
+    });
+    const completo = ALDRETE.every(item => $('#fiCuerpo [data-ald="'+item.k+'"] button.on'));
+    const ok = total >= 9;
+    $('#aldTotal').innerHTML = '<span class="lbl">Puntaje total</span>'+
+      '<span class="val '+(completo ? (ok?'ok':'warn') : '')+'">'+(completo ? total : '—')+' / 10</span>';
+    $('#aldOut').innerHTML = !completo
+      ? '<div class="aviso info">'+ico('info')+'<div>Completá los cinco parámetros para obtener el puntaje.</div></div>'
+      : '<div class="aviso '+(ok?'ok':'warn')+'">'+ico(ok?'check':'alerta')+
+        '<div><b>Aldrete '+total+'/10</b> — '+(ok
+          ? 'Cumple criterios de alta de la recuperación postanestésica.'
+          : 'No alcanza el puntaje de alta (≥ 9). Continuar la vigilancia en la URPA.')+'</div></div>';
+  };
+  ALDRETE.forEach(item => {
+    $$('#fiCuerpo [data-ald="'+item.k+'"] button').forEach(b => b.onclick = () => {
+      $$('#fiCuerpo [data-ald="'+item.k+'"] button').forEach(x => x.classList.remove('on'));
+      b.classList.add('on'); recalc();
+    });
+  });
+  recalc();
+
+  const eva = $('#reEva');
+  const pintarEva = () => {
+    const v = Number(eva.value);
+    $('#reEvaOut').textContent = v;
+    eva.className = v <= 3 ? 'ok' : (v <= 6 ? 'warn' : 'danger');
+    $('#reEvaTxt').innerHTML = '<div class="aviso '+(v<=3?'ok':(v<=6?'warn':'danger'))+'">'+
+      ico(v<=3?'check':'alerta')+'<div>'+(v===0 ? 'Sin dolor.'
+        : v<=3 ? 'Dolor leve. Analgesia habitual.'
+        : v<=6 ? 'Dolor moderado. Revisar el esquema analgésico antes del alta de la URPA.'
+        : 'Dolor severo. Rescate analgésico y reevaluación antes del alta.')+'</div></div>';
+  };
+  eva.oninput = pintarEva;
+  pintarEva();
+}
+
+function leerPasoRecuperacion(){
+  const aldrete = {};
+  ALDRETE.forEach(i => {
+    const on = $('#fiCuerpo [data-ald="'+i.k+'"] button.on');
+    aldrete[i.k] = on ? Number(on.dataset.v) : null;
+  });
+  const completo = ALDRETE.every(i => aldrete[i.k] !== null);
+  const seg = id => { const b = $('#'+id+' button.on'); return b ? b.dataset.v : ''; };
+  return {
+    hora: val('reHora'), oxigeno: val('reOxigeno'),
+    aldrete, aldreteTotal: completo ? Object.values(aldrete).reduce((a,b)=>a+b,0) : 0,
+    aldreteCompleto: completo,
+    eva: val('reEva'), nauseas: seg('reNauseas'), rescate: val('reRescate'),
+    destino: seg('reDestino'), estado: val('reEstado'), observaciones: val('reObs')
+  };
+}
+
+/* =========================================================================
+   PASO 5 - FIRMAR
+   Resumen de la anestesia y cierre del registro.
+   ========================================================================= */
+function htmlPasoFirma(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const a = f.acto || {}, r = f.recup || {}, v = f.v || {}, pl = f.plan || {};
+  const fi = f.firma || {};
+  const bal = calcularBalance(a.balance);
+  const durCx = minutosEntre(a.inicioCirugia, a.finCirugia);
+  const durAn = minutosEntre(a.inicioAnestesia, a.finAnestesia);
+  const eventos = (a.eventos2 || []);
+  const faltan = faltantesFicha(f).filter(x => x.critico);
+  const disp = DISPOSITIVOS_FLUJO.find(d => d.k === a.dispositivo);
+  const alertas = alertasVitales(a.controles || []);
+  const analgesia = (pl.analgesia || []).length || pl.analgesiaDetalle ? 'Planificada' : 'Sin planificar';
+
+  const linea = (l, valor, cls) =>
+    '<div class="res-fila"><span>'+esc(l)+'</span><b'+(cls?' class="'+cls+'"':'')+'>'+valor+'</b></div>';
+
+  /* ---------------- VENTANA 10: ficha completa ---------------- */
+  if(fi.firmado) return ''+
+    '<div class="final">'+
+      '<div class="final-check">'+ico('check')+'</div>'+
+      '<h2>Ficha anestésica<br>completa</h2>'+
+      '<p class="mini">Registro finalizado correctamente.</p>'+
+      '<div class="final-firma">'+
+        '<b>'+esc(fi.nombre || nombreUsuario(fi.uid))+'</b>'+
+        (fi.mp ? '<span>M.P. '+esc(matriculaTxt(fi.mp,'M.P.'))+'</span>' : '')+
+        '<span>'+fFechaLarga(fi.fecha)+' · '+esc(fi.hora||'')+'</span>'+
+      '</div>'+
+      (fi.firmaDataUrl ? '<img class="firma-img" src="'+esc(fi.firmaDataUrl)+'" alt="Firma del anestesiólogo">' : '')+
+      '<div class="final-acciones">'+
+        '<button class="btn pri grande" id="fiDocPdf">'+ico('imprimir')+' Generar PDF</button>'+
+        '<button class="btn ghost grande" id="fiDocWord">'+ico('word')+' Compartir / descargar</button>'+
+        '<button class="btn ghost grande" id="fiDocMail">'+ico('adjunto')+' Enviar al paciente</button>'+
+        '<button class="btn ghost" id="fiInicio">'+ico('panel')+' Volver al inicio</button>'+
+        '<button class="btn ghost chico" id="fiReabrir">'+ico('editar')+' Reabrir para corregir</button>'+
+      '</div>'+
+    '</div>'+
+    tarjetaResumenAnestesia(f);
+
+  /* ---------------- VENTANA 9: resumen de anestesia ---------------- */
+  return ''+
+  '<div class="card"><h3>'+ico('lista')+'Resumen de anestesia</h3>'+
+    '<div class="resumen">'+
+      linea('Paciente', esc((p.apellido||'—')+', '+(p.nombre||'')))+
+      linea('Procedimiento', esc(f.cirugia || '—'))+
+      linea('Diagnóstico', esc(f.diagnostico || '—'))+
+      linea('Técnica anestésica', esc((a.tecnicas||[]).map(k =>
+        (TECNICAS_FLUJO.find(t => t.k === k)||{}).t).filter(Boolean).join(' + ') || '—'))+
+      linea('Vía aérea', esc((disp ? disp.t : '—') + (a.tamano ? ' '+a.tamano : '') +
+        (a.vaDificil === 'si' ? ' · difícil' : ' · no difícil')),
+        a.vaDificil === 'si' ? 'danger' : '')+
+      linea('ASA', esc('ASA ' + ((v.scores||{}).asa || '—') + ((v.scores||{}).asaE ? ' E' : '')))+
+      linea('Duración de cirugía', durCx !== null ? esc(duracionTexto(durCx)) : '—')+
+      linea('Duración de anestesia', durAn !== null ? esc(duracionTexto(durAn)) : '—')+
+      linea('Hemodinamia', (a.controles||[]).length
+        ? (alertas.length ? '<span class="warn">'+esc(alertas.join(' · '))+'</span>'
+                          : '<span class="ok">Estable</span>')
+        : '—', '')+
+      linea('Drogas administradas', (a.drogas||[]).length + ' registro'+((a.drogas||[]).length===1?'':'s'))+
+      linea('Controles de signos vitales', (a.controles||[]).length)+
+      linea('Pérdida sanguínea', ((a.balance||{}).sangrado || 0) + ' mL')+
+      linea('Balance hídrico', '<span class="'+(bal.balance >= 0 ? 'ok' : 'warn')+'">'+
+        (bal.balance >= 0 ? '+' : '') + bal.balance + ' mL</span>')+
+      linea('Eventos adversos', eventos.length
+        ? '<span class="danger">'+eventos.length+' evento'+(eventos.length===1?'':'s')+'</span>'
+        : '<span class="ok">Sin eventos</span>')+
+      linea('Analgesia postoperatoria', '<span class="'+(analgesia==='Planificada'?'ok':'warn')+'">'+
+        analgesia+'</span>')+
+      linea('Aldrete al egreso', r.aldreteCompleto ? r.aldreteTotal+' / 10' : '—',
+        r.aldreteCompleto && r.aldreteTotal >= 9 ? 'ok' : 'warn')+
+      linea('Dolor EVA', r.eva !== undefined && r.eva !== '' ? r.eva + ' / 10' : '—')+
+    '</div>'+
+  '</div>'+
+
+  '<div class="card"><h3>'+ico('hospital')+'Destino</h3>'+
+    '<div class="seg wrap" id="fiDestino">'+ DESTINOS_RECUPERACION.map(d =>
+      '<button type="button" data-v="'+esc(d)+'"'+
+      ((r.destino||'Sala de recuperación')===d?' class="on"':'')+'>'+esc(d)+'</button>').join('')+
+    '</div>'+
+    campoArea('fiObsFinal','Observaciones', r.observaciones,
+      'Paciente estable. Sin complicaciones.')+
+  '</div>'+
+
+  (faltan.length
+    ? '<div class="aviso warn">'+ico('alerta')+'<div><b>Faltan datos importantes:</b> '+
+      esc(faltan.map(x => x.t).join(', '))+'.<br>Podés firmar igual, pero el documento sale incompleto.</div></div>'
+    : '<div class="aviso ok">'+ico('check')+'<div>El registro está completo.</div></div>')+
+
+  '<div class="card"><h3>'+ico('firma')+'Firma del anestesiólogo</h3>'+
+    '<p class="mini">Al firmar, la ficha queda cerrada y en sólo lectura. Después se puede '+
+      'reabrir dejando constancia en la auditoría.</p>'+
+    '<div class="firma-box"><canvas id="fiFirmaCanvas"></canvas><div class="hint">Firmar aquí</div></div>'+
+    '<div class="btn-row mt8">'+
+      '<button class="btn ghost chico" id="fiFirmaLimpiar">Borrar</button>'+
+      '<button class="btn ghost chico" id="fiFirmaPerfil">Usar mi firma guardada</button>'+
+    '</div>'+
+    '<button class="btn pri grande mt14" id="fiFirmar">'+ico('check')+' Finalizar y firmar</button>'+
+  '</div>'+
+
+  leyendaEstados();
+}
+
+/* Resumen compacto que acompana a la pantalla de ficha completa */
+function tarjetaResumenAnestesia(f){
+  const a = f.acto || {}, r = f.recup || {};
+  const durAn = minutosEntre(a.inicioAnestesia, a.finAnestesia);
+  const bal = calcularBalance(a.balance);
+  return '<div class="card"><h3>'+ico('lista')+'Lo que quedó registrado</h3>'+
+    '<div class="grid c3">'+
+      kpi('Drogas', (a.drogas||[]).length, 'azul', ico('jeringa'), 'administradas')+
+      kpi('Controles', (a.controles||[]).length, 'aqua', ico('monitor'), 'de signos vitales')+
+      kpi('Eventos', (a.eventos2||[]).length, (a.eventos2||[]).length?'danger':'ok', ico('alerta'), '')+
+    '</div>'+
+    '<div class="resumen mt14">'+
+      '<div class="res-fila"><span>Duración de anestesia</span><b>'+
+        (durAn !== null ? esc(duracionTexto(durAn)) : '—')+'</b></div>'+
+      '<div class="res-fila"><span>Balance hídrico</span><b>'+
+        (bal.balance >= 0 ? '+' : '')+bal.balance+' mL</b></div>'+
+      '<div class="res-fila"><span>Aldrete al egreso</span><b>'+
+        (r.aldreteCompleto ? r.aldreteTotal+' / 10' : '—')+'</b></div>'+
+      '<div class="res-fila"><span>Destino</span><b>'+esc(r.destino || '—')+'</b></div>'+
+    '</div></div>';
+}
+
+/* Los cuatro estados de color del manual, para que se lean igual en toda
+   la app: completo, atencion, alerta y pendiente. */
+function leyendaEstados(){
+  return '<div class="leyenda-estados">'+
+    '<b>Estados</b>'+
+    '<span><i class="ok"></i>Completo / Apto / Estable</span>'+
+    '<span><i class="warn"></i>Atención / Consideraciones</span>'+
+    '<span><i class="danger"></i>Alerta / Evento / Crítico</span>'+
+    '<span><i class="pend"></i>Pendiente</span>'+
+  '</div>';
+}
+
+function cablearPasoFirma(f){
+  if($('#fiReabrir')) $('#fiReabrir').onclick = () => confirmar('Reabrir la ficha',
+    'La ficha vuelve a quedar editable. Queda registrado en la auditoría quién la reabrió y cuándo.',
+    () => {
+      fichaActual.firma = Object.assign({}, fichaActual.firma, { firmado:false,
+        reabiertaPor: SESION.uid, reabierta: new Date().toISOString() });
+      fichaActual.estado = 'realizada';
+      auditar('ficha-reabrir', fichaActual.id);
+      guardarFicha();
+    }, 'Reabrir');
+
+  if($('#fiDocPdf'))  $('#fiDocPdf').onclick  = () => imprimirFicha(fichaActual);
+  if($('#fiDocWord')) $('#fiDocWord').onclick = () => exportarFichaWord(fichaActual);
+  if($('#fiDocMail')) $('#fiDocMail').onclick = () => enviarDocumentacionPaciente(fichaActual);
+  if($('#fiInicio'))  $('#fiInicio').onclick  = () => irA('panel');
+
+  $$('#fiDestino button').forEach(b => b.onclick = () => {
+    $$('#fiDestino button').forEach(x => x.classList.remove('on')); b.classList.add('on'); });
+
+  if(!$('#fiFirmaCanvas')) return;
+  let firma = (USUARIO && USUARIO.firmaDataUrl) || '';
+  const c = montarFirma($('#fiFirmaCanvas'), d => firma = d);
+  setTimeout(() => { if(firma) c.cargar(firma); }, 150);
+  $('#fiFirmaLimpiar').onclick = () => { c.limpiar(); firma = ''; };
+  $('#fiFirmaPerfil').onclick = () => {
+    if(!USUARIO || !USUARIO.firmaDataUrl) return toast('No tenés firma guardada en Mi perfil.', 'err');
+    c.limpiar(); c.cargar(USUARIO.firmaDataUrl); firma = USUARIO.firmaDataUrl;
+  };
+  $('#fiFirmar').onclick = () => {
+    if(!firma) return toast('Firmá antes de finalizar el registro.', 'err');
+    confirmar('Finalizar y firmar',
+      'La ficha queda cerrada y en sólo lectura. Se puede reabrir después, dejando constancia.',
+      () => {
+        const u = USUARIO || {};
+        /* el destino y las observaciones que se ajustaron acá van a la recuperación */
+        const d = $('#fiDestino button.on');
+        fichaActual.recup = Object.assign({}, fichaActual.recup, {
+          destino: d ? d.dataset.v : (fichaActual.recup||{}).destino,
+          observaciones: val('fiObsFinal')
+        });
+        fichaActual.firma = {
+          firmado:true, uid:SESION.uid,
+          nombre:(u.apellido||'')+', '+(u.nombre||''),
+          mp: u.matriculaProvincial || '',
+          fecha: hoyISO(), hora: ahoraHora(), firmaDataUrl: firma
+        };
+        fichaActual.estado = 'cerrada';
+        auditar('ficha-firmar', fichaActual.id);
+        guardarFicha();
+        toast('Ficha anestésica completa.', 'ok');
+      }, 'Finalizar y firmar');
+  };
+}
+
+/* =========================================================================
+   HONORARIOS - fuera del flujo clinico, en su propia ventana
+   ========================================================================= */
+function abrirHonorarios(f){
+  abrirModal('Honorarios', '<div id="honCuerpo">'+htmlHonorarios(f)+'</div>',
+    '<button class="btn ghost" data-cerrar>Cerrar</button>'+
+    '<button class="btn pri" id="honGuardar">'+ico('check')+' Guardar honorarios</button>', '860px');
+  cablearHonorariosModal(f);
+  $('#honGuardar').onclick = () => {
+    fichaActual.hon = leerHonorarios();
+    fichaActual.honConsulta = leerHonorariosConsulta();
+    cerrarModal();
+    guardarFicha();
+  };
+}
+
+
+/* Casillas con estilo: la clase .sel es lo que pinta el recuadro */
 function cablearGenerico(){
-  $$('#vFicha .chk').forEach(l => {
+  $$('#modal .chk, #vFicha .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
   });
 }
-function leerPlan(){
-  return {
-    tecnica: leerChks('plTecnica'), dispositivosVA: leerChks('plVA'),
-    monitoreoEstandar: leerChks('plMonEst'), monitoreoAvanzado: leerChks('plMonAv'),
-    accesos: val('plAccesos'), atb: val('plATB'), atbOtro: val('plATBOtro'),
-    tev: val('plTEV'), nvpo: leerChks('plNVPO'),
-    analgesia: leerChks('plAnalgesia'), analgesiaDetalle: val('plAnalgesiaDet'),
-    destino: val('plDestino'), transfusion: val('plTransfusion'),
-    indicaciones: val('plIndicaciones'), observaciones: val('plObs')
-  };
-}
 
-/* --------------------------------------------------------- Solapa ACTO */
-function htmlActo(f){
-  const a = f.acto || {};
-  return ''+
-  '<div class="aviso info">'+ico('monitor')+'<div><b>Registro del acto anestésico.</b> '+
-    'Se completa durante o inmediatamente después del procedimiento.</div></div>'+
-
-  '<div class="card"><h3>'+ico('reloj')+'Tiempos</h3>'+
-    '<div class="grid c4">'+
-      '<div class="campo"><label>Ingreso a quirófano</label><input type="time" id="acIngreso" value="'+esc(a.ingreso||'')+'"></div>'+
-      '<div class="campo"><label>Inicio anestesia</label><input type="time" id="acIniAnest" value="'+esc(a.inicioAnestesia||'')+'"></div>'+
-      '<div class="campo"><label>Fin anestesia</label><input type="time" id="acFinAnest" value="'+esc(a.finAnestesia||'')+'"></div>'+
-      '<div class="campo"><label>Salida a recuperación</label><input type="time" id="acSalida" value="'+esc(a.salida||'')+'"></div>'+
-    '</div>'+
-    '<div id="acDuracion"></div>'+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('jeringa')+'Técnica efectivamente realizada</h3>'+
-    chksHTML('acTecnica', TECNICAS_ANESTESICAS, a.tecnica)+
-    '<label class="mini strong mt14" style="display:block">Dispositivo de vía aérea utilizado</label>'+
-    chksHTML('acVA', DISPOSITIVOS_VA, a.dispositivosVA)+
-    '<div class="grid c3 mt14">'+
-      campoSel('acCormack','Cormack-Lehane obtenido', ['','I','II a','II b','III','IV'], a.cormack)+
-      campoNum('acIntentos','Intentos de intubación', a.intentos)+
-      campoTxt('acTubo','Tubo / dispositivo (n.º)', a.tubo)+
-    '</div>'+
-    campoArea('acFarmacos','Fármacos administrados', a.farmacos,
-      'Inducción, mantenimiento, relajantes, opioides, reversión, vasoactivos: dosis totales')+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('gota')+'Balance y soporte</h3>'+
-    '<div class="grid c4">'+
-      campoNum('acCristaloides','Cristaloides (ml)', a.cristaloides)+
-      campoNum('acColoides','Coloides (ml)', a.coloides)+
-      campoNum('acSangrado','Sangrado estimado (ml)', a.sangrado)+
-      campoNum('acDiuresis','Diuresis (ml)', a.diuresis)+
-    '</div>'+
-    '<div class="grid c2">'+
-      campoTxt('acHemoderivados','Hemoderivados transfundidos', a.hemoderivados)+
-      campoTxt('acVasoactivos','Drogas vasoactivas', a.vasoactivos)+
-    '</div>'+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('check')+'Lista de verificación quirúrgica (OMS)</h3>'+
-    '<div class="chks" id="acOMS">'+
-      [['entrada','Entrada — antes de la inducción'],
-       ['pausa','Pausa quirúrgica — antes de la incisión'],
-       ['salida','Salida — antes de que el paciente deje el quirófano']].map(o =>
-      '<label class="chk'+((a.oms||[]).indexOf(o[0])>=0?' sel':'')+'"><input type="checkbox" value="'+o[0]+'"'+
-      ((a.oms||[]).indexOf(o[0])>=0?' checked':'')+'>'+o[1]+'</label>').join('')+
-    '</div></div>'+
-
-  '<div class="card"><h3>'+ico('alerta')+'Eventos intraoperatorios</h3>'+
-    chksHTML('acEventos', EVENTOS_ADVERSOS, a.eventos)+
-    campoArea('acEventosDet','Descripción y manejo de los eventos', a.eventosDetalle)+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('monitor')+'Egreso — Aldrete modificado</h3>'+
-    ALDRETE.map(item => '<div class="campo"><label>'+esc(item.t)+'</label><select id="ald_'+item.k+'">'+
-      item.o.map(o => '<option value="'+o[0]+'"'+(String((a.aldrete||{})[item.k])===String(o[0])?' selected':'')+'>'+
-        o[0]+' — '+esc(o[1])+'</option>').join('')+
-    '</select></div>').join('')+
-    '<div id="aldOut"></div>'+
-    '<div class="grid c2">'+
-      campoSel('acDestinoReal','Destino real', [''].concat(DESTINOS_POP), a.destinoReal)+
-      campoSel('acEstadoEgreso','Estado al egreso',
-        ['Estable, sin complicaciones','Estable con analgesia en curso','Requiere vigilancia estrecha',
-         'Complicación resuelta','Traslado a UTI','Óbito intraoperatorio'], a.estadoEgreso)+
-    '</div>'+
-    campoArea('acObs','Observaciones del acto anestésico', a.observaciones)+
-  '</div>';
-}
-function cablearActo(f){
-  cablearGenerico();
-  const recalc = () => {
-    const i = val('acIniAnest'), fin = val('acFinAnest');
-    if(i && fin){
-      const [h1,m1] = i.split(':').map(Number), [h2,m2] = fin.split(':').map(Number);
-      let min = (h2*60+m2) - (h1*60+m1); if(min < 0) min += 1440;
-      $('#acDuracion').innerHTML = '<div class="aviso info">'+ico('reloj')+
-        '<div><b>Duración anestésica: '+Math.floor(min/60)+' h '+(min%60)+' min</b> ('+min+' minutos)'+
-        (min > 120 ? ' — corresponde adicional por prolongación en el nomenclador.' : '')+'</div></div>';
-    } else $('#acDuracion').innerHTML = '';
-    const total = ALDRETE.reduce((acc,it) => acc + Number(val('ald_'+it.k) || 0), 0);
-    const ok = total >= 9;
-    $('#aldOut').innerHTML = '<div class="aviso '+(ok?'ok':'warn')+'">'+ico(ok?'check':'alerta')+
-      '<div><b>Aldrete '+total+'/10</b> — '+(ok
-        ? 'Cumple criterios de alta de la recuperación postanestésica.'
-        : 'No alcanza el puntaje de alta (≥ 9). Continuar la vigilancia en la URPA.')+'</div></div>';
-  };
-  $('#fiCuerpo').addEventListener('change', recalc);
-  $('#fiCuerpo').addEventListener('input', debounce(recalc, 250));
-  recalc();
-}
-function leerActo(){
-  const aldrete = {}; ALDRETE.forEach(i => aldrete[i.k] = Number(val('ald_'+i.k) || 0));
-  return {
-    ingreso:val('acIngreso'), inicioAnestesia:val('acIniAnest'), finAnestesia:val('acFinAnest'),
-    salida:val('acSalida'), tecnica:leerChks('acTecnica'), dispositivosVA:leerChks('acVA'),
-    cormack:val('acCormack'), intentos:val('acIntentos'), tubo:val('acTubo'), farmacos:val('acFarmacos'),
-    cristaloides:val('acCristaloides'), coloides:val('acColoides'), sangrado:val('acSangrado'),
-    diuresis:val('acDiuresis'), hemoderivados:val('acHemoderivados'), vasoactivos:val('acVasoactivos'),
-    oms:leerChks('acOMS'), eventos:leerChks('acEventos'), eventosDetalle:val('acEventosDet'),
-    aldrete, aldreteTotal: Object.values(aldrete).reduce((a,b)=>a+b,0),
-    destinoReal:val('acDestinoReal'), estadoEgreso:val('acEstadoEgreso'), observaciones:val('acObs')
-  };
-}
-
-/* ---------------------------------------------------- Solapa HONORARIOS */
 function valorUnidadDe(obraSocial){
   const c = DB.config.valoresUnidad || {};
   return Number(c[obraSocial] || c._default || 0);
@@ -878,7 +1177,7 @@ function htmlHonorarios(f){
 
   '<div id="hoResumen"></div>';
 }
-function cablearHonorarios(f){
+function cablearHonorariosModal(f){
   cablearGenerico();
   /* La consulta la edita quien hizo la valoración; el acto, quien opera. */
   const puedeConsulta = esAutorFicha(f) || esCoordinador();
@@ -941,8 +1240,8 @@ function cablearHonorarios(f){
     fichaActual.hon = Object.assign(fichaActual.hon || {}, { total });
     fichaActual.honConsulta = Object.assign(fichaActual.honConsulta || {}, { total:consulta });
   };
-  $('#fiCuerpo').addEventListener('change', recalc);
-  $('#fiCuerpo').addEventListener('input', debounce(recalc, 220));
+  $('#honCuerpo').addEventListener('change', recalc);
+  $('#honCuerpo').addEventListener('input', debounce(recalc, 220));
   recalc();
 }
 function leerHonorariosConsulta(){
