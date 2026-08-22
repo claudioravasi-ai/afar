@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.22.1104";</script>
+<script>window.AFAR_BUILD = "2026.08.22.1123";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -13382,8 +13382,16 @@ function seccionCatalogos(c){
         '<div>Tenés cargada la demostración original (Fernández y Gómez). Faltan los otros '+
         '<b>cuatro anestesiólogos</b> —Torres, Sosa, Méndez y Vidal— con sus fichas, su deuda vieja '+
         'y un reclamo sin responder.</div></div>' : '')+
+    /* La demostración se fue ampliando por partes y el botón sólo miraba si
+       faltaba el equipo. En una base que ya lo tenía completo, los envíos a
+       contaduría no había manera de cargarlos: el botón no aparecía. */
+    (!faltaEquipoDemo() && faltanEnviosDemo() && hayDemo()
+      ? '<div class="aviso info" style="margin-bottom:11px">'+ico('info')+
+        '<div>Falta lo último que se agregó: los <b>envíos a contaduría</b>. Son diecisiete '+
+        'ejemplos —valoraciones y fichas anestésicas con su parte quirúrgico adjunto— para que '+
+        'el contador vea sus dos bandejas funcionando.</div></div>' : '')+
     '<div class="btn-row">'+
-      (faltaEquipoDemo()
+      (faltaEquipoDemo() || faltanEnviosDemo()
         ? '<button class="btn pri" id="coCargarDemo">'+ico('mas')+
           (hayDemo() ? ' Completar la demostración' : ' Cargar datos de demostración')+'</button>' : '')+
       (hayDemo()
@@ -17229,11 +17237,29 @@ function pintarEnvios(tipo){
                 '<span class="tag ok">'+fMoneda(x.total)+'</span>'+
               '</div></div>').join('') +'</div>'
         : '<div class="vacio">'+ico('bandeja')+'<b>No hay envíos todavía</b>'+
-          '<span>Cuando un anestesiólogo use el botón «Enviar a contaduría», va a aparecer acá.</span></div>');
+          '<span>Cuando un anestesiólogo use el botón «Enviar a contaduría», va a aparecer acá.</span>'+
+          /* Los ejemplos viven sólo en el dispositivo, así que el contador no
+             los hereda de la nube: tiene que poder cargarlos desde su propia
+             bandeja. Sólo se ofrece si la base YA tiene demostración cargada;
+             en una instalación real el botón no existe. */
+          (hayDemo() && faltanEnviosDemo()
+            ? '<button class="btn ghost chico mt14" id="'+pre+'Demo">'+ico('mas')+
+              ' Cargar envíos de ejemplo</button>'+
+              '<div class="ayuda" style="max-width:420px;margin:8px auto 0">Diecisiete envíos de '+
+              'demostración, con su parte quirúrgico. Quedan sólo en este dispositivo: no se '+
+              'suben a la base compartida.</div>'
+            : '')+
+          '</div>');
 
     $$('#'+pre+'Cuerpo [data-prof]').forEach(b => b.onclick = () => {
       envSel[tipo] = b.dataset.prof; pintarEnvios(tipo);
     });
+    if($('#'+pre+'Demo')) $('#'+pre+'Demo').onclick = () => {
+      sembrarEnviosDemo();
+      auditar('demo-envios', 'Envíos de demostración cargados en este dispositivo');
+      pintarEnvios('valoracion'); pintarEnvios('acto');
+      toast('Envíos de ejemplo cargados.', 'ok');
+    };
     return;
   }
 

@@ -242,8 +242,16 @@ function seccionCatalogos(c){
         '<div>Tenés cargada la demostración original (Fernández y Gómez). Faltan los otros '+
         '<b>cuatro anestesiólogos</b> —Torres, Sosa, Méndez y Vidal— con sus fichas, su deuda vieja '+
         'y un reclamo sin responder.</div></div>' : '')+
+    /* La demostración se fue ampliando por partes y el botón sólo miraba si
+       faltaba el equipo. En una base que ya lo tenía completo, los envíos a
+       contaduría no había manera de cargarlos: el botón no aparecía. */
+    (!faltaEquipoDemo() && faltanEnviosDemo() && hayDemo()
+      ? '<div class="aviso info" style="margin-bottom:11px">'+ico('info')+
+        '<div>Falta lo último que se agregó: los <b>envíos a contaduría</b>. Son diecisiete '+
+        'ejemplos —valoraciones y fichas anestésicas con su parte quirúrgico adjunto— para que '+
+        'el contador vea sus dos bandejas funcionando.</div></div>' : '')+
     '<div class="btn-row">'+
-      (faltaEquipoDemo()
+      (faltaEquipoDemo() || faltanEnviosDemo()
         ? '<button class="btn pri" id="coCargarDemo">'+ico('mas')+
           (hayDemo() ? ' Completar la demostración' : ' Cargar datos de demostración')+'</button>' : '')+
       (hayDemo()

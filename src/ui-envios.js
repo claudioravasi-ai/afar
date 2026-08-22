@@ -615,11 +615,29 @@ function pintarEnvios(tipo){
                 '<span class="tag ok">'+fMoneda(x.total)+'</span>'+
               '</div></div>').join('') +'</div>'
         : '<div class="vacio">'+ico('bandeja')+'<b>No hay envíos todavía</b>'+
-          '<span>Cuando un anestesiólogo use el botón «Enviar a contaduría», va a aparecer acá.</span></div>');
+          '<span>Cuando un anestesiólogo use el botón «Enviar a contaduría», va a aparecer acá.</span>'+
+          /* Los ejemplos viven sólo en el dispositivo, así que el contador no
+             los hereda de la nube: tiene que poder cargarlos desde su propia
+             bandeja. Sólo se ofrece si la base YA tiene demostración cargada;
+             en una instalación real el botón no existe. */
+          (hayDemo() && faltanEnviosDemo()
+            ? '<button class="btn ghost chico mt14" id="'+pre+'Demo">'+ico('mas')+
+              ' Cargar envíos de ejemplo</button>'+
+              '<div class="ayuda" style="max-width:420px;margin:8px auto 0">Diecisiete envíos de '+
+              'demostración, con su parte quirúrgico. Quedan sólo en este dispositivo: no se '+
+              'suben a la base compartida.</div>'
+            : '')+
+          '</div>');
 
     $$('#'+pre+'Cuerpo [data-prof]').forEach(b => b.onclick = () => {
       envSel[tipo] = b.dataset.prof; pintarEnvios(tipo);
     });
+    if($('#'+pre+'Demo')) $('#'+pre+'Demo').onclick = () => {
+      sembrarEnviosDemo();
+      auditar('demo-envios', 'Envíos de demostración cargados en este dispositivo');
+      pintarEnvios('valoracion'); pintarEnvios('acto');
+      toast('Envíos de ejemplo cargados.', 'ok');
+    };
     return;
   }
 
