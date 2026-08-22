@@ -60,11 +60,21 @@ function seccion(t, contenido){
    consentimiento, y NO salen los honorarios ni el registro intraoperatorio.
    Los honorarios son informacion economica entre el anestesiologo y el
    financiador, no del paciente. */
+/* opts.parte recorta el documento segun para que se lo pide:
+     'valoracion' -> solo lo preoperatorio, que es lo que se factura como
+                     consulta prequirurgica;
+     'acto'       -> la ficha completa, incluido el registro intraoperatorio
+                     y la recuperacion, que es lo que respalda el honorario
+                     del acto anestesico;
+     sin opts     -> el documento entero de siempre. */
 function documentoFicha(f, opts){
   const paraPaciente = !!(opts && opts.paraPaciente);
+  const parte = (opts && opts.parte) || '';
+  const soloVal = parte === 'valoracion';
   __secN = 0;
   const p = DB.pacientes[f.pacienteId] || {};
   const v = f.v || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {}, co = f.consent || {};
+  const eq = a.equipo || {};
   const u = DB.usuarios[f.ownerUid] || USUARIO || {};
   const ed = edadDe(p.fechaNac, f.fecha);
   const imc = calcIMC((v.examen||{}).peso || p.peso, (v.examen||{}).talla || p.talla);
@@ -103,7 +113,9 @@ function documentoFicha(f, opts){
   return ''+
   membrete(f, paraPaciente
     ? 'VALORACIÓN PREQUIRÚRGICA Y CONSENTIMIENTO INFORMADO — COPIA PARA EL PACIENTE'
-    : 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')+
+    : (soloVal ? 'VALORACIÓN PRE-ANESTÉSICA (PREQUIRÚRGICA)'
+    : (parte === 'acto' ? 'FICHA ANESTÉSICA — REGISTRO DEL ACTO ANESTÉSICO'
+    : 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')))+
 
   seccion('Datos del paciente',
     '<table><tr>'+
@@ -128,8 +140,14 @@ function documentoFicha(f, opts){
       (f.lateralidad && f.lateralidad !== 'No aplica' ? ' ('+esc(f.lateralidad)+')' : '')+'</td></tr>'+
     '<tr><td><b>Especialidad:</b> '+esc(f.especialidad||'—')+'</td>'+
       '<td><b>Diagnóstico:</b> '+esc(f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '—')+'</td></tr>'+
-    '<tr><td><b>Cirujano/a:</b> '+esc(f.cirujano||'—')+'</td>'+
-      '<td><b>Ayudante:</b> '+esc(f.ayudante||'—')+'</td></tr>'+
+    '<tr><td><b>Cirujano/a:</b> '+esc(eq.cirujano || f.cirujano || '—')+
+      (eq.cirujanoMP ? ' (M.P. '+esc(eq.cirujanoMP)+')' : '')+'</td>'+
+      '<td><b>Ayudante:</b> '+esc(eq.ayudante || f.ayudante || '—')+'</td></tr>'+
+    ((eq.instrumentador || eq.anestesista2 || eq.circulante || f.instrumentador || f.anestesista2)
+      ? '<tr><td><b>Instrumentador/a:</b> '+esc(eq.instrumentador || f.instrumentador || '—')+'</td>'+
+        '<td><b>2.º anestesiólogo / residente:</b> '+esc(eq.anestesista2 || f.anestesista2 || '—')+'</td></tr>'+
+        (eq.circulante ? '<tr><td colspan="2"><b>Circulante / técnico:</b> '+esc(eq.circulante)+'</td></tr>' : '')
+      : '')+
     '</table>')+
 
   seccion('Antecedentes patológicos',
@@ -229,8 +247,8 @@ function documentoFicha(f, opts){
     par('Fecha de la evaluación', fFecha((v.riesgo||{}).fecha))+
     par('Ámbito', (v.riesgo||{}).ambito))+
 
-  (paraPaciente ? '' : documentoActo(f))+
-  (paraPaciente ? '' : documentoRecuperacion(f))+
+  ((paraPaciente || soloVal) ? '' : documentoActo(f))+
+  ((paraPaciente || soloVal) ? '' : documentoRecuperacion(f))+
 
   (co.quien ? seccion('Consentimiento informado anestésico',
     '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
@@ -241,12 +259,12 @@ function documentoFicha(f, opts){
 
   ((!paraPaciente && (h.modalidad || (f.honConsulta||{}).modalidad)) ? seccion('Honorarios profesionales',
     '<table><tr><th>Concepto</th><th>Profesional</th><th>Modalidad</th><th>Importe</th><th>Estado</th></tr>'+
-    ((f.honConsulta||{}).modalidad ? '<tr><td>Consulta prequirúrgica</td>'+
+    (((f.honConsulta||{}).modalidad && parte !== 'acto') ? '<tr><td>Consulta prequirúrgica</td>'+
       '<td>'+esc(nombreUsuario(f.ownerUid))+'</td>'+
       '<td>'+esc((MODALIDADES_CONSULTA.find(m=>m.id===f.honConsulta.modalidad)||{}).n||'—')+'</td>'+
       '<td>'+fMoneda(f.honConsulta.total||0)+'</td>'+
       '<td>'+esc(f.honConsulta.estado||'Pendiente')+'</td></tr>' : '')+
-    (h.modalidad ? '<tr><td>Acto anestésico'+
+    ((h.modalidad && !soloVal) ? '<tr><td>Acto anestésico'+
       (h.ua ? ' ('+h.ua+' UA × '+fMoneda(h.valorUnidad||0)+
         (h.pctAdicional ? ' + '+h.pctAdicional+' %' : '')+')' : '')+'</td>'+
       '<td>'+esc(nombreUsuario(actorFicha(f)))+'</td>'+
@@ -485,7 +503,7 @@ function exportarFacturacionExcel(l, mes){
     'Adicionales %','Importe','Estado','Comprobante','Cobrado'];
   const filas = l.map(x => {
     const f = x.ficha, p = DB.pacientes[f.pacienteId] || {}, h = f.hon || {};
-    return [ fFecha(f.fecha), x.tipo === 'consulta' ? 'Consulta prequirúrgica' : 'Acto anestésico',
+    return [ fFecha(f.fecha), x.tipo === 'consulta' ? 'Valoración prequirúrgica' : 'Acto anestésico',
       (p.apellido||'')+', '+(p.nombre||''), p.dni||'',
       f.cirugia||'', f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '',
       nombreInstitucion(f.institucion), f.obraSocial||'',
@@ -511,19 +529,42 @@ function exportarFacturacionExcel(l, mes){
   toast('Planilla Excel descargada.', 'ok');
 }
 
+/* La planilla sale con una fila por ficha, pero con las dos columnas de acto
+   medico separadas: quien hizo la valoracion con su honorario y quien realizo
+   el acto con el suyo. Sumar una sola columna daba una actividad falsa
+   cuando intervenian dos profesionales distintos. */
 function exportarEstadisticas(l, corteNombre, datos){
   const cab = ['Fecha','Paciente','Institución','Financiador','Cirugía','Especialidad','Carácter',
-    'ASA','Anestesiólogo','Eventos','Importe'];
+    'ASA','Valoración prequirúrgica','Anestesiólogo (valoración)','Hon. valoración',
+    'Acto anestésico','Anestesiólogo (acto)','Hon. acto','Eventos','Total'];
+  /* Un socio exporta SOLO su trabajo. En una ficha compartida —uno valoró y
+     otro operó— la columna del colega sale en blanco: no es su actividad ni
+     su honorario. El coordinador exporta las dos columnas completas. */
+  const mioVal = f => esCoordinador() || (SESION && f.ownerUid === SESION.uid);
+  const mioAct = f => esCoordinador() || (SESION && actorFicha(f) === SESION.uid);
   const filas = l.map(f => {
     const p = DB.pacientes[f.pacienteId] || {};
+    const v = hayValoracion(f) && mioVal(f);
+    const a = hayActo(f) && mioAct(f);
+    const hv = v ? Number((f.honConsulta||{}).total || 0) : 0;
+    const ha = a ? Number((f.hon||{}).total || 0) : 0;
     return [ fFecha(f.fecha), (p.apellido||'')+', '+(p.nombre||''), nombreInstitucion(f.institucion),
       f.obraSocial||'', f.cirugia||'', f.especialidad||'', f.caracter||'',
-      ((f.v||{}).scores||{}).asa||'', nombreUsuario(f.ownerUid),
-      ((f.acto||{}).eventos||[]).filter(e => e !== 'Sin eventos').join(' · '),
-      ((f.hon||{}).total||0).toFixed(2) ];
+      v ? (((f.v||{}).scores||{}).asa || '') : '',
+      v ? 'Sí' : 'No', v ? nombreUsuario(f.ownerUid) : '', v ? hv.toFixed(2) : '',
+      a ? 'Sí' : 'No', a ? nombreActor(f) : '', a ? ha.toFixed(2) : '',
+      a ? ((f.acto||{}).eventos||[]).filter(e => e !== 'Sin eventos').join(' · ') : '',
+      (hv + ha).toFixed(2) ];
   });
-  const resumen = [['RESUMEN POR '+corteNombre.toUpperCase(),'','','','','','','','','','']]
-    .concat(datos.map(d => [d.t, d.v, '', '', '', '', '', '', '', '', '']));
+  const nVal = l.filter(f => hayValoracion(f) && mioVal(f)).length;
+  const nAct = l.filter(f => hayActo(f) && mioAct(f)).length;
+  const vacias = n => new Array(n).fill('');
+  const resumen = [
+    ['ACTOS MÉDICOS DEL PERÍODO'].concat(vacias(15)),
+    ['Valoraciones prequirúrgicas', nVal].concat(vacias(14)),
+    ['Actos anestésicos', nAct].concat(vacias(14)),
+    ['RESUMEN POR '+corteNombre.toUpperCase()].concat(vacias(15))
+  ].concat(datos.map(d => [d.t, d.v].concat(vacias(14))));
   const [d,h] = rangoPeriodo();
   descargar('AFAAR-estadisticas-'+d+'_'+h+'.xls',
     '﻿'+tablaExcel('Estadísticas del '+fFecha(d)+' al '+fFecha(h), cab, filas, resumen),
@@ -559,12 +600,21 @@ function imprimirFacturacion(l, mes, tot, porOS, porInst){
   '<table><tr><th>Institución</th><th>N.º</th><th>Devengado</th><th>Cobrado</th></tr>'+
     porInst.map(d => '<tr><td>'+esc(d.t)+'</td><td>'+d.n+'</td><td>'+fMoneda(d.total)+
       '</td><td>'+fMoneda(d.cobrado)+'</td></tr>').join('')+'</table>'+
+  '<h2>Por concepto</h2>'+
+  (function(){
+    const c = { 'Valoración prequirúrgica':{n:0,t:0,c:0}, 'Acto anestésico':{n:0,t:0,c:0} };
+    l.forEach(x => { const k = x.tipo === 'consulta' ? 'Valoración prequirúrgica' : 'Acto anestésico';
+                     c[k].n++; c[k].t += x.monto; c[k].c += x.cobrado; });
+    return '<table><tr><th>Concepto</th><th>N.º</th><th>Devengado</th><th>Cobrado</th></tr>'+
+      Object.keys(c).map(k => '<tr><td>'+k+'</td><td>'+c[k].n+'</td>'+
+        '<td>'+fMoneda(c[k].t)+'</td><td>'+fMoneda(c[k].c)+'</td></tr>').join('')+'</table>';
+  })()+
   '<h2>Detalle de prestaciones</h2>'+
   '<table><tr><th>Fecha</th><th>Concepto</th><th>Paciente</th><th>Cirugía</th><th>Institución</th>'+
     '<th>Financiador</th><th>Importe</th><th>Estado</th></tr>'+
     l.map(x => { const f = x.ficha, p = DB.pacientes[f.pacienteId]||{};
       return '<tr><td>'+fFecha(f.fecha)+'</td>'+
-      '<td>'+(x.tipo==='consulta'?'Consulta':'Acto')+'</td>'+
+      '<td>'+(x.tipo==='consulta'?'Valoración prequirúrgica':'Acto anestésico')+'</td>'+
       '<td>'+esc((p.apellido||'')+', '+(p.nombre||''))+'</td>'+
       '<td>'+esc(f.cirugia||'')+'</td><td>'+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+'</td>'+
       '<td>'+esc(f.obraSocial||'')+'</td><td>'+fMoneda(x.monto)+'</td>'+

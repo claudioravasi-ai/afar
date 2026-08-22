@@ -2,7 +2,7 @@
    Estrategia: red primero para el HTML y los recursos propios (para que las
    actualizaciones lleguen siempre), cache como respaldo sin conexion. */
 
-const CACHE = 'afar-v3';
+const CACHE = 'afar-v4';
 const ESENCIALES = [
   './',
   './index.html',

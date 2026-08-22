@@ -12,8 +12,19 @@ function vistaFacturacion(){
   let l = misPrestaciones().filter(x => mesDe(x.fecha) === facMes);
   if(facInst)      l = l.filter(x => x.ficha.institucion === facInst);
   if(facOS)        l = l.filter(x => x.ficha.obraSocial === facOS);
-  if(facModalidad) l = l.filter(x => facModalidad === 'consulta' ? x.tipo === 'consulta'
-                                    : (x.tipo === 'acto' && (x.ficha.hon||{}).modalidad === facModalidad));
+  /* El filtro de concepto discrimina los DOS actos médicos y, dentro de cada
+     uno, su modalidad de convenio. El valor viaja como «grupo:modalidad»;
+     sin modalidad, filtra el grupo entero. */
+  if(facModalidad){
+    const par = facModalidad.split(':'), gr = par[0], mid = par[1] || '';
+    l = l.filter(x => {
+      if(gr === 'consulta')
+        return x.tipo === 'consulta' && (!mid || (x.ficha.honConsulta||{}).modalidad === mid);
+      if(gr === 'acto')
+        return x.tipo === 'acto' && (!mid || (x.ficha.hon||{}).modalidad === mid);
+      return true;
+    });
+  }
   if(facEstado)    l = l.filter(x => x.estado === facEstado);
   if(facUid)       l = l.filter(x => x.uid === facUid);
   l.sort((a,b) => (a.fecha||'') < (b.fecha||'') ? -1 : 1);
@@ -24,9 +35,13 @@ function vistaFacturacion(){
                      .reduce((a,x) => a + x.monto, 0);
   const consultas = l.filter(x => x.tipo === 'consulta').length;
   const actos     = l.filter(x => x.tipo === 'acto').length;
+  const montoConsultas = l.filter(x => x.tipo === 'consulta').reduce((a,x) => a + x.monto, 0);
+  const montoActos     = l.filter(x => x.tipo === 'acto').reduce((a,x) => a + x.monto, 0);
 
   const porOS   = resumenPor(l, x => x.ficha.obraSocial || 'Sin cobertura');
   const porInst = resumenPor(l, x => nombreInstitucion(x.ficha.institucion).split('"')[0].trim());
+  const porConcepto = resumenPor(l, x => x.tipo === 'consulta'
+    ? 'Valoración prequirúrgica' : 'Acto anestésico');
   const porMod  = resumenPor(l, x => x.tipo === 'consulta'
     ? (MODALIDADES_CONSULTA.find(m => m.id === (x.ficha.honConsulta||{}).modalidad) || {n:'Consulta'}).n
     : (MODALIDADES_HONORARIOS.find(m => m.id === (x.ficha.hon||{}).modalidad) || {n:'Sin definir'}).n);
@@ -47,10 +62,21 @@ function vistaFacturacion(){
         esc(i.nombre.split('"')[0].trim())+'</option>').join('')+'</select></div>'+
     '<div class="campo"><label>Financiador</label><select id="facOS"><option value="">Todos</option>'+
       obrasSociales().map(o => '<option'+(facOS===o?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select></div>'+
-    '<div class="campo"><label>Concepto</label><select id="facMod"><option value="">Todos</option>'+
-      '<option value="consulta"'+(facModalidad==='consulta'?' selected':'')+'>Sólo consultas prequirúrgicas</option>'+
-      MODALIDADES_HONORARIOS.map(m => '<option value="'+m.id+'"'+(facModalidad===m.id?' selected':'')+'>'+
-        'Acto: '+esc(m.n)+'</option>').join('')+'</select></div>'+
+    '<div class="campo"><label>Concepto</label><select id="facMod">'+
+      '<option value="">Todos los conceptos</option>'+
+      '<optgroup label="Valoración prequirúrgica">'+
+        '<option value="consulta"'+(facModalidad==='consulta'?' selected':'')+'>'+
+          'Todas las valoraciones prequirúrgicas</option>'+
+        MODALIDADES_CONSULTA.map(m => '<option value="consulta:'+m.id+'"'+
+          (facModalidad==='consulta:'+m.id?' selected':'')+'>Valoración: '+esc(m.n)+'</option>').join('')+
+      '</optgroup>'+
+      '<optgroup label="Acto anestésico">'+
+        '<option value="acto"'+(facModalidad==='acto'?' selected':'')+'>'+
+          'Todos los actos anestésicos</option>'+
+        MODALIDADES_HONORARIOS.map(m => '<option value="acto:'+m.id+'"'+
+          (facModalidad==='acto:'+m.id?' selected':'')+'>Acto: '+esc(m.n)+'</option>').join('')+
+      '</optgroup>'+
+    '</select></div>'+
     '<div class="campo"><label>Estado</label><select id="facEstado"><option value="">Todos</option>'+
       ESTADOS_FACT.map(e => '<option'+(facEstado===e?' selected':'')+'>'+esc(e)+'</option>').join('')+'</select></div>'+
     (esCoordinador() ? '<div class="campo"><label>Anestesiólogo</label><select id="facUid"><option value="">Todos</option>'+
@@ -59,18 +85,28 @@ function vistaFacturacion(){
       '</select></div>' : '')+
   '</div>'+
 
-  '<div class="grid c4 mb8">'+
+  '<div class="grid c3 mb8">'+
     kpi('Devengado', fMoneda(total), 'azul', ico('dinero'), l.length+' prestaciones')+
     kpi('Pendiente de cobro', fMoneda(pendiente), pendiente?'warn':'ok', ico('reloj'), '')+
     kpi('Cobrado', fMoneda(cobrado), 'ok', ico('check'), total? Math.round(cobrado*100/total)+' % del devengado':'')+
-    kpi('Consultas', fMoneda(l.filter(x=>x.tipo==='consulta').reduce((a,x)=>a+x.monto,0)),
-        'aqua', ico('valoracion'), consultas+' valoraciones')+
+  '</div>'+
+
+  /* Los dos conceptos, cada uno con su importe: son actos médicos distintos
+     y se facturan por separado, aunque salgan de la misma ficha. */
+  '<div class="grid c2 mb8">'+
+    kpi('Valoraciones prequirúrgicas', fMoneda(montoConsultas), 'aqua', ico('valoracion'),
+        consultas+' consulta'+(consultas===1?'':'s')+
+        (consultas ? ' · '+fMoneda(montoConsultas/consultas)+' promedio' : ''))+
+    kpi('Actos anestésicos', fMoneda(montoActos), 'azul', ico('jeringa'),
+        actos+' acto'+(actos===1?'':'s')+
+        (actos ? ' · '+fMoneda(montoActos/actos)+' promedio' : ''))+
   '</div>'+
 
   '<div class="grid c2">'+
     tarjetaResumen('Por financiador', porOS)+
     tarjetaResumen('Por institución', porInst)+
   '</div>'+
+  tarjetaResumen('Por concepto', porConcepto)+
   tarjetaResumen('Por modalidad de convenio', porMod)+
 
   '<div class="card"><h3>'+ico('lista')+'Detalle de prestaciones</h3>'+
@@ -83,8 +119,8 @@ function vistaFacturacion(){
         return '<tr data-f="'+f.id+'" style="cursor:pointer">'+
           '<td>'+fFecha(f.fecha)+'</td>'+
           '<td>'+esc((p.apellido||'—')+', '+(p.nombre||''))+'</td>'+
-          '<td><span class="tag '+(x.tipo==='consulta'?'aqua':'info')+'">'+
-            (x.tipo==='consulta'?'Consulta':'Acto')+'</span></td>'+
+          '<td><span class="tag concepto '+(x.tipo==='consulta'?'aqua':'info')+'">'+
+            (x.tipo==='consulta'?'Valoración prequirúrgica':'Acto anestésico')+'</span></td>'+
           '<td>'+esc((f.cirugia||'—').slice(0,38))+'</td>'+
           '<td>'+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+'</td>'+
           '<td>'+esc(f.obraSocial||'—')+'</td>'+

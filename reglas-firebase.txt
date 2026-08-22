@@ -71,3 +71,35 @@ RECOMENDACIONES ADICIONALES
 4. Los datos de salud están alcanzados por la Ley 25.326 de Protección de
    Datos Personales y por la Ley 26.529 de Derechos del Paciente. La historia
    clínica debe conservarse un mínimo de diez años desde la última actuación.
+
+
+--------------------------------------------------------------------
+RAMAS DE LA BASE
+--------------------------------------------------------------------
+Todo cuelga de "afar". Las colecciones normales (usuarios, pacientes, fichas,
+instituciones, obrasSociales, catalogoExtra, config, auditoria, mensajes,
+fiscal, envios) las escucha cada dispositivo en vivo y las guarda enteras en
+el equipo.
+
+"afar/archivos" es distinta y no hay que agregarla a ninguna suscripcion: son
+los documentos enviados a contaduria y las fotos del parte quirurgico. Pesan
+cientos de KB cada uno y se leen de a uno, cuando alguien abre un envio. Si se
+escucharan como el resto, un solo parte quirurgico fotografiado llenaria el
+almacenamiento local de todos los telefonos.
+
+Con la Opcion A no hace falta hacer nada: "afar" ya cubre a "archivos". Si
+alguna vez se pasa a la Opcion B, "archivos" tiene que quedar con las mismas
+reglas que el resto, y conviene ademas limitar el tamano:
+
+  "archivos": {
+    "$id": {
+      ".read": "auth != null",
+      ".write": "auth != null && newData.child('datos').val().length < 12000000"
+    }
+  }
+
+Ojo: los envios a contaduria contienen nombre y DNI del paciente, la cirugia y
+el diagnostico. Es una cesion deliberada, que dispone el profesional tratante
+para facturar y para responder auditorias medicas, pero significa que la rama
+"envios" y la rama "archivos" son las mas sensibles de la base. Son un motivo
+mas para cerrar las reglas antes del primer paciente real.

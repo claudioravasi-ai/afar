@@ -16,6 +16,13 @@ const NAV = [
   { id:'stats',       ico:'stats',       txt:'Estadísticas',  nav:false, clinico:true },
   { id:'coordinador', ico:'escudo',      txt:'Coordinación',  nav:true,  soloCoord:true },
   { id:'contable',    ico:'dinero',      txt:'Contable',      nav:true,  soloCont:true },
+  /* Las dos bandejas de documentación del contador. En el teléfono aparecen
+     en la barra inferior sólo cuando entra el contable: para el coordinador,
+     que ya tiene cinco accesos abajo, quedan en el lateral y en Ajustes. */
+  { id:'envValoracion', ico:'valoracion', txt:'Valoración pre-anestésica',
+    navTxt:'Valoración', nav:'cont', soloDocs:true },
+  { id:'envFicha',      ico:'bandeja',    txt:'Ficha anestésica y parte quirúrgico',
+    navTxt:'Fichas', nav:'cont', soloDocs:true },
   { id:'mensajes',    ico:'correo',      txt:'Mensajes',      nav:false },
   { id:'facturacion', ico:'dinero',      txt:'Facturación',   nav:false, clinico:true },
   { id:'guias',       ico:'guias',       txt:'Guías',         nav:false, clinico:true },
@@ -28,6 +35,7 @@ function puedeVerVista(id){
   if(!n) return false;
   if(n.soloCoord && !esCoordinador()) return false;
   if(n.soloCont  && !esContable())    return false;
+  if(n.soloDocs  && !puedeVerEnvios()) return false;
   if(n.clinico   && !verDatosClinicos()) return false;
   return true;
 }
@@ -62,11 +70,14 @@ function pintarNavegacion(){
 
   $('#sidebar').innerHTML =
     grupo('Portal',    ['panel','pacientes','fichas','contable'])+
+    grupo('Documentación', ['envValoracion','envFicha'])+
     grupo('Gestión',   ['stats','facturacion','guias'])+
     grupo('Asociación',['coordinador','mensajes'])+
     grupo('Cuenta',    ['perfil']);
 
-  $('#navbar').innerHTML = items.filter(n => n.nav).map(n => botonNav(n, true)).join('');
+  $('#navbar').innerHTML = items
+    .filter(n => n.nav === true || (n.nav === 'cont' && esContable()))
+    .map(n => botonNav(n, true)).join('');
   $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
 }
 
@@ -88,7 +99,9 @@ function refrescarVistaActual(){
   if(!puedeVerVista(vistaActual)) return;
   switch(vistaActual){
     case 'panel':       vistaPanel(); break;
-    case 'contable':    vistaContable(); break;
+    case 'contable':      vistaContable(); break;
+    case 'envValoracion': vistaEnviosValoracion(); break;
+    case 'envFicha':      vistaEnviosFicha(); break;
     case 'mensajes':    vistaMensajes(); break;
     case 'pacientes':   vistaPacientes(); break;
     case 'fichas':      vistaFichas(); break;

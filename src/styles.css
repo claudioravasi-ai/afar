@@ -982,3 +982,36 @@ html[data-tema="oscuro"] .firma-img{filter:invert(1) contrast(1.2)}
 
 /* La flechita de las filas que llevan a otra seccion */
 .fila-estado .n .ir{color:var(--texto-3);font-weight:400;font-size:20px;line-height:1}
+
+/* =========================================================================
+   ENVIOS A CONTADURIA — adjuntos, visor y tarjetas de envio
+   ========================================================================= */
+
+/* Lista de archivos adjuntos (parte quirurgico y documentos del envio) */
+.adjuntos{display:flex;flex-direction:column;gap:8px}
+.adj{display:flex;align-items:center;gap:10px;padding:9px 11px;
+  border:1px solid var(--borde);border-radius:var(--radio-sm);background:var(--panel)}
+.adj .ic{width:34px;height:34px;flex:none;border-radius:9px;display:grid;place-items:center;
+  background:var(--aqua-200);color:var(--aqua-600)}
+.adj .ic svg{width:17px;height:17px}
+.adj .tx{flex:1;min-width:0}
+.adj .tx b{display:block;font-size:13.5px;font-weight:640;word-break:break-word;line-height:1.3}
+.adj .tx i{display:block;font-style:normal;font-size:11.5px;color:var(--texto-3);margin-top:2px}
+.adj .btn{flex:none;padding:6px 9px}
+.adj .btn svg{width:15px;height:15px}
+
+/* Visor de imagenes dentro del modal */
+.visor{background:var(--bg-2);border-radius:var(--radio-sm);padding:10px;text-align:center;
+  max-height:66vh;overflow:auto}
+.visor img{max-width:100%;height:auto;border-radius:6px;box-shadow:var(--sombra)}
+
+/* Tarjeta de envio a contaduria, al final de cada documento */
+.envio-card{border-left:4px solid var(--aqua-500)}
+
+/* Un envio que el contador todavia no abrio */
+.lista .item.nuevo{border-left:3px solid var(--warn)}
+.der .tag svg{width:13px;height:13px;vertical-align:-2px;margin-right:3px}
+
+/* La etiqueta de concepto dice el acto médico completo; en el teléfono tiene
+   que poder partirse en dos renglones en vez de salirse de la celda. */
+.tag.concepto{white-space:normal;text-align:center;line-height:1.25;display:inline-block}

@@ -58,6 +58,7 @@ function edadDeFicha(f){
    ========================================================================= */
 function htmlActoResumen(f){
   const a = f.acto || {};
+  const eq = a.equipo || {};
   const disp = DISPOSITIVOS_FLUJO.find(d => d.k === (a.dispositivo || 'ninguno')) || DISPOSITIVOS_FLUJO[0];
   return ''+
   '<div class="card"><h3>'+ico('reloj')+'Datos del procedimiento</h3>'+
@@ -120,6 +121,31 @@ function htmlActoResumen(f){
       '<input type="checkbox" value="'+esc(m)+'"'+((a.monitorExtra||[]).indexOf(m)>=0?' checked':'')+'>'+
       esc(m)+'</label>').join('') +'</div>'+
     campoTxt('acAccesos','Accesos vasculares', a.accesos)+
+  '</div>'+
+
+  /* --------------------------------------------------------------------
+     Equipo quirurgico. Se mudo aca desde el paso «Paciente»: antes de la
+     cirugia el equipo es una intencion (figura en el parte de programacion
+     y cambia a ultimo momento); en el quirofano es un hecho. Se registra
+     donde se sabe con certeza, junto al resto del acto.
+     Vive dentro de f.acto para que el colega que toma el acto tambien lo
+     pueda guardar: al escribir una ficha ajena solo se graban acto y recup.
+     -------------------------------------------------------------------- */
+  '<div class="card"><h3>'+ico('pacientes')+'Equipo quirúrgico</h3>'+
+    '<div class="grid c2">'+
+      campoTxt('acCirujano','Cirujano/a', eq.cirujano)+
+      campoTxt('acAyudante','Ayudante', eq.ayudante)+
+    '</div>'+
+    '<div class="grid c2">'+
+      campoTxt('acInstrumentador','Instrumentador/a', eq.instrumentador)+
+      campoTxt('acAnestesista2','Segundo anestesiólogo / residente', eq.anestesista2)+
+    '</div>'+
+    '<div class="grid c2">'+
+      campoTxt('acCirujanoMP','Matrícula del cirujano/a', eq.cirujanoMP)+
+      campoTxt('acCircTecnico','Circulante / técnico de anestesia', eq.circulante)+
+    '</div>'+
+    '<div class="ayuda">Es el equipo que efectivamente intervino. El cirujano que figura acá es '+
+      'el que firma la foja quirúrgica que se adjunta al final de la ficha.</div>'+
   '</div>'+
 
   '<div class="card"><h3>'+ico('check')+'Lista de verificación quirúrgica (OMS)</h3>'+
@@ -984,6 +1010,11 @@ function leerPasoAnestesia(){
     a.monitor = leerChks('acMonitor'); a.monitorExtra = leerChks('acMonitorExtra');
     a.accesos = val('acAccesos');
     a.oms = leerChks('acOMS');
+    a.equipo = {
+      cirujano: val('acCirujano'), cirujanoMP: val('acCirujanoMP'),
+      ayudante: val('acAyudante'), instrumentador: val('acInstrumentador'),
+      anestesista2: val('acAnestesista2'), circulante: val('acCircTecnico')
+    };
     a.observaciones = val('acObs');
   }
   if(solapaActo === 'drogas' && $('#acDrogasNota')){

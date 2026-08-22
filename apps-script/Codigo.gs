@@ -28,6 +28,10 @@ var TOPE_DIARIO = 40;
 /* Tamaño máximo del cuerpo del mail, por las dudas */
 var TOPE_BYTES = 900000;
 
+/* Tamaño máximo del conjunto de adjuntos. Gmail rechaza por encima de 25 MB
+   contando la codificación; se deja margen. */
+var TOPE_ADJUNTOS = 18000000;
+
 /* ————————————————————————————————— Envío ————————————————————————————————— */
 
 function doPost(e) {
@@ -76,6 +80,28 @@ function doPost(e) {
       htmlBody: d.html,
       name: d.nombre || 'AFAAR'
     };
+
+    /* 5b. Adjuntos (parte quirurgico y documento del envio a contaduria).
+       Llegan como [{nombre, mime, datos}] con datos en base64 SIN el prefijo
+       "data:...;base64,". Si no vienen, el mail sale igual que siempre. */
+    if (d.adjuntos && d.adjuntos.length) {
+      var blobs = [];
+      var pesoTotal = 0;
+      for (var i = 0; i < d.adjuntos.length; i++) {
+        var a = d.adjuntos[i];
+        if (!a || !a.datos) continue;
+        var bytes = Utilities.base64Decode(a.datos);
+        pesoTotal += bytes.length;
+        if (pesoTotal > TOPE_ADJUNTOS) {
+          return responder({ ok: false,
+            error: 'Los adjuntos superan los ' + Math.round(TOPE_ADJUNTOS/1048576) + ' MB.' });
+        }
+        blobs.push(Utilities.newBlob(bytes,
+          a.mime || 'application/octet-stream',
+          a.nombre || ('adjunto-' + (i+1))));
+      }
+      if (blobs.length) opciones.attachments = blobs;
+    }
     if (d.responderA && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.responderA)) {
       opciones.replyTo = d.responderA;
     }
@@ -83,7 +109,9 @@ function doPost(e) {
 
     sumarHoy();
     registrar('ENVIADO ficha ' + (d.fichaId || '—') +
-              ' por ' + (d.profesional || '—'), d.para);
+              ' por ' + (d.profesional || '—') +
+              (opciones.attachments ? ' con ' + opciones.attachments.length + ' adjunto(s)' : ''),
+              d.para);
 
     return responder({ ok: true, restantes: TOPE_DIARIO - (usados + 1) });
 
@@ -93,9 +121,17 @@ function doPost(e) {
   }
 }
 
-/* Si alguien abre la dirección en el navegador, que no muestre nada útil. */
+/* Si alguien abre la dirección en el navegador, que no muestre nada útil.
+   Lo único que informa es de qué versión es este programa, para que la app
+   sepa si puede mandarle adjuntos o si todavía está publicada la versión
+   vieja. No revela ni la clave ni ningún dato. */
 function doGet() {
-  return responder({ ok: false, error: 'Este servicio sólo recibe envíos.' });
+  return responder({
+    ok: false,
+    error: 'Este servicio sólo recibe envíos.',
+    version: 2,
+    adjuntos: true
+  });
 }
 
 /* ——————————————————————————— Contador diario ——————————————————————————— */

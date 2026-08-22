@@ -273,3 +273,342 @@ function sembrarEquipoDemo(){
 
   return true;
 }
+
+/* =========================================================================
+   ENVIOS A CONTADURIA DE LA DEMOSTRACION
+   -------------------------------------------------------------------------
+   Ejemplos para que el contador vea sus dos bandejas funcionando: varios
+   anestesiologos, meses distintos, envios abiertos y sin abrir, con parte
+   quirurgico y sin el.
+
+   Los adjuntos NO son archivos incrustados en el codigo: se dibujan en un
+   canvas y se arma un PDF de una pagina en el momento. Asi la demostracion
+   pesa unos pocos KB de codigo en vez de un megabyte de base64, y los
+   archivos se ven y se abren como los de verdad.
+
+   Todo lleva demo:true y se queda en el equipo (ver escribir() y
+   archivoGuardar() en core.js).
+   ========================================================================= */
+
+/* ---------------------------------------- Foto del parte quirurgico ---- */
+function imagenParteDemo(d){
+  const cv = document.createElement('canvas');
+  cv.width = 900; cv.height = 1240;
+  const c = cv.getContext('2d');
+
+  /* Papel con un tono apenas amarillento: es una foto, no un escaneo */
+  c.fillStyle = '#f3f1ea'; c.fillRect(0, 0, 900, 1240);
+  c.fillStyle = '#fdfdfb'; c.fillRect(28, 30, 844, 1180);
+
+  const txt = (s, x, y, size, bold, color) => {
+    c.fillStyle = color || '#1a1a1a';
+    c.font = (bold ? 'bold ' : '') + size + 'px Helvetica, Arial, sans-serif';
+    c.fillText(s, x, y);
+  };
+  const linea = (y, x1, x2) => {
+    c.strokeStyle = '#b9b9b0'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(x1 || 60, y); c.lineTo(x2 || 840, y); c.stroke();
+  };
+  const campo = (rot, val, y) => {
+    txt(rot, 60, y, 15, true, '#444');
+    txt(val, 60 + c.measureText(rot).width + 10, y, 16);
+    linea(y + 9);
+  };
+
+  txt(d.institucion, 60, 78, 20, true, '#111');
+  txt('SERVICIO DE CIRUGÍA — PARTE QUIRÚRGICO', 60, 106, 15, true, '#555');
+  c.strokeStyle = '#333'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(60, 122); c.lineTo(840, 122); c.stroke();
+
+  let y = 168;
+  campo('Paciente:', d.paciente, y);            y += 46;
+  campo('DNI:', d.dni + '        Fecha: ' + d.fecha + '        Hora: ' + d.hora, y); y += 46;
+  campo('Cirujano/a:', d.cirujano, y);          y += 46;
+  campo('Ayudante:', d.ayudante || '—', y);     y += 46;
+  campo('Anestesiólogo/a:', d.anestesiologo, y); y += 56;
+
+  txt('DIAGNÓSTICO PREOPERATORIO', 60, y, 14, true, '#444'); y += 26;
+  txt(d.dxPre, 60, y, 16); linea(y + 9); y += 52;
+
+  txt('DIAGNÓSTICO POSTOPERATORIO', 60, y, 14, true, '#444'); y += 26;
+  txt(d.dxPost, 60, y, 16); linea(y + 9); y += 52;
+
+  txt('PROCEDIMIENTO REALIZADO', 60, y, 14, true, '#444'); y += 26;
+  txt(d.procedimiento, 60, y, 16); linea(y + 9); y += 52;
+
+  txt('DESCRIPCIÓN OPERATORIA', 60, y, 14, true, '#444'); y += 28;
+  (d.descripcion || []).forEach(l => { txt(l, 60, y, 15, false, '#222'); y += 26; });
+  y += 18;
+
+  campo('Sangrado estimado:', d.sangrado, y);   y += 46;
+  campo('Material enviado a anatomía patológica:', d.anatomia || 'No', y); y += 46;
+  campo('Complicaciones:', d.complicaciones || 'Sin complicaciones', y);
+
+  /* Firma manuscrita del cirujano */
+  const fy = 1120;
+  c.strokeStyle = '#26408b'; c.lineWidth = 2.4; c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(560, fy);
+  c.bezierCurveTo(600, fy - 40, 640, fy + 24, 682, fy - 14);
+  c.bezierCurveTo(710, fy - 38, 726, fy + 18, 770, fy - 22);
+  c.stroke();
+  c.strokeStyle = '#555'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(540, fy + 26); c.lineTo(830, fy + 26); c.stroke();
+  txt(d.cirujano, 560, fy + 48, 13, false, '#444');
+  txt('Firma y sello del cirujano', 560, fy + 68, 12, false, '#777');
+
+  return cv.toDataURL('image/jpeg', 0.62);
+}
+
+/* ------------------------------------------- PDF de una sola pagina ---- */
+/* PDF 1.4 minimo pero valido, con su tabla de referencias cruzadas bien
+   calculada: se abre en el visor del navegador como cualquier otro. El texto
+   va sin acentos a proposito, para que la longitud en caracteres coincida
+   con la longitud en bytes y los desplazamientos del xref no se corran. */
+function pdfDemo(lineas){
+  const q = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                          .replace(/[^\x20-\x7e]/g, ' ')
+                          .replace(/([\\()])/g, '\\$1');
+  let y = 790, cont = 'BT\n';
+  lineas.forEach(l => {
+    const tam = l.t === 'h' ? 16 : (l.t === 's' ? 12 : 11);
+    cont += '/F1 ' + tam + ' Tf\n1 0 0 1 56 ' + y + ' Tm\n(' + q(l.x || '') + ') Tj\n';
+    y -= (l.t === 'h' ? 34 : (l.t === 'b' ? 26 : 18));
+  });
+  cont += 'ET';
+
+  const objs = ['',
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]'+
+      '/Resources<</Font<</F1 5 0 R>>>>/Contents 4 0 R>>',
+    '<</Length ' + cont.length + '>>\nstream\n' + cont + '\nendstream',
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>'];
+
+  let pdf = '%PDF-1.4\n';
+  const off = [];
+  for(let i = 1; i <= 5; i++){
+    off[i] = pdf.length;
+    pdf += i + ' 0 obj\n' + objs[i] + '\nendobj\n';
+  }
+  const xref = pdf.length;
+  pdf += 'xref\n0 6\n0000000000 65535 f \n';
+  for(let i = 1; i <= 5; i++){
+    pdf += ('0000000000' + off[i]).slice(-10) + ' 00000 n \n';
+  }
+  pdf += 'trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n' + xref + '\n%%EOF';
+  return pdf;
+}
+
+function sembrarEnviosDemo(){
+  if(typeof armarEnvio !== 'function') return false;
+
+  const cache = archivosCache();
+  /* Se escribe en la cache y se guarda UNA vez al final: guardar en cada
+     archivo serializaria un megabyte veinte veces y la app arrancaría lenta. */
+  const guardarArch = reg => { cache[reg.id] = Object.assign({}, reg, { usado:reg.cuando }); };
+
+  const hora = (fecha, dias, hhmm) => {
+    const d = new Date((fecha || hoyISO()) + 'T' + hhmm + ':00');
+    d.setDate(d.getDate() + dias);
+    return d.toISOString();
+  };
+
+  /* Cuelga los adjuntos de la ficha, como si el anestesiólogo los hubiera
+     subido desde el paso «Firmar». */
+  const adjuntar = (fichaId, archivos) => {
+    const f = DB.fichas[fichaId];
+    if(!f) return;
+    const p = DB.pacientes[f.pacienteId] || {};
+    const eq = (f.acto || {}).equipo || {};
+    const quien = actorFicha(f);
+    const cuando = hora(f.fecha, 1, '19:20');
+    const metas = archivos.map((a, i) => {
+      const id = 'arch_demo_' + fichaId.replace('fic_', '') + '_' + i;
+      const base = {
+        institucion: nombreInstitucion(f.institucion).split('"')[0].trim(),
+        paciente: (p.apellido || '') + ', ' + (p.nombre || ''),
+        dni: p.dni || '', fecha: fFecha(f.fecha), hora: f.hora || '—',
+        cirujano: eq.cirujano || a.cirujano || 'Dr. Martín Gutiérrez',
+        ayudante: eq.ayudante || '',
+        anestesiologo: nombreUsuario(quien),
+        dxPre: f.diagnostico || a.dxPre || '—',
+        dxPost: a.dxPost || f.diagnostico || '—',
+        procedimiento: f.cirugia || '—',
+        descripcion: a.descripcion || [],
+        sangrado: a.sangrado || 'Escaso', anatomia: a.anatomia,
+        complicaciones: a.complicaciones
+      };
+      const datos = a.pdf
+        ? 'data:application/pdf;base64,' + btoa(pdfDemo(a.pdf(base)))
+        : imagenParteDemo(base);
+      const tam = Math.round((datos.length - datos.indexOf(',') - 1) * 0.75);
+      guardarArch({ id, fichaId, nombre:a.n, mime: a.pdf ? 'application/pdf' : 'image/jpeg',
+                    tam, datos, demo:true, cuando,
+                    porUid:quien, porNombre:nombreUsuario(quien) });
+      return { id, nombre:a.n, mime: a.pdf ? 'application/pdf' : 'image/jpeg', tam,
+               cuando, porUid:quien, porNombre:nombreUsuario(quien), enNube:false };
+    });
+    f.acto = f.acto || {};
+    f.acto.parteQuirurgico = metas;
+    escribir('fichas', fichaId, f);
+  };
+
+  /* Registra el envío tal como lo haría el botón de la ficha */
+  const enviar = (n, fichaId, tipo, o) => {
+    const f = DB.fichas[fichaId];
+    if(!f) return;
+    const op = o || {};
+    const titular = titularDeEnvio(f, tipo);
+    const a = armarEnvio(f, tipo, {
+      id: 'env_demo_' + n,
+      enviado: hora(f.fecha, op.dias === undefined ? 2 : op.dias, op.hh || '18:40'),
+      enviadoPor: titular, enviadoPorNombre: nombreUsuario(titular),
+      nota: op.nota || '', visto: !!op.visto
+    });
+    guardarArch({ id:a.docId, fichaId, nombre:a.nombreDoc, mime:'text/html', demo:true,
+      tam:a.docHtml.length, cuando:a.envio.enviado,
+      datos:'data:text/html;charset=utf-8;base64,' +
+            btoa(unescape(encodeURIComponent(a.docHtml))) });
+    escribir('envios', a.envio.id, a.envio);
+  };
+
+  /* ------------------------- Partes quirúrgicos ------------------------- */
+  adjuntar('fic_demo1', [
+    { n:'foja-quirurgica-perez.jpg',
+      dxPost:'Colelitiasis. Colecistitis crónica reagudizada',
+      descripcion:['Neumoperitoneo con aguja de Veress. Cuatro trocares.',
+                   'Vesícula de paredes engrosadas, adherencias laxas al epiplón.',
+                   'Disección del triángulo de Calot. Visión crítica de seguridad.',
+                   'Clipado y sección de arteria y conducto cístico.',
+                   'Colecistectomía anterógrada. Extracción por trocar umbilical.'],
+      sangrado:'Menor a 50 mL', anatomia:'Sí — vesícula biliar' },
+    { n:'protocolo-anatomia-patologica.pdf', pdf: b => ([
+        { t:'h', x:'ANATOMIA PATOLOGICA — PROTOCOLO N. 2026/4471' },
+        { t:'b', x:b.institucion },
+        { x:'Paciente: ' + b.paciente + '   DNI: ' + b.dni },
+        { x:'Fecha de recepcion: ' + b.fecha },
+        { x:'Cirujano remitente: ' + b.cirujano },
+        { t:'b', x:'' },
+        { t:'s', x:'MATERIAL REMITIDO' },
+        { x:'Vesicula biliar de 8,5 x 4 x 3 cm.' },
+        { t:'b', x:'' },
+        { t:'s', x:'DESCRIPCION MACROSCOPICA' },
+        { x:'Pared engrosada de hasta 5 mm. Mucosa aterciopelada.' },
+        { x:'Luz ocupada por multiples calculos facetados de 3 a 11 mm.' },
+        { t:'b', x:'' },
+        { t:'s', x:'DIAGNOSTICO' },
+        { x:'Colecistitis cronica litiasica. Sin signos de malignidad.' },
+        { t:'b', x:'' },
+        { x:'Dra. Silvia Nunez — Anatomia Patologica — M.P. 2210' }
+      ]) }
+  ]);
+
+  adjuntar('fic_demo2', [
+    { n:'parte-quirurgico-suarez.jpg', cirujano:'Dr. Emilio Sandoval',
+      dxPost:'Fractura pertrocantérea de cadera derecha',
+      descripcion:['Paciente en mesa de tracción, control radioscópico.',
+                   'Reducción cerrada satisfactoria de la fractura.',
+                   'Abordaje lateral. Colocación de clavo cefalomedular corto.',
+                   'Tornillo cefálico y bloqueo distal bajo radioscopía.',
+                   'Control final: reducción y material en posición correcta.'],
+      sangrado:'Aproximadamente 250 mL', complicaciones:'Sin complicaciones' }
+  ]);
+
+  adjuntar('fic_demo4', [
+    { n:'foja-quirurgica.jpg',
+      dxPost:'Hernia umbilical no complicada',
+      descripcion:['Incisión periumbilical. Disección del saco herniario.',
+                   'Reducción del contenido, sin compromiso de asas.',
+                   'Cierre del defecto con malla de polipropileno.',
+                   'Hemostasia prolija. Cierre por planos.'],
+      sangrado:'Escaso' }
+  ]);
+
+  adjuntar('fic_demo7', [
+    { n:'parte-quirurgico-oftalmologia.pdf', pdf: b => ([
+        { t:'h', x:'PARTE QUIRURGICO' },
+        { t:'b', x:b.institucion + ' — Servicio de Oftalmologia' },
+        { x:'Paciente: ' + b.paciente + '   DNI: ' + b.dni },
+        { x:'Fecha: ' + b.fecha + '   Hora: ' + b.hora },
+        { x:'Cirujano: ' + b.cirujano },
+        { x:'Anestesiologo: ' + b.anestesiologo },
+        { t:'b', x:'' },
+        { t:'s', x:'DIAGNOSTICO PREOPERATORIO' },
+        { x:'Catarata senil nuclear, ojo derecho.' },
+        { t:'b', x:'' },
+        { t:'s', x:'PROCEDIMIENTO' },
+        { x:'Facoemulsificacion con implante de lente intraocular plegable.' },
+        { t:'b', x:'' },
+        { t:'s', x:'DESCRIPCION' },
+        { x:'Anestesia topica mas sedacion. Incision en cornea clara de 2,2 mm.' },
+        { x:'Capsulorrexis circular continua. Hidrodiseccion e hidrodelineacion.' },
+        { x:'Facoemulsificacion del nucleo. Aspiracion de masas corticales.' },
+        { x:'Implante de LIO en saco capsular, bien centrada.' },
+        { x:'Sellado de incisiones por hidratacion estromal.' },
+        { t:'b', x:'' },
+        { x:'Sangrado: nulo.   Complicaciones: ninguna.' },
+        { t:'b', x:'' },
+        { x:b.cirujano + ' — Firma y sello' }
+      ]) }
+  ]);
+
+  adjuntar('fic_demo11', [
+    { n:'foja-quirurgica-orl.jpg', cirujano:'Dra. Andrea Bianchi',
+      dxPost:'Amigdalitis crónica recurrente',
+      descripcion:['Intubación orotraqueal. Abrebocas de Davis.',
+                   'Amigdalectomía bilateral por disección fría.',
+                   'Hemostasia con electrocoagulación bipolar.',
+                   'Lechos amigdalinos secos al finalizar.'],
+      sangrado:'Aproximadamente 40 mL' }
+  ]);
+
+  adjuntar('fic_demo12', [
+    { n:'parte-quirurgico-fistula.jpg', cirujano:'Dr. Hernán Lascano',
+      dxPost:'Enfermedad renal crónica estadio 5. Acceso vascular',
+      descripcion:['Abordaje en muñeca izquierda bajo anestesia regional.',
+                   'Disección de arteria radial y vena cefálica.',
+                   'Anastomosis latero-terminal con polipropileno 7-0.',
+                   'Thrill palpable y soplo audible al finalizar.'],
+      sangrado:'Escaso', complicaciones:'Sin complicaciones' },
+    { n:'consentimiento-cirujano-firmado.jpg', cirujano:'Dr. Hernán Lascano',
+      dxPost:'Enfermedad renal crónica estadio 5',
+      descripcion:['Se adjunta consentimiento del acto quirúrgico,',
+                   'firmado por el paciente y por el cirujano actuante.'],
+      sangrado:'—' }
+  ]);
+
+  /* ------------------ Bandeja: valoración pre-anestésica ---------------- */
+  enviar(1,  'fic_demo1',  'valoracion', { dias:-6, hh:'11:05', visto:true });
+  enviar(2,  'fic_demo4',  'valoracion', { dias:-4, hh:'09:40', visto:true });
+  enviar(3,  'fic_demo7',  'valoracion', { dias:-3, hh:'17:15', visto:true });
+  enviar(4,  'fic_demo11', 'valoracion', { dias:-2, hh:'12:30', visto:true,
+    nota:'La consulta se hizo en consultorio externo, no en la guardia.' });
+  enviar(5,  'fic_demo14', 'valoracion', { dias:-5, hh:'10:10', visto:true });
+  enviar(6,  'fic_demo12', 'valoracion', { dias:-3, hh:'16:00', visto:true });
+  enviar(7,  'fic_demo8',  'valoracion', { dias:1,  hh:'08:55',
+    nota:'Paciente ASA III, se pidió interconsulta con cardiología antes de operar.' });
+  enviar(8,  'fic_demo9',  'valoracion', { dias:1,  hh:'19:25' });
+  enviar(9,  'fic_demo10', 'valoracion', { dias:2,  hh:'13:45' });
+
+  /* -------------- Bandeja: ficha anestésica y parte quirúrgico ---------- */
+  enviar(20, 'fic_demo1',  'acto', { dias:2, hh:'20:15', visto:true,
+    nota:'Se adjunta protocolo de anatomía patológica. El adicional del 25 % '+
+         'corresponde a ASA III, ya asentado en la valoración.' });
+  enviar(21, 'fic_demo4',  'acto', { dias:3, hh:'18:05', visto:true });
+  enviar(22, 'fic_demo7',  'acto', { dias:2, hh:'21:00' });
+  enviar(23, 'fic_demo11', 'acto', { dias:2, hh:'15:20', visto:true });
+  enviar(24, 'fic_demo12', 'acto', { dias:4, hh:'11:40',
+    nota:'PAMI pidió la documentación completa por auditoría. Va la ficha, el '+
+         'parte quirúrgico y el consentimiento firmado por el cirujano.' });
+  enviar(25, 'fic_demo2',  'acto', { dias:3, hh:'19:50',
+    nota:'Cirugía de urgencia en horario nocturno: el honorario lleva los dos '+
+         'adicionales del nomenclador.' });
+  /* A propósito sin parte quirúrgico: así se ve el aviso que le queda al
+     contador cuando falta la foja. */
+  enviar(26, 'fic_demo14', 'acto', { dias:5, hh:'10:35' });
+  enviar(27, 'fic_demo6',  'acto', { dias:2, hh:'17:30', visto:true });
+
+  guardarArchivosCache();
+  return true;
+}

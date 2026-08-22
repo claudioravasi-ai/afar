@@ -32,6 +32,10 @@ function diaRel(d){
 
 /* ¿Está cargado el equipo ampliado (Torres, Sosa, Méndez y Vidal)? */
 function faltaEquipoDemo(){ return !DB.usuarios['usr_demo3']; }
+/* ¿Están los ejemplos de las dos bandejas del contador? */
+function faltanEnviosDemo(){
+  return !Object.values(DB.envios || {}).some(e => e && e.demo);
+}
 
 /* Siembra a pedido, desde Coordinacion > Catalogos.
    Existe porque, con la base compartida ya configurada, sembrarDemo() no
@@ -45,8 +49,12 @@ function sembrarDemoManual(){
   const antes = Object.keys(DB.usuarios).length;
   if(!hayDemo())              sembrarDemo(true);      /* nada cargado: todo */
   else if(faltaEquipoDemo())  sembrarEquipoDemo();    /* completar lo que falta */
+  else if(faltanEnviosDemo()) sembrarEnviosDemo();    /* faltan los envíos */
   else return 0;                                      /* ya estaba entero */
-  return Object.keys(DB.usuarios).length - antes;
+  /* Si sólo se agregaron los envíos no cambia la cuenta de usuarios; se
+     informa igual con el total de lo que quedó sembrado. */
+  const nuevos = Object.keys(DB.usuarios).length - antes;
+  return nuevos || Object.keys(DB.envios || {}).length;
 }
 
 function sembrarDemo(forzar){
@@ -588,6 +596,11 @@ function sembrarDemo(forzar){
 
   /* Los otros cuatro anestesiólogos, con sus fichas en distintos estados */
   if(typeof sembrarEquipoDemo === 'function') sembrarEquipoDemo();
+
+  /* Ejemplos para las dos bandejas del contador. Va al final a propósito:
+     necesita las fichas y los honorarios ya cargados para armar los envíos
+     con el honorario discriminado de cada acto. */
+  if(typeof sembrarEnviosDemo === 'function') sembrarEnviosDemo();
 
   return true;
 }

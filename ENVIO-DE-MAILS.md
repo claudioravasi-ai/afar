@@ -164,3 +164,37 @@ Estas barreras limitan el daño, no lo impiden. La protección real requiere que
 la app se identifique contra un servicio de autenticación — el mismo trabajo
 pendiente que el de las reglas de la base de datos, en `reglas-firebase.txt`.
 Conviene resolver los dos juntos antes del uso asistencial con pacientes reales.
+
+
+---
+
+## Actualización: adjuntos (agosto de 2026)
+
+El portal contable puede reenviar la documentación de un envío a la auditoría
+médica de un financiador. Para que el **parte quirúrgico viaje como archivo
+adjunto** —y no sólo el documento dentro del cuerpo del mensaje— hay que volver
+a publicar el programa de Apps Script:
+
+1. Entrar a `script.google.com`, abrir el proyecto de AFAAR.
+2. Pegar de nuevo el contenido de `apps-script/Codigo.gs` **completo**
+   (conservando tu `CLAVE_COMPARTIDA`, que no cambió).
+3. *Implementar → Gestionar implementaciones → editar (lápiz) → Versión: nueva
+   → Implementar*. **Importante: editar la implementación existente**, no crear
+   una nueva, para que la dirección `/exec` siga siendo la misma y no haya que
+   tocar `src/email-config.js`.
+
+La app se da cuenta sola de qué versión está publicada: le pregunta al servicio
+antes de abrir el formulario de envío. Si todavía está la versión vieja, avisa
+en pantalla y manda el documento en el cuerpo del mensaje, sin adjuntos; el
+contador los descarga con «Descargar todo» y los agrega desde su casilla. No se
+rompe nada mientras tanto.
+
+Lo que agrega la versión nueva:
+
+- `doPost` acepta `adjuntos: [{ nombre, mime, datos }]`, con `datos` en base64
+  sin el prefijo `data:...;base64,`.
+- Tope de 18 MB para el conjunto de adjuntos, con margen sobre el límite de
+  Gmail (25 MB contando la codificación).
+- `doGet` informa la versión y si admite adjuntos. No revela la clave ni ningún
+  dato: sólo sirve para que la app sepa qué puede mandarle.
+- El registro de envíos anota cuántos adjuntos llevó cada correo.

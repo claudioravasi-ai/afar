@@ -152,6 +152,19 @@ function migrarFicha(f){
       f.plan.monitoreoEstandar.forEach(m => { if(mapa[m]) a.monitor.push(mapa[m]); });
     }
   }
+  /* El equipo quirurgico vivia suelto en la raiz de la ficha, cargado en el
+     paso 1. Ahora se registra en el paso «Anestesia», dentro de f.acto, para
+     que tambien lo pueda guardar el colega que toma el acto. Las fichas
+     viejas se mudan solas, sin perder nada. */
+  if(!a.equipo){
+    a.equipo = { cirujano:f.cirujano || '', cirujanoMP:'', ayudante:f.ayudante || '',
+                 instrumentador:f.instrumentador || '', anestesista2:f.anestesista2 || '',
+                 circulante:'' };
+  }
+  /* Adjuntos de la foja o parte quirurgico (dentro del acto, ver core.js) */
+  a.parteQuirurgico = a.parteQuirurgico || f.parteQuirurgico || [];
+  if(f.parteQuirurgico) delete f.parteQuirurgico;
+
   /* la recuperacion se separo del acto */
   if(!f.recup){
     f.recup = {
@@ -285,7 +298,15 @@ function pintarFicha(){
     (soloActo ? '' : '<button class="btn ghost chico" id="fiConsent">'+ico('firma')+' Consentimiento</button>')+
     '<button class="btn ghost chico" id="fiWord">'+ico('word')+' Word</button>'+
     '<button class="btn ghost chico" id="fiPdf">'+ico('imprimir')+' PDF</button>'+
-    (soloActo ? '' : '<button class="btn ghost chico" id="fiMail">'+ico('adjunto')+' Enviar al paciente</button>')+
+    /* Al paciente se le manda SOLO la valoración pre-anestésica con su
+       consentimiento: es la documentación que él necesita llevar el día de la
+       cirugía. El registro intraoperatorio, la recuperación y el cierre
+       firmado son historia clínica para el equipo tratante y para la
+       auditoría, no para entregarle por correo. Por eso el botón sólo existe
+       en los dos pasos que componen la valoración. */
+    ((soloActo || ['paciente','preanestesia'].indexOf(pasoFicha) < 0)
+      ? '' : '<button class="btn ghost chico" id="fiMail">'+ico('adjunto')+
+        ' Enviar valoración al paciente</button>')+
     (DB.fichas[f.id] && !soloActo ? '<button class="btn danger chico" id="fiBorrar">'+ico('borrar')+'</button>' : '')+
   '</div>';
 
@@ -366,7 +387,8 @@ function guardarPasoActual(){
     return;                                   /* lo demás no se toca */
   }
   if(pasoFicha === 'paciente')          Object.assign(f, leerPasoPaciente());
-  else if(pasoFicha === 'preanestesia'){ f.v = leerValoracion(); f.plan = leerPlan(); }
+  else if(pasoFicha === 'preanestesia'){ f.v = leerValoracion(); f.plan = leerPlan();
+                                        Object.assign(f, leerAsignacionActo()); }
   else if(pasoFicha === 'anestesia')     f.acto = leerPasoAnestesia();
   else if(pasoFicha === 'recuperacion')  f.recup = leerPasoRecuperacion();
 }
@@ -490,40 +512,9 @@ function htmlPasoPaciente(f){
     campoSel('qxLateralidad','Lateralidad', ['No aplica','Derecha','Izquierda','Bilateral'], f.lateralidad)+
   '</div>'+
 
-  '<div class="card"><h3>'+ico('pacientes')+'Equipo quirúrgico</h3>'+
-    '<div class="grid c2">'+
-      campoTxt('qxCirujano','Cirujano/a', f.cirujano)+
-      campoTxt('qxAyudante','Ayudante', f.ayudante)+
-    '</div>'+
-    '<div class="grid c2">'+
-      campoTxt('qxInstrumentador','Instrumentador/a', f.instrumentador)+
-      campoTxt('qxAnestesista2','Segundo anestesiólogo / residente', f.anestesista2)+
-    '</div>'+
-  '</div>'+
-
-  '<div class="card"><h3>'+ico('jeringa')+'Anestesiólogo que realiza el acto</h3>'+
-    '<div class="campo"><select id="qxAsignado">'+
-      socios().map(u => '<option value="'+esc(u.uid)+'"'+
-        (!f.actorExterno && actorFicha(f) === u.uid ? ' selected' : '')+'>'+
-        esc(u.apellido+', '+u.nombre)+(u.uid === f.ownerUid ? ' — hizo la valoración' : '')+
-        '</option>').join('')+
-      '<option value="sinasignar"'+(f.asignadoUid === 'sinasignar' ? ' selected' : '')+'>'+
-        '— Todavía no se sabe quién opera —</option>'+
-      '<option value="externo"'+(f.actorExterno ? ' selected' : '')+'>'+
-        '— Otro anestesiólogo, no registrado en la app —</option>'+
-    '</select>'+
-    '<div class="ayuda">La valoración prequirúrgica se factura como consulta a nombre de '+
-      esc(autorFicha(f))+'. El acto anestésico lo factura quien opera.</div></div>'+
-
-    '<div class="campo'+(f.actorExterno ? '' : ' oculto')+'" id="qxExternoBox">'+
-      '<label>Nombre del anestesiólogo externo</label>'+
-      '<input type="text" id="qxActorExterno" value="'+esc(f.actorExterno||'')+'" '+
-        'placeholder="Apellido, nombre y matrícula">'+
-      '<div class="ayuda">Queda registrado en el documento. Como no tiene usuario en la app, '+
-        'el honorario del acto no entra en la facturación de nadie.</div></div>'+
-
-    '<div id="qxAsignadoAviso"></div>'+
-  '</div>';
+  '<div class="aviso info">'+ico('info')+'<div>El <b>equipo quirúrgico</b> se carga en el paso '+
+    '<b>Anestesia</b>, donde queda asentado quién operó de verdad. El <b>anestesiólogo que realiza '+
+    'el acto</b> se designa en el paso <b>Preanestesia</b>, punto 14.</div></div>';
 }
 
 function cablearPasoPaciente(f){
@@ -553,27 +544,6 @@ function cablearPasoPaciente(f){
     $('#qxTalla').oninput = debounce(recalcIMC, 200);
     recalcIMC();
   }
-
-  const avisarAsignado = () => {
-    const v = $('#qxAsignado').value;
-    $('#qxExternoBox').classList.toggle('oculto', v !== 'externo');
-    const box = $('#qxAsignadoAviso');
-    if(v === 'sinasignar')
-      box.innerHTML = '<div class="aviso info">'+ico('info')+'<div>Cualquier socio va a poder '+
-        'abrir esta ficha y tomar el acto desde el botón <b>«Voy a realizar este acto»</b>. '+
-        'Hasta entonces el recordatorio te llega sólo a vos.</div></div>';
-    else if(v === 'externo')
-      box.innerHTML = '<div class="aviso warn">'+ico('alerta')+'<div>El acto lo realiza alguien '+
-        'sin usuario en la app: queda documentado en la ficha, pero <b>su honorario no se factura '+
-        'acá</b>. Vos seguís facturando la consulta prequirúrgica.</div></div>';
-    else if(v && v !== SESION.uid)
-      box.innerHTML = '<div class="aviso ok">'+ico('check')+'<div><b>'+
-        esc(nombreUsuario(v))+'</b> va a recibir el recordatorio de la cirugía y va a poder '+
-        'completar el acto y cargar sus honorarios. La consulta prequirúrgica sigue siendo tuya.</div></div>';
-    else box.innerHTML = '';
-  };
-  $('#qxAsignado').onchange = avisarAsignado;
-  avisarAsignado();
 
   $$('#qxCaracter button').forEach(b => b.onclick = () => {
     $$('#qxCaracter button').forEach(x => x.classList.remove('on')); b.classList.add('on');
@@ -726,11 +696,10 @@ function leerPasoPaciente(){
     cirugiaComp: cxSeleccionada ? (cxSeleccionada.comp || '') : '',
     cirugiaGrillaB: cxSeleccionada ? !!cxSeleccionada.grillaB : false,
     cirugiaNota: cxSeleccionada ? (cxSeleccionada.nota || '') : '',
-    lateralidad: val('qxLateralidad'),
-    cirujano: val('qxCirujano'), ayudante: val('qxAyudante'),
-    instrumentador: val('qxInstrumentador'), anestesista2: val('qxAnestesista2'),
-    asignadoUid: val('qxAsignado') || undefined,
-    actorExterno: val('qxAsignado') === 'externo' ? val('qxActorExterno') : ''
+    lateralidad: val('qxLateralidad')
+    /* El equipo quirúrgico se lee en el paso Anestesia (acto.equipo) y la
+       designación del actuante en el paso Preanestesia (punto 14). Si se
+       leyeran acá, cada vez que se guarda el paso 1 se borrarían. */
   };
 }
 
@@ -917,12 +886,13 @@ function htmlPasoFirma(f){
       '<div class="final-acciones">'+
         '<button class="btn pri grande" id="fiDocPdf">'+ico('imprimir')+' Generar PDF</button>'+
         '<button class="btn ghost grande" id="fiDocWord">'+ico('word')+' Compartir / descargar</button>'+
-        '<button class="btn ghost grande" id="fiDocMail">'+ico('adjunto')+' Enviar al paciente</button>'+
         '<button class="btn ghost" id="fiInicio">'+ico('panel')+' Volver al inicio</button>'+
         '<button class="btn ghost chico" id="fiReabrir">'+ico('editar')+' Reabrir para corregir</button>'+
       '</div>'+
     '</div>'+
-    tarjetaResumenAnestesia(f);
+    tarjetaResumenAnestesia(f)+
+    htmlParteQuirurgico(f)+
+    htmlEnvioFicha(f);
 
   /* ---------------- VENTANA 9: resumen de anestesia ---------------- */
   return ''+
@@ -984,6 +954,12 @@ function htmlPasoFirma(f){
     '<button class="btn pri grande mt14" id="fiFirmar">'+ico('check')+' Finalizar y firmar</button>'+
   '</div>'+
 
+  /* La foja quirúrgica y el envío a contaduría van al final del registro, en
+     los dos estados: casi siempre el parte del cirujano llega DESPUÉS de que
+     el anestesiólogo firmó su ficha, y tiene que poder adjuntarlo igual. */
+  htmlParteQuirurgico(f)+
+  htmlEnvioFicha(f)+
+
   leyendaEstados();
 }
 
@@ -1022,6 +998,9 @@ function leyendaEstados(){
 }
 
 function cablearPasoFirma(f){
+  cablearParteQuirurgico(f);
+  cablearEnvioFicha(f);
+
   if($('#fiReabrir')) $('#fiReabrir').onclick = () => confirmar('Reabrir la ficha',
     'La ficha vuelve a quedar editable. Queda registrado en la auditoría quién la reabrió y cuándo.',
     () => {
@@ -1034,7 +1013,6 @@ function cablearPasoFirma(f){
 
   if($('#fiDocPdf'))  $('#fiDocPdf').onclick  = () => imprimirFicha(fichaActual);
   if($('#fiDocWord')) $('#fiDocWord').onclick = () => exportarFichaWord(fichaActual);
-  if($('#fiDocMail')) $('#fiDocMail').onclick = () => enviarDocumentacionPaciente(fichaActual);
   if($('#fiInicio'))  $('#fiInicio').onclick  = () => irA('panel');
 
   $$('#fiDestino button').forEach(b => b.onclick = () => {

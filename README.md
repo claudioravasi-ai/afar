@@ -89,6 +89,45 @@ cobro. Si la consulta se hizo en la guardia o va comprendida en el acto, se
 marca como **«Incluida en el acto»** y no genera renglón aparte. El documento
 final identifica ambas autorías con sus matrículas y sus firmas.
 
+El anestesiólogo que designa quién realiza el acto lo hace al final de la
+valoración, en el **punto 14** del paso *Preanestesia*: cuando ya se sabe qué
+anestesia hace falta. El **equipo quirúrgico** se registra en el paso
+*Anestesia*, que es donde consta quién operó de verdad y no quién estaba
+anotado en la programación.
+
+### Envío a contaduría
+
+Terminada la valoración —o la ficha anestésica— el profesional la manda al
+contador de la asociación con un botón. **No hay ningún envío automático**: la
+cesión la dispone siempre el profesional tratante, ficha por ficha, y queda
+asentada en la auditoría con quién, qué y cuándo.
+
+Al final de la ficha anestésica se adjunta la **foja o parte quirúrgico** que
+firma el cirujano: se puede sacar una foto con el teléfono o subir el archivo
+(PDF, JPG, PNG, HEIC de iPhone, Word). Las fotos se comprimen solas —lado mayor
+de 1800 px— para que viajen rápido sin perder legibilidad. El parte se puede
+adjuntar **después de firmar la ficha**, que es lo que pasa casi siempre, y lo
+puede subir el colega que realizó el acto aunque la valoración sea de otro.
+
+El contador recibe todo en dos solapas de su menú:
+
+| Solapa | Qué contiene |
+|---|---|
+| **Valoración pre-anestésica** | La valoración prequirúrgica con el honorario de la consulta discriminado |
+| **Ficha anestésica y parte quirúrgico** | La ficha del acto, el parte quirúrgico adjunto y el honorario del acto renglón por renglón: base, adicionales del nomenclador y total |
+
+Cada solapa lista primero a los **profesionales** que enviaron algo, con su
+cantidad de envíos y el total de honorarios; al abrir uno aparecen sus envíos, y
+al abrir un envío, la documentación completa. Desde ahí el contador la descarga,
+la imprime o la reenvía por correo cuando una **auditoría médica** de un
+financiador la solicita.
+
+Los archivos pesados —el documento y las fotos del parte— **no viajan por las
+colecciones normales**: van a la rama `afar/archivos` de la base, que ningún
+dispositivo escucha en vivo, y se leen de a uno cuando alguien abre el envío.
+Si se sincronizaran como el resto, un solo parte quirúrgico fotografiado
+llenaría el `localStorage` de todos los equipos.
+
 ---
 
 ## Qué incluye
@@ -122,7 +161,8 @@ de accesos y cambios.
 ### Portal contable
 
 Acceso exclusivo del contador de la asociación, con clave propia (`2358`).
-**No accede a ningún dato clínico**: trabaja sobre una proyección anonimizada
+El **tablero económico no accede a ningún dato clínico**: trabaja sobre una
+proyección anonimizada
 de las prestaciones —importes, financiadores, instituciones y profesionales—
 construida con una lista blanca de campos económicos, de modo que ni un cambio
 futuro en la ficha pueda filtrar información de pacientes (Ley 25.326). De los
@@ -226,6 +266,10 @@ propio buscador** y queda disponible para el resto de la asociación.
 | Resumen de facturación | **Excel (.xls)** | Facturación → Excel |
 | Resumen de facturación | **PDF** | Facturación → PDF |
 | Estadísticas del período | **Excel (.xls)** | Estadísticas → Exportar |
+| Valoración pre-anestésica sola | **Word (.doc)** y **PDF** | Contaduría → envío → Documento |
+| Ficha anestésica del acto sola | **Word (.doc)** y **PDF** | Contaduría → envío → Documento |
+| Parte quirúrgico adjunto | El archivo original (PDF, JPG, …) | Contaduría → envío → Parte quirúrgico |
+| Envíos de un profesional | **Excel (.xls)** | Contaduría → profesional → Planilla |
 | Copia de seguridad | **JSON** | Indicador de sincronización (encabezado) |
 
 Todos llevan membrete de la AFAAR, de la institución y del anestesiólogo
@@ -268,12 +312,15 @@ cd ~/Desktop/Claude/afar && python3 build.py
 | `src/styles.css` | Sistema de diseño completo, claro y oscuro |
 | `src/body.html` | Estructura del documento |
 | `src/data-catalogos.js` | Instituciones, financiadores, fármacos, escalas |
-| `src/data-cie10*.js` | Catálogo CIE-10 |
+| `src/data-antecedentes.js` | Catálogo de patologías por sistema, con su medicación habitual |
+| `src/data-vademecum.js` | Vademécum anestésico de adultos y pediatría |
 | `src/data-cirugias*.js` | Catálogo quirúrgico con unidades anestésicas |
 | `src/data-guias.js` | Guías y protocolos |
 | `src/data-fiscal.js` | IPC, escala del monotributo y motor de indexación |
 | `src/core.js` | Estado, persistencia, Firebase, iconos, motor de scores |
 | `src/ui-*.js` | Cada pantalla |
+| `src/ui-envios.js` | Parte quirúrgico, envío a contaduría y las dos bandejas del contador |
+| `src/seed*.js` | Demostración: socios, pacientes, fichas y envíos de ejemplo |
 | `src/export.js` | Word, PDF y Excel |
 | `src/app.js` | Navegación, panel y arranque |
 

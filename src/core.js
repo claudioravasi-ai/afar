@@ -16,7 +16,7 @@ const LS_NUBE_LOG = 'afar_nube_log_v1';
 /* ---------------------------------------------------------------- Estado */
 const DB = {
   usuarios:{}, pacientes:{}, fichas:{}, instituciones:{}, obrasSociales:{},
-  catalogoExtra:{}, config:{}, auditoria:{}, mensajes:{}, fiscal:{}
+  catalogoExtra:{}, config:{}, auditoria:{}, mensajes:{}, fiscal:{}, envios:{}
 };
 const COLECCIONES = Object.keys(DB);
 
@@ -220,7 +220,11 @@ const ICONOS = {
   lista:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   candado:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   correo:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/>',
-  refrescar:'<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/>'
+  refrescar:'<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/>',
+  camara:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  enviar:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
+  carpeta:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  bandeja:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.4 5.1L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.4-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.8 1.1z"/>'
 };
 function ico(n, cls){
   const p = ICONOS[n] || ICONOS.info;
@@ -311,6 +315,129 @@ function eliminar(col, id){
 }
 function lista(col){ return Object.values(DB[col] || {}); }
 
+/* =========================================================================
+   ARCHIVOS PESADOS - documentos enviados a contaduria y partes quirurgicos
+   -------------------------------------------------------------------------
+   Las fotos del parte quirurgico y los documentos que se le mandan al
+   contador NO pueden viajar por las colecciones normales. Cada dispositivo
+   se suscribe a todas las colecciones con un .on('value') y las guarda
+   enteras en localStorage, que tiene 5 MB: un solo parte quirurgico
+   fotografiado lo llenaria y la app dejaria de guardar.
+
+   Por eso los binarios van a una rama aparte, afar/archivos, que NADIE
+   escucha en vivo: se leen de a uno, recien cuando alguien abre el envio.
+   En el dispositivo queda una cache chica con lo ultimo usado, para que el
+   telefono que subio la foto la siga viendo aunque se quede sin senal.
+   ========================================================================= */
+const LS_ARCH   = 'afar_archivos_v1';
+const ARCH_TOPE = 2600000;      /* ~2,6 MB de cache local; lo viejo se descarta */
+let ARCHIVOS = null;
+
+function archivosCache(){
+  if(ARCHIVOS) return ARCHIVOS;
+  try{ ARCHIVOS = JSON.parse(localStorage.getItem(LS_ARCH) || '{}'); }
+  catch(e){ ARCHIVOS = {}; }
+  return ARCHIVOS;
+}
+/* Poda por antiguedad de uso: el archivo que se abrio hace mas tiempo es el
+   primero en salir. Nunca se borra de la nube, solo de la cache. */
+function guardarArchivosCache(){
+  const c = archivosCache();
+  let ids = Object.keys(c).sort((a,b) => (c[a].usado||'') < (c[b].usado||'') ? -1 : 1);
+  const pesa = () => ids.reduce((a,k) => a + ((c[k].datos||'').length), 0);
+  while(ids.length > 1 && pesa() > ARCH_TOPE){ delete c[ids[0]]; ids = ids.slice(1); }
+  try{ localStorage.setItem(LS_ARCH, JSON.stringify(c)); }
+  catch(e){
+    /* Si aun asi no entra, se conserva unicamente el ultimo usado */
+    const ultimo = ids[ids.length-1];
+    const solo = {}; if(ultimo) solo[ultimo] = c[ultimo];
+    ARCHIVOS = solo;
+    try{ localStorage.setItem(LS_ARCH, JSON.stringify(solo)); }catch(e2){}
+  }
+}
+
+/* Guarda un archivo. Devuelve una promesa que dice si llego a la nube:
+   sin nube el archivo queda solo en este dispositivo y el contador no lo ve,
+   asi que quien envia tiene que enterarse. */
+function archivoGuardar(reg){
+  const c = archivosCache();
+  c[reg.id] = Object.assign({}, reg, { usado: new Date().toISOString() });
+  guardarArchivosCache();
+  /* Misma regla que escribir(): lo de la demostracion nunca sale del equipo */
+  if(reg.demo) return Promise.resolve(false);
+  if(!(nubeOK && fbDb)) return Promise.resolve(false);
+  return fbDb.ref('afar/archivos/'+reg.id).set(sinUndefined(reg))
+    .then(() => true).catch(e => { console.warn('archivo', e); return false; });
+}
+
+/* Lee un archivo: primero la cache del dispositivo, si no la nube. */
+function archivoLeer(id){
+  const c = archivosCache();
+  if(c[id] && c[id].datos){
+    c[id].usado = new Date().toISOString();
+    guardarArchivosCache();
+    return Promise.resolve(c[id]);
+  }
+  if(!(nubeOK && fbDb)) return Promise.resolve(null);
+  return fbDb.ref('afar/archivos/'+id).once('value').then(sn => {
+    const v = sn.val();
+    if(v && v.datos){ c[id] = Object.assign({}, v, { usado:new Date().toISOString() });
+                      guardarArchivosCache(); }
+    return v || null;
+  }).catch(e => { console.warn('archivo', e); return null; });
+}
+
+function archivoEliminar(id){
+  const c = archivosCache();
+  delete c[id]; guardarArchivosCache();
+  if(nubeOK && fbDb){ try{ fbDb.ref('afar/archivos/'+id).remove(); }catch(e){} }
+}
+
+/* Achica una foto antes de guardarla. Una camara de telefono saca 3-5 MB;
+   un parte quirurgico se lee perfecto con el lado mayor en 1800 px y pesa
+   unos 300 KB. Los PDF y los Word no se tocan: se suben tal cual. */
+function comprimirImagen(file, maxLado, calidad){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.naturalWidth || 1, h = img.naturalHeight || 1;
+        const k = Math.min(1, (maxLado || 1800) / Math.max(w, h));
+        w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);   /* PNG con transparencia */
+        cx.drawImage(img, 0, 0, w, h);
+        try{ res(cv.toDataURL('image/jpeg', calidad || 0.74)); }
+        catch(e){ rej(new Error('No se pudo procesar la imagen.')); }
+      };
+      img.onerror = () => rej(new Error('El archivo no es una imagen que el navegador pueda abrir.'));
+      img.src = fr.result;
+    };
+    fr.onerror = () => rej(new Error('No se pudo leer el archivo.'));
+    fr.readAsDataURL(file);
+  });
+}
+
+function fTam(bytes){
+  const b = Number(bytes) || 0;
+  if(b < 1024) return b + ' B';
+  if(b < 1048576) return Math.round(b/1024) + ' KB';
+  return (b/1048576).toFixed(1).replace('.', ',') + ' MB';
+}
+function esImagen(mime){ return /^image\//.test(mime || ''); }
+function esPDF(mime, nombre){
+  return /pdf/i.test(mime || '') || /\.pdf$/i.test(nombre || '');
+}
+function iconoArchivo(mime, nombre){
+  if(esImagen(mime)) return 'camara';
+  if(esPDF(mime, nombre)) return 'archivo';
+  if(/word|document/i.test(mime||'') || /\.docx?$/i.test(nombre||'')) return 'word';
+  return 'archivo';
+}
+
 /* ------------------------------------------------------------ Auditoria */
 function auditar(accion, detalle){
   const id = uid('log');
@@ -383,6 +510,14 @@ function iniciarNube(){
     COLECCIONES.forEach(col => {
       fbDb.ref('afar/'+col).on('value', snap => {
         const v = snap.val() || {};
+        /* Los registros de demostracion viven solo en el equipo y nunca suben.
+           El volcado remoto los pisaria: si alguien prueba el circuito con la
+           demo, sus envios y sus adjuntos desaparecerian en la primera
+           sincronizacion. Se conservan. */
+        Object.keys(DB[col] || {}).forEach(k => {
+          const r = DB[col][k];
+          if(r && r.demo && !v[k]) v[k] = r;
+        });
         aplicandoRemoto = true;
         DB[col] = v;
         aplicandoRemoto = false;
@@ -1233,6 +1368,133 @@ function prestacionesContables(){
       agregar('acto', actorFicha(f), h);
   });
   return out;
+}
+
+/* =========================================================================
+   ENVIOS A CONTADURIA
+   -------------------------------------------------------------------------
+   El anestesiologo decide, acto por acto, mandarle al contador la valoracion
+   preanestesica o la ficha anestesica con el parte quirurgico. Es una cesion
+   deliberada y trazable: la hace el profesional tratante, bajo su firma, con
+   una finalidad concreta (facturacion y auditoria medica del financiador), y
+   queda asentada en la auditoria de la app con quien, que y cuando.
+
+   Ojo con la regla general del portal contable: el tablero economico sigue
+   trabajando con prestaciones anonimizadas (prestacionesContables()). Estas
+   dos bandejas son la excepcion, y por eso estan separadas del tablero, con
+   su propio aviso legal y su propio registro.
+   ========================================================================= */
+const TIPOS_ENVIO = {
+  valoracion: { t:'Valoración pre-anestésica', ico:'valoracion',
+                concepto:'Consulta prequirúrgica (valoración preanestésica)' },
+  acto:       { t:'Ficha anestésica y parte quirúrgico', ico:'jeringa',
+                concepto:'Acto anestésico' }
+};
+
+/* Las dos bandejas las ven el contador y la coordinacion. Un socio ve
+   unicamente lo que el mismo envio, desde su propia ficha. */
+function puedeVerEnvios(){ return esContable() || esCoordinador(); }
+
+function enviosDe(tipo){
+  return lista('envios').filter(e => e.tipo === tipo)
+    .sort((a,b) => (a.enviado || '') < (b.enviado || '') ? 1 : -1);
+}
+/* Envios agrupados por el profesional titular del honorario */
+function enviosPorProfesional(tipo){
+  const g = {};
+  enviosDe(tipo).forEach(e => {
+    const k = e.uid || 'sin';
+    if(!g[k]) g[k] = { uid:e.uid, nombre:e.profesional || nombreUsuario(e.uid),
+                       matricula:e.matricula || '', envios:[] };
+    g[k].envios.push(e);
+  });
+  return Object.values(g).sort((a,b) => (a.nombre||'').localeCompare(b.nombre||'', 'es'));
+}
+function enviosDeFicha(fichaId, tipo){
+  return lista('envios').filter(e => e.fichaId === fichaId && (!tipo || e.tipo === tipo))
+    .sort((a,b) => (a.enviado || '') < (b.enviado || '') ? 1 : -1);
+}
+
+/* Honorario discriminado del acto que se esta enviando. El contador tiene
+   que poder rehacer la cuenta renglon por renglon: base, adicionales y
+   total, con el titular y el estado administrativo. */
+function honorarioDeEnvio(f, tipo){
+  if(tipo === 'valoracion'){
+    const hc = f.honConsulta || {};
+    const m = MODALIDADES_CONSULTA.find(x => x.id === hc.modalidad);
+    return {
+      concepto: TIPOS_ENVIO.valoracion.concepto,
+      modalidad: hc.modalidad || '', modalidadNombre: m ? m.n : '— sin definir —',
+      factura: !!hc.modalidad && hc.modalidad !== 'incluida' && hc.modalidad !== 'sincargo',
+      ua:0, valorUnidad:0, adicionales:[], pctAdicional:0, base:Number(hc.total || 0),
+      total: Number(hc.total || 0), cobrado: Number(hc.cobrado || 0),
+      estado: hc.estado || 'Pendiente', comprobante: hc.comprobante || '',
+      fechaPresentacion: hc.fechaPresentacion || '', observaciones:''
+    };
+  }
+  const h = f.hon || {};
+  const m = MODALIDADES_HONORARIOS.find(x => x.id === h.modalidad);
+  const ua = Number(h.ua || 0), vu = Number(h.valorUnidad || 0);
+  const base = h.modalidad === 'abierto' ? ua * vu : Number(h.montoFijo || h.total || 0);
+  const ad = (h.adicionales || []).map(id => ADICIONALES_HONORARIOS.find(x => x.id === id))
+    .filter(Boolean).map(a => ({ n:a.n, pct:a.pct, monto: base * a.pct / 100 }));
+  return {
+    concepto: TIPOS_ENVIO.acto.concepto,
+    modalidad: h.modalidad || '', modalidadNombre: m ? m.n : '— sin definir —',
+    factura: !!h.modalidad && h.modalidad !== 'sincargo' && h.modalidad !== 'salario',
+    ua, valorUnidad: vu, adicionales: ad, pctAdicional: Number(h.pctAdicional || 0),
+    base, total: Number(h.total || 0), cobrado: Number(h.cobrado || 0),
+    estado: h.estado || 'Pendiente', comprobante: h.comprobante || '',
+    fechaPresentacion: h.fechaPresentacion || '', observaciones: h.observaciones || ''
+  };
+}
+
+/* Titular del honorario de cada tipo de envio: la consulta es de quien hizo
+   la valoracion, el acto de quien opero. */
+function titularDeEnvio(f, tipo){
+  return tipo === 'valoracion' ? (f.ownerUid || '') : (actorFicha(f) || f.ownerUid || '');
+}
+
+/* Adjuntos del parte quirurgico cargados en la ficha.
+   Viven DENTRO de f.acto, no en la raiz: cuando un colega registra el acto de
+   una ficha ajena, guardarFicha() solo escribe acto y recup sobre la version
+   de la base. Si el parte colgara de la raiz, el que lo sube —que es
+   justamente el que operó— lo perderia al guardar. */
+function partesQuirurgicos(f){ return (f && f.acto && f.acto.parteQuirurgico) || []; }
+
+/* ---------------- Los dos actos medicos de una ficha ----------------
+   Una ficha puede contener uno de los dos, o los dos, y no siempre del mismo
+   profesional. Para contar actividad —estadisticas, facturacion, envios a
+   contaduria— no alcanza con contar fichas: hay que contar ACTOS.
+
+   No se pregunta «existe f.v», porque toda ficha nace con esos objetos
+   vacios. Se pregunta si hay algo cargado que solo puede venir de haber
+   hecho el trabajo. */
+function hayValoracion(f){
+  if(!f) return false;
+  const v = f.v || {}, pl = f.plan || {}, sc = v.scores || {};
+  return !!(sc.asa || (v.antecedentes2 || []).length || (v.medicacion || []).length ||
+            (v.riesgo || {}).aptitud || (v.riesgo || {}).fundamento ||
+            (pl.tecnica || []).length || (pl.destino) ||
+            (f.honConsulta || {}).modalidad);
+}
+function hayActo(f){
+  if(!f) return false;
+  const a = f.acto || {};
+  return !!(a.inicioCirugia || a.inicioAnestesia || a.finCirugia ||
+            (a.drogas || []).length || (a.controles || []).length ||
+            (a.tecnicas || []).length || (f.hon || {}).modalidad ||
+            (f.firma || {}).firmado);
+}
+/* Valoraciones y actos que me corresponden a MI dentro de un conjunto de
+   fichas. El coordinador ve los de toda la asociacion. */
+function misValoraciones(fichas){
+  return (fichas || lista('fichas')).filter(f =>
+    hayValoracion(f) && (esCoordinador() || (SESION && f.ownerUid === SESION.uid)));
+}
+function misActos(fichas){
+  return (fichas || lista('fichas')).filter(f =>
+    hayActo(f) && (esCoordinador() || (SESION && actorFicha(f) === SESION.uid)));
 }
 
 /* Anestesiologos habilitados, para asignar el acto */

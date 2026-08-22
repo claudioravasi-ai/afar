@@ -1,6 +1,18 @@
 /* =========================================================================
    ENVIO AL PACIENTE DE LA VALORACION PREQUIRURGICA Y EL CONSENTIMIENTO
    -------------------------------------------------------------------------
+   QUE SE LE MANDA Y QUE NO
+   Al paciente se le manda SOLO su valoracion pre-anestesica —datos de
+   filiacion, antecedentes, medicacion, alergias, examen, escalas y plan— con
+   su consentimiento informado. Es lo que tiene que leer, firmar y llevar el
+   dia de la cirugia.
+
+   NO se le manda el registro del acto anestesico, la recuperacion ni la ficha
+   firmada: son el registro del equipo tratante, con valor medico-legal y
+   destino de auditoria, y no se entregan por correo. El boton para enviar
+   existe unicamente en los pasos Paciente y Preanestesia (ver ui-ficha.js);
+   tampoco salen los honorarios.
+   -------------------------------------------------------------------------
    Arma el mail y se lo pasa al Apps Script configurado en email-config.js.
    Los documentos van en el CUERPO del mail, no como adjuntos: la app no
    genera PDF de verdad (el "PDF" es la impresion del navegador), asi que un
@@ -70,7 +82,11 @@ function htmlMailPaciente(f, prof){
     /* ---- Los documentos, con el mismo formato que la version impresa ---- */
     '<div style="font-family:Calibri,Arial,sans-serif;font-size:12px">'+
       '<style>'+CSS_DOC+'</style>'+
-      documentoFicha(f, { paraPaciente:true })+
+      /* Doble llave sobre lo que sale: `paraPaciente` ya deja afuera el
+         registro intraoperatorio, la recuperación y los honorarios, y
+         `parte:'valoracion'` lo vuelve a recortar. Al paciente se le manda su
+         valoración pre-anestésica y su consentimiento, nada más. */
+      documentoFicha(f, { paraPaciente:true, parte:'valoracion' })+
     '</div>'+
 
     '<hr style="border:0;border-top:1px solid #ccd;margin:26px 0 14px">'+
@@ -113,7 +129,10 @@ function enviarDocumentacionPaciente(f){
     'consentimiento informado de <b>'+esc((p.apellido||'')+', '+(p.nombre||''))+'</b>.<br><br>'+
     'El mail sale a nombre de la AFAAR y las respuestas del paciente te llegan a '+
     '<b>'+esc(prof.email||'—')+'</b>.<br><br>'+
-    'No se incluyen honorarios ni datos económicos.',
+    'Va únicamente la <b>valoración pre-anestésica</b> —filiación, antecedentes, '+
+    'medicación, alergias, examen y plan— con el consentimiento informado. '+
+    'No se incluyen el registro del acto anestésico, la recuperación ni ningún '+
+    'dato económico.',
     async () => {
       toast('Enviando…');
       try{

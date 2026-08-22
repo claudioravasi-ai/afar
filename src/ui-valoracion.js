@@ -302,8 +302,10 @@ function htmlValoracion(f){
         ['Consultorio de preanestesia','Sala de internación','Antecámara de quirófano','Guardia / urgencia','Telemedicina'], (v.riesgo||{}).ambito)+
     '</div>')+
 
-  /* -------- 12 y 13. Plan anestesico propuesto -------- */
-  htmlPlan(f);
+  /* -------- 12, 13 y 14. Plan, profilaxis y actuante -------- */
+  htmlPlan(f)+
+
+  htmlEnvioValoracion(f);
 }
 
 /* =========================================================================
@@ -351,7 +353,72 @@ function htmlPlan(f){
     '</div>'+
     campoArea('plIndicaciones','Indicaciones preoperatorias al paciente', pl.indicaciones,
       'Ayuno, medicación a suspender y a continuar, higiene, acompañante, horario de presentación')+
-    campoArea('plObs','Observaciones del plan', pl.observaciones));
+    campoArea('plObs','Observaciones del plan', pl.observaciones))+
+
+  /* --------------------------------------------------------------------
+     14. Anestesiologo que realiza el acto.
+     Estaba en el paso 1, junto a los datos del paciente, y ahi no
+     correspondia: quien va a anestesiar se define cuando ya se sabe que
+     anestesia hace falta, es decir al final de la valoracion. De esta
+     designacion dependen dos cosas: a quien le llega el recordatorio de la
+     cirugia y a nombre de quien se factura el acto (la consulta
+     prequirurgica sigue siendo de quien firma esta valoracion).
+     -------------------------------------------------------------------- */
+  acc('acActuante','jeringa','14 · Anestesiólogo que realiza el acto anestésico',
+    '<div class="campo"><label>Profesional designado</label><select id="qxAsignado">'+
+      socios().map(u => '<option value="'+esc(u.uid)+'"'+
+        (!f.actorExterno && actorFicha(f) === u.uid ? ' selected' : '')+'>'+
+        esc(u.apellido+', '+u.nombre)+(u.uid === f.ownerUid ? ' — hizo la valoración' : '')+
+        '</option>').join('')+
+      '<option value="sinasignar"'+(f.asignadoUid === 'sinasignar' ? ' selected' : '')+'>'+
+        '— Todavía no se sabe quién opera —</option>'+
+      '<option value="externo"'+(f.actorExterno ? ' selected' : '')+'>'+
+        '— Otro anestesiólogo, no registrado en la app —</option>'+
+    '</select>'+
+    '<div class="ayuda">La valoración prequirúrgica se factura como consulta a nombre de '+
+      esc(autorFicha(f))+'. El acto anestésico lo factura quien opera.</div></div>'+
+
+    '<div class="campo'+(f.actorExterno ? '' : ' oculto')+'" id="qxExternoBox">'+
+      '<label>Nombre del anestesiólogo externo</label>'+
+      '<input type="text" id="qxActorExterno" value="'+esc(f.actorExterno||'')+'" '+
+        'placeholder="Apellido, nombre y matrícula">'+
+      '<div class="ayuda">Queda registrado en el documento. Como no tiene usuario en la app, '+
+        'el honorario del acto no entra en la facturación de nadie.</div></div>'+
+
+    '<div id="qxAsignadoAviso"></div>', true);
+}
+
+/* Lo que el punto 14 escribe en la raíz de la ficha (no dentro de f.plan) */
+function leerAsignacionActo(){
+  if(!$('#qxAsignado')) return {};       /* el paso no está en pantalla */
+  const v = val('qxAsignado');
+  const o = { actorExterno: v === 'externo' ? val('qxActorExterno') : '' };
+  if(v) o.asignadoUid = v;
+  return o;
+}
+
+function cablearAsignacionActo(){
+  if(!$('#qxAsignado')) return;
+  const avisar = () => {
+    const v = $('#qxAsignado').value;
+    $('#qxExternoBox').classList.toggle('oculto', v !== 'externo');
+    const box = $('#qxAsignadoAviso');
+    if(v === 'sinasignar')
+      box.innerHTML = '<div class="aviso info">'+ico('info')+'<div>Cualquier socio va a poder '+
+        'abrir esta ficha y tomar el acto desde el botón <b>«Voy a realizar este acto»</b>. '+
+        'Hasta entonces el recordatorio te llega sólo a vos.</div></div>';
+    else if(v === 'externo')
+      box.innerHTML = '<div class="aviso warn">'+ico('alerta')+'<div>El acto lo realiza alguien '+
+        'sin usuario en la app: queda documentado en la ficha, pero <b>su honorario no se factura '+
+        'acá</b>. Vos seguís facturando la consulta prequirúrgica.</div></div>';
+    else if(v && SESION && v !== SESION.uid)
+      box.innerHTML = '<div class="aviso ok">'+ico('check')+'<div><b>'+
+        esc(nombreUsuario(v))+'</b> va a recibir el recordatorio de la cirugía y va a poder '+
+        'completar el acto y cargar sus honorarios. La consulta prequirúrgica sigue siendo tuya.</div></div>';
+    else box.innerHTML = '';
+  };
+  $('#qxAsignado').onchange = avisar;
+  avisar();
 }
 
 function leerPlan(){
@@ -586,6 +653,9 @@ function cablearValoracion(f){
   });
   $('#scAsaEL').onclick = () => setTimeout(() =>
     $('#scAsaEL').classList.toggle('sel', $('#scAsaE').checked), 0);
+
+  cablearAsignacionActo();      /* punto 14 */
+  cablearEnvioValoracion(f);    /* envío de la valoración a contaduría */
 
   recalcular();
 }
