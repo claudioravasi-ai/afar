@@ -296,6 +296,9 @@ function nuevaFichaEnInstitucion(paso){
   abrirFicha(null);
   const inst = institucionActiva();
   if(inst){ fichaActual.institucion = inst; }
+  /* La opción que se tocó en el inicio es la tarea en foco: la otra sección
+     queda atenuada para que la pantalla muestre una sola cosa por vez. */
+  modoFicha = (paso === 'anestesia') ? 'acto' : 'valoracion';
   if(paso === 'anestesia'){
     /* el acceso directo a la ficha anestesica igual arranca por el paciente:
        sin paciente no hay registro que valga */

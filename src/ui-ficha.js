@@ -20,6 +20,67 @@ const PASOS_FICHA = [
   { k:'firma',        ico:'firma',      t:'Firmar',       sub:'Cierre del registro' }
 ];
 
+/* =========================================================================
+   LAS DOS SECCIONES DE UNA FICHA Y DE QUIEN ES CADA UNA
+   -------------------------------------------------------------------------
+   Una ficha contiene dos actos medicos que muchas veces son de dos
+   profesionales distintos: el anestesiologo 1 hace la valoracion
+   prequirurgica y el anestesiologo 2 anestesia. Cada uno ve la ficha
+   entera —para anestesiar hay que poder leer el prequirurgico— pero
+   ESCRIBE unicamente en su seccion. Lo del otro se muestra atenuado y
+   bloqueado: se lee, no se toca.
+
+     valoracion -> paso Preanestesia                      (del autor de la ficha)
+     acto       -> pasos Anestesia, Recuperacion y Firmar  (del actuante)
+
+   El paso Paciente no es de ninguna de las dos: es la identificacion del
+   paciente y de la cirugia, hace falta para las dos tareas y nunca se
+   atenua. Editarlo sigue siendo del autor de la ficha.
+
+   El modo es ademas el que se elige en el inicio, con «Nueva valoracion
+   preanestesica» o «Nueva ficha anestesica»: la seccion que no se eligio
+   queda atenuada para que la pantalla muestre una sola tarea por vez. Se
+   puede cambiar con el selector que esta debajo de la barra de pasos, pero
+   cambiar de modo NO da permisos: los permisos los da la titularidad.
+   ========================================================================= */
+const SECCION_DE_PASO = {
+  paciente:'ambas', preanestesia:'valoracion',
+  anestesia:'acto', recuperacion:'acto', firma:'acto'
+};
+const MODOS_FICHA = [
+  { k:'valoracion', t:'Valoración prequirúrgica' },
+  { k:'acto',       t:'Acto anestésico' },
+  { k:'completo',   t:'Todo' }
+];
+let modoFicha = 'completo';
+
+function seccionDePaso(k){ return SECCION_DE_PASO[k] || 'valoracion'; }
+
+/* El paso pertenece a lo que el usuario esta trabajando ahora */
+function pasoEnFoco(k){
+  const s = seccionDePaso(k);
+  return modoFicha === 'completo' || s === 'ambas' || s === modoFicha;
+}
+
+/* Titularidad: la valoracion es de quien la hizo, el acto de quien opera.
+   Un acto todavia sin dueno lo puede tomar cualquiera —para eso esta el
+   boton «Voy a realizar este acto»—, pero una vez que tiene dueno es suyo. */
+function puedeEditarSeccion(f, sec){
+  if(esCoordinador()) return true;
+  if(sec === 'acto') return esActorFicha(f) || !actorFicha(f);
+  return puedeEditarFicha(f);          /* valoracion y paso Paciente: el autor */
+}
+
+/* Con que modo se abre una ficha ya existente: con la seccion que es mia.
+   Si soy las dos cosas —lo habitual— se abre completa. */
+function modoDeFicha(g){
+  if(!g) return 'completo';
+  const mia  = puedeEditarSeccion(g, 'valoracion');
+  const acto = puedeEditarSeccion(g, 'acto');
+  if(mia && acto) return 'completo';
+  return mia ? 'valoracion' : 'acto';
+}
+
 /* ============================ LISTADO ============================ */
 let filtroFichas = { texto:'', caracter:'', institucion:'', estado:'', alcance:'mias' };
 
@@ -206,10 +267,12 @@ function abrirFicha(id, pacienteId){
     cod: fichaActual.cirugiaCod || '', comp: fichaActual.cirugiaComp || '',
     grillaB: !!fichaActual.cirugiaGrillaB, nota: fichaActual.cirugiaNota || ''
   } : null;
-  /* Si la ficha es de un colega y el acto no es mio, se entra por el paso
-     de anestesia: es lo unico que ese colega puede tocar. */
+  /* Se entra por el primer paso de la seccion propia: al que viene a
+     anestesiar la ficha de un colega no le sirve arrancar en la
+     identificacion del paciente, que no puede tocar. */
   const g = id ? DB.fichas[id] : null;
-  pasoFicha = (g && !puedeEditarFicha(g) && !esActorFicha(g)) ? 'anestesia' : 'paciente';
+  modoFicha = modoDeFicha(g);
+  pasoFicha = modoFicha === 'acto' ? 'anestesia' : 'paciente';
   irA('ficha');
   pintarFicha();
   if(nueva) toast('Nueva ficha creada. Recordá guardarla.', 'ok');
@@ -268,12 +331,16 @@ function pintarFicha(){
   '<div class="stepper no-print">'+ PASOS_FICHA.map((s,i) => {
     const est = estadoPaso(f, s.k);
     return '<button type="button" class="step'+(s.k===pasoFicha?' on':'')+' '+est+
+      (pasoEnFoco(s.k) ? '' : ' atenuado')+
       '" data-paso="'+s.k+'">'+
       '<span class="dot">'+(est==='ok' ? ico('check') : ico(s.ico))+'</span>'+
       '<span class="lbl">'+esc(s.t)+'</span>'+
       (i < PASOS_FICHA.length-1 ? '<span class="linea"></span>' : '')+
       '</button>';
   }).join('') +'</div>'+
+  '<div class="modo-sw seg no-print">'+ MODOS_FICHA.map(m =>
+    '<button type="button" data-modo="'+m.k+'"'+(m.k===modoFicha?' class="on"':'')+'>'+
+    esc(m.t)+'</button>').join('') +'</div>'+
   '<div class="paso-cabecera no-print">'+
     '<div><b>Paso '+(idx+1)+' de '+PASOS_FICHA.length+'</b> · '+esc(PASOS_FICHA[idx].sub)+'</div>'+
     '<div class="barra"><span style="width:'+Math.round((idx+1)/PASOS_FICHA.length*100)+'%"></span></div>'+
@@ -281,7 +348,9 @@ function pintarFicha(){
 
   (firmada ? '<div class="aviso ok no-print">'+ico('candado')+'<div><b>Registro finalizado y firmado.</b> '+
     'Queda en sólo lectura. Si hay que corregir algo, reabrilo desde el paso «Firmar».</div></div>' : '')+
-  (soloActo ? bannerFichaAjena(f) : bannerFaltantes(f))+
+  /* En una ficha ajena el banner de arriba ya explica de quién es cada
+     sección: repetirlo con bannerSeccion() sería decir dos veces lo mismo. */
+  (soloActo ? bannerFichaAjena(f) : bannerFaltantes(f) + bannerSeccion(guardada || f))+
 
   '<div id="fiCuerpo"></div>'+
 
@@ -315,6 +384,7 @@ function pintarFicha(){
      cablea acá para que funcione en los cinco pasos, no sólo en el primero. */
   if($('#fiTomar')) $('#fiTomar').onclick = () => tomarActo(f);
   $$('#vFicha [data-paso]').forEach(b => b.onclick = () => irAPaso(b.dataset.paso));
+  $$('#vFicha [data-modo]').forEach(b => b.onclick = () => cambiarModoFicha(b.dataset.modo));
   if($('#fiAtras'))     $('#fiAtras').onclick = () => irAPaso(pasoVecino(-1));
   if($('#fiSiguiente')) $('#fiSiguiente').onclick = () => irAPaso(pasoVecino(1));
   $('#fiGuardar').onclick = () => { guardarPasoActual(); guardarFicha(); };
@@ -335,11 +405,51 @@ function pintarFicha(){
   else if(pasoFicha === 'recuperacion') { cuerpo.innerHTML = htmlPasoRecuperacion(f); cablearPasoRecuperacion(f); }
   else                                  { cuerpo.innerHTML = htmlPasoFirma(f);        cablearPasoFirma(f); }
 
-  /* Un colega puede tocar el acto y la recuperación; el resto queda en
-     lectura. Y una ficha firmada no se toca hasta que se reabra. */
-  const editable = (!soloActo || pasoFicha === 'anestesia' || pasoFicha === 'recuperacion')
-    && (!firmada || pasoFicha === 'firma');
+  /* Se escribe sólo en la sección propia y sólo en la que se está trabajando.
+     Y una ficha firmada no se toca hasta que se reabra. */
+  const miSeccion = puedeEditarSeccion(guardada || f, seccionDePaso(pasoFicha));
+  const enFoco    = pasoEnFoco(pasoFicha);
+  const editable  = miSeccion && enFoco && (!firmada || pasoFicha === 'firma');
   if(!editable) bloquearCuerpo();
+  /* Lo que no se puede editar se ve atenuado: sigue completamente legible
+     —el que anestesia necesita leer el prequirúrgico— pero se distingue de
+     un golpe de vista lo que es propio de lo que es del colega. */
+  if(!miSeccion || !enFoco) cuerpo.classList.add('atenuado');
+}
+
+/* Cambia la tarea en foco. NO cambia permisos: si el acto es de un colega,
+   pasar a «Acto anestésico» lo muestra en claro, pero sigue bloqueado. */
+function cambiarModoFicha(k){
+  guardarPasoActual();
+  modoFicha = k;
+  /* Si el paso donde estoy no pertenece al modo elegido, me lleva al primero
+     que sí: cambiar de tarea sin moverse de pantalla confunde. */
+  if(!pasoEnFoco(pasoFicha)){
+    const p = PASOS_FICHA.find(x => pasoEnFoco(x.k));
+    if(p) pasoFicha = p.k;
+  }
+  pintarFicha();
+}
+
+/* Aviso de a quién pertenece lo que se está mirando */
+function bannerSeccion(g){
+  const sec = seccionDePaso(pasoFicha);
+  if(!puedeEditarSeccion(g, sec)){
+    const duenio = sec === 'acto' ? nombreActor(g) : autorFicha(g);
+    const qué = sec === 'acto'       ? 'El acto anestésico'
+              : sec === 'preanestesia' || sec === 'valoracion'
+                                     ? 'La valoración prequirúrgica'
+                                     : 'La identificación del paciente';
+    return '<div class="aviso info no-print">'+ico('candado')+'<div><b>'+qué+
+      ' es de '+esc(duenio)+'.</b> La ves completa para trabajar sobre esa '+
+      'información, pero no la podés editar: cada anestesiólogo firma lo suyo.</div></div>';
+  }
+  if(pasoEnFoco(pasoFicha)) return '';
+  const otra = sec === 'acto' ? 'acto' : 'valoracion';
+  return '<div class="aviso warn no-print">'+ico('info')+'<div><b>Este paso es de la otra '+
+    'sección.</b> Estás trabajando en «'+esc((MODOS_FICHA.find(m => m.k===modoFicha)||{}).t)+'». '+
+    '<button class="btn pri chico mt8" data-modo="'+otra+'">'+ico('editar')+
+    ' Trabajar en '+(otra === 'acto' ? 'el acto anestésico' : 'la valoración')+'</button></div></div>';
 }
 
 /* Deja el paso en modo lectura: se ve todo, no se cambia nada.
@@ -381,11 +491,9 @@ function guardarPasoActual(){
   const f = fichaActual;
   const guardada = DB.fichas[f.id];
   if((f.firma || {}).firmado && pasoFicha !== 'firma') return;   /* firmada: no se toca */
-  if(guardada && !puedeEditarFicha(guardada)){
-    if(pasoFicha === 'anestesia')    f.acto = leerPasoAnestesia();
-    if(pasoFicha === 'recuperacion') f.recup = leerPasoRecuperacion();
-    return;                                   /* lo demás no se toca */
-  }
+  /* Nadie escribe en la sección del otro: el que hizo la valoración no toca
+     el acto de su colega, y el que anestesió no toca la valoración. */
+  if(!puedeEditarSeccion(guardada || f, seccionDePaso(pasoFicha))) return;
   if(pasoFicha === 'paciente')          Object.assign(f, leerPasoPaciente());
   else if(pasoFicha === 'preanestesia'){ f.v = leerValoracion(); f.plan = leerPlan();
                                         Object.assign(f, leerAsignacionActo()); }
@@ -393,13 +501,23 @@ function guardarPasoActual(){
   else if(pasoFicha === 'recuperacion')  f.recup = leerPasoRecuperacion();
 }
 
-function guardarFicha(silencioso){
+/* sinRepintar: guarda sin rehacer la pantalla entera. Lo usa la carga del
+   parte quirúrgico, que sólo necesita refrescar su propia lista: rehacer
+   #vFicha devolvía al usuario al principio del registro. */
+function guardarFicha(silencioso, sinRepintar){
   const f = fichaActual;
   const guardada = DB.fichas[f.id];
 
   /* Ficha de un colega: se escribe únicamente lo que le corresponde, sobre la
      versión vigente en la base, para no pisar nada de lo que él cargó. */
   if(guardada && !puedeEditarFicha(guardada)){
+    /* Si tampoco el acto es mío, no hay nada mío que guardar en esta ficha:
+       escribirla igual pisaría con una copia vieja lo que cargó su dueño. */
+    if(!puedeEditarSeccion(guardada, 'acto')){
+      if(!silencioso) toast('Esta ficha es de '+autorFicha(guardada)+
+        ' y el acto es de '+nombreActor(guardada)+': la podés leer, no editar.', 'err');
+      return;
+    }
     const base = migrarFicha(JSON.parse(JSON.stringify(guardada)));
     base.acto = f.acto || {};
     base.recup = f.recup || {};
@@ -414,19 +532,21 @@ function guardarFicha(silencioso){
       'Acto anestésico registrado en la ficha de ' + autorFicha(guardada));
     fichaActual = base;
     if(!silencioso) toast('Acto anestésico guardado' + (nubeOK ? ' y sincronizado.' : '.'), 'ok');
-    pintarFicha();
+    if(!sinRepintar) pintarFicha();
     return;
   }
 
-  if(!f.pacienteId){ pasoFicha = 'paciente'; pintarFicha();
-    return toast('Seleccioná un paciente en el paso 1.', 'err'); }
+  if(!f.pacienteId){
+    if(!sinRepintar){ pasoFicha = 'paciente'; pintarFicha(); }
+    return toast('Seleccioná un paciente en el paso 1.', 'err');
+  }
   f.modificado = new Date().toISOString();
   f.modificadoPor = SESION.uid;
   f.modificadoPorNombre = USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '';
   escribir('fichas', f.id, f);
   auditar('ficha-guardar', (DB.pacientes[f.pacienteId]||{}).apellido + ' — ' + (f.cirugia||''));
   if(!silencioso) toast('Ficha guardada' + (nubeOK ? ' y sincronizada.' : ' en este dispositivo.'), 'ok');
-  pintarFicha();
+  if(!sinRepintar) pintarFicha();
 }
 
 /* =========================================================================
@@ -857,6 +977,8 @@ function leerPasoRecuperacion(){
    ========================================================================= */
 function htmlPasoFirma(f){
   const p = DB.pacientes[f.pacienteId] || {};
+  /* El parte quirurgico y el envio del acto son de quien anestesio */
+  const miActo = puedeEditarSeccion(DB.fichas[f.id] || f, 'acto');
   const a = f.acto || {}, r = f.recup || {}, v = f.v || {}, pl = f.plan || {};
   const fi = f.firma || {};
   const bal = calcularBalance(a.balance);
@@ -891,7 +1013,7 @@ function htmlPasoFirma(f){
       '</div>'+
     '</div>'+
     tarjetaResumenAnestesia(f)+
-    htmlParteQuirurgico(f)+
+    htmlParteQuirurgico(f, miActo)+
     htmlEnvioFicha(f);
 
   /* ---------------- VENTANA 9: resumen de anestesia ---------------- */
@@ -957,7 +1079,7 @@ function htmlPasoFirma(f){
   /* La foja quirúrgica y el envío a contaduría van al final del registro, en
      los dos estados: casi siempre el parte del cirujano llega DESPUÉS de que
      el anestesiólogo firmó su ficha, y tiene que poder adjuntarlo igual. */
-  htmlParteQuirurgico(f)+
+  htmlParteQuirurgico(f, miActo)+
   htmlEnvioFicha(f)+
 
   leyendaEstados();

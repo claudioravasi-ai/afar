@@ -76,10 +76,10 @@ function cargarParteQuirurgico(f, files){
       if(!hechos.length) return;
       f.acto = f.acto || {};
       f.acto.parteQuirurgico = partesQuirurgicos(f).concat(hechos);
-      guardarFicha(true);
+      guardarFicha(true, true);
       auditar('parte-quirurgico-alta',
         hechos.length + ' archivo(s) en la ficha ' + f.id);
-      pintarFicha();
+      refrescarAdjuntos();
       toast(hechos.length+' archivo'+(hechos.length===1?'':'s')+' adjunto'+
         (hechos.length===1?'':'s')+(nubeOK ? ' y sincronizado.' : ' en este dispositivo.'), 'ok');
       return;
@@ -123,26 +123,29 @@ function quitarParteQuirurgico(f, id){
       f.acto = f.acto || {};
       f.acto.parteQuirurgico = partesQuirurgicos(f).filter(x => x.id !== id);
       archivoEliminar(id);
-      guardarFicha(true);
+      guardarFicha(true, true);
       auditar('parte-quirurgico-baja', id);
-      pintarFicha();
+      refrescarAdjuntos();
       toast('Archivo eliminado.', 'ok');
     }, 'Quitar', true);
 }
 
 /* --------------------------------------------------- Tarjeta de adjuntos */
-function htmlParteQuirurgico(f){
+/* puedeSubir: el parte quirurgico es del acto. Si el acto es de otro colega,
+   la tarjeta se ve —hace falta para leerla— pero sin los botones de carga. */
+function htmlParteQuirurgico(f, puedeSubir){
   const l = partesQuirurgicos(f);
   return ''+
-  '<div class="card no-print"><h3>'+ico('bisturi')+'Foja quirúrgica / parte quirúrgico</h3>'+
+  '<div class="card no-print" id="pqCard"><h3>'+ico('bisturi')+'Foja quirúrgica / parte quirúrgico</h3>'+
     '<p class="mini">Es el parte que redacta y firma el cirujano. Sacale una foto o subí el '+
       'archivo: entra PDF, JPG, PNG, HEIC del iPhone y Word. Las fotos se achican solas para '+
       'que viajen rápido, sin que se pierda la lectura.</p>'+
-    '<div class="btn-row mt8">'+
+    (puedeSubir === false ? '' : '<div class="btn-row mt8">'+
       '<button class="btn ghost chico" id="pqFoto" data-lectura>'+ico('camara')+' Tomar foto</button>'+
       '<button class="btn ghost chico" id="pqArchivo" data-lectura>'+ico('adjunto')+' Elegir archivo</button>'+
-    '</div>'+
-    '<div id="pqLista" class="adjuntos mt14">'+ htmlListaAdjuntos(l, true) +'</div>'+
+    '</div>')+
+    '<div id="pqLista" class="adjuntos mt14">'+
+      htmlListaAdjuntos(l, puedeSubir !== false) +'</div>'+
     (l.length && !nubeOK
       ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Sin conexión con la nube.</b> '+
         'Los archivos quedaron guardados en este dispositivo. Se suben solos cuando vuelva la '+
@@ -180,6 +183,34 @@ function cablearParteQuirurgico(f){
   if($('#pqArchivo')) $('#pqArchivo').onclick = () =>
     pedirArchivos(PQ_ACEPTA, false, fs => cargarParteQuirurgico(f, fs));
   cablearAdjuntos('#pqLista', f);
+}
+
+/* Repinta SOLO lo que cambia al adjuntar o quitar un parte: su tarjeta y la
+   del envío a contaduría, que muestra cuántos adjuntos van.
+
+   Antes esto llamaba a pintarFicha(), que rehace #vFicha entero —encabezado,
+   barra de pasos y cuerpo—. En el teléfono eso devuelve la página al
+   principio y corre la barra de pasos, que scrollea en horizontal, otra vez
+   hasta «Paciente»: el anestesiólogo terminaba de sacarle la foto al parte y
+   la app parecía haberlo sacado del paso «Firmar». */
+function refrescarAdjuntos(){
+  const f = fichaActual;
+  if(!f) return;
+  /* Reemplazar una tarjeta la saca del documento por un instante: la página
+     se acorta, el navegador recorta el scroll y el teléfono queda arriba de
+     todo. Se anota dónde estaba el usuario y se lo devuelve ahí. */
+  const m = $('main');
+  const y = window.scrollY || window.pageYOffset || 0;
+  const my = m ? m.scrollTop : 0;
+
+  const puede = puedeEditarSeccion(DB.fichas[f.id] || f, 'acto');
+  const pq = $('#pqCard');
+  if(pq){ pq.outerHTML = htmlParteQuirurgico(f, puede); cablearParteQuirurgico(f); }
+  const ev = $('#evActoCard');
+  if(ev){ ev.outerHTML = htmlEnvioFicha(f); cablearEnvioFicha(f); }
+
+  if(m && my) m.scrollTop = my;
+  if(y) window.scrollTo(0, y);
 }
 
 /* ------------------------------------------------------- Ver y descargar */
@@ -488,7 +519,7 @@ function htmlEnvioFicha(f){
   const puede = puedeEnviar(f, 'acto');
   const adj = partesQuirurgicos(f);
   return ''+
-  '<div class="card envio-card no-print"><h3>'+ico('enviar')+'Envío a contaduría</h3>'+
+  '<div class="card envio-card no-print" id="evActoCard"><h3>'+ico('enviar')+'Envío a contaduría</h3>'+
     '<p class="mini">Manda la ficha anestésica y el parte quirúrgico juntos, con el honorario '+
       'del acto discriminado renglón por renglón: base, adicionales del nomenclador y total.</p>'+
     (env

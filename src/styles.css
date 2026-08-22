@@ -618,6 +618,25 @@ body.imprimiendo{background:#fff}
   box-shadow:0 0 0 4px var(--azul-100)}
 .step.on .lbl{color:var(--azul-600);font-weight:750}
 html[data-tema="oscuro"] .step.on .dot{box-shadow:0 0 0 4px rgba(42,107,168,.3)}
+/* Paso de la seccion que no se esta trabajando: queda en segundo plano, pero
+   el PUNTO conserva su color. Verde, ambar o gris es el estado de avance de
+   la ficha ENTERA —completo, a medias, pendiente— y tiene que leerse siempre,
+   se este trabajando esa seccion o no: es lo que dice si el registro esta en
+   condiciones de firmarse. Lo unico que baja es el enfasis de la etiqueta. */
+.step.atenuado .lbl{opacity:.5;font-weight:600}
+.step.atenuado .dot{opacity:.92;border-style:dashed}
+
+/* Selector de tarea: valoracion prequirurgica / acto anestesico / todo */
+.modo-sw{margin-bottom:12px}
+.modo-sw button{font-size:12px}
+
+/* Contenido que no es de mi seccion o que no estoy trabajando: legible
+   —hace falta leer lo del colega— pero claramente en segundo plano. Sin
+   filtros de color: los rojos y ambares de una alerta clinica o de un
+   antecedente de riesgo tienen que seguir gritando lo mismo aunque el bloque
+   este atenuado. */
+#fiCuerpo.atenuado{opacity:.68}
+#fiCuerpo.atenuado .card{background:var(--bg-2);border-style:dashed}
 
 .paso-cabecera{margin-bottom:14px}
 .paso-cabecera > div:first-child{font-size:12.5px;color:var(--texto-2);margin-bottom:6px}
