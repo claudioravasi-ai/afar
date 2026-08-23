@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.22.2232";</script>
+<script>window.AFAR_BUILD = "2026.08.23.1449";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -1139,6 +1139,7 @@ html[data-tema="oscuro"] .firma-img{filter:invert(1) contrast(1.2)}
 <div id="areaImpresion"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script>
 /* ================ data-logo.js ================ */
@@ -5939,6 +5940,56 @@ function iniciarNube(){
       }
       if(nubeOK){ subirTodoLocal(); volcarCambiosNube(); }
     });
+    /* El pase primero, la suscripcion despues: si se escuchara antes de
+       tener pase, con las reglas cerradas la primera lectura rebotaria. */
+    identificarseEnLaNube().then(suscribirColecciones);
+  }catch(e){
+    console.warn('Firebase', e);
+    toast('No se pudo conectar con la nube. Trabajando en local.', 'warn');
+  }
+}
+
+/* ---- Pase de acceso a la nube ----
+   La base dejo de estar abierta a cualquiera: sus reglas exigen que quien
+   lee o escribe tenga un pase de Firebase. La app lo pide sola al arrancar,
+   sin que el usuario haga nada ni vea nada.
+
+   NO reemplaza al ingreso de la app: el socio sigue entrando con su correo
+   y su contrasena, el coordinador con su credencial y el contador con la
+   suya. Esto es la cerradura de la base, no la de la aplicacion; lo que
+   evita es que un extrano con la direccion de la base se lleve las
+   historias clinicas o las borre.
+
+   Si el pase no sale —proveedor sin activar en la consola, red caida— la
+   app NO se traba: sigue trabajando en local y vuelve a intentar en la
+   proxima apertura. */
+function identificarseEnLaNube(){
+  if(typeof firebase === 'undefined' || !firebase.auth) return Promise.resolve(false);
+  let auth;
+  try{ auth = firebase.auth(); }catch(e){ return Promise.resolve(false); }
+
+  return new Promise(res => {
+    let resuelto = false;
+    const terminar = v => { if(!resuelto){ resuelto = true; res(v); } };
+    /* Que la sincronizacion nunca quede esperando un pase que no llega */
+    setTimeout(() => terminar(false), 8000);
+    const off = auth.onAuthStateChanged(u => {
+      if(typeof off === 'function') off();
+      if(u) return terminar(true);          /* ya tenia pase de otra vez */
+      auth.signInAnonymously()
+        .then(() => terminar(true))
+        .catch(e => {
+          console.warn('AFAAR: sin pase de la nube —', e && (e.code || e.message));
+          terminar(false);
+        });
+    });
+  });
+}
+
+let avisoPermisoNube = false;
+
+function suscribirColecciones(){
+  try{
     COLECCIONES.forEach(col => {
       fbDb.ref('afar/'+col).on('value', snap => {
         const v = snap.val() || {};
@@ -5955,6 +6006,15 @@ function iniciarNube(){
         aplicandoRemoto = false;
         guardarLocal();
         if(typeof refrescarVistaActual === 'function') refrescarVistaActual();
+      }, err => {
+        /* Con las reglas cerradas y sin pase, la nube rechaza la lectura.
+           Sin este aviso el rechazo era mudo: la app seguia mostrando lo
+           ultimo que tenia guardado y parecia sincronizada. */
+        console.warn('AFAAR: la nube rechazó '+col+' —', err && (err.code || err.message));
+        if(!avisoPermisoNube){
+          avisoPermisoNube = true;
+          toast('La nube rechazó el acceso. Trabajando sólo en este dispositivo.', 'warn');
+        }
       });
     });
   }catch(e){
