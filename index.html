@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.22.1527";</script>
+<script>window.AFAR_BUILD = "2026.08.22.2205";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -5650,8 +5650,27 @@ function toast(msg, tipo){
   clearTimeout(toastT);
   toastT = setTimeout(()=>{ t.className = ''; }, tipo === 'err' ? 4200 : 2600);
 }
+/* La app tiene un solo contenedor #modal, asi que abrir un modal encima de
+   otro —el visor de una foto del parte quirurgico sobre el detalle del
+   envio— pisaba al de abajo: al cerrar el visor el contador volvia al
+   listado y perdia la ficha que estaba mirando.
+   Se guarda la funcion que vuelve a pintar el modal de abajo (no su HTML:
+   los botones se cablean por JS DESPUES de abrirModal, restaurar el HTML
+   los dejaria muertos) y cerrarModal la ejecuta al salir del de arriba. */
+let PILA_MODAL = [];
+let apilandoModal = false;
+
+function abrirModalEncima(volver, abrir){
+  if(volver) PILA_MODAL.push(volver);
+  apilandoModal = true;
+  try{ abrir(); }
+  finally{ apilandoModal = false; }
+}
+
 function abrirModal(titulo, cuerpoHTML, botones, ancho){
   const m = $('#modal');
+  /* Un modal que se abre por su cuenta empieza una pila nueva */
+  if(!apilandoModal) PILA_MODAL = [];
   m.innerHTML =
     '<div class="modal-card" style="'+(ancho?('max-width:'+ancho):'')+'">'+
       '<div class="modal-head"><h3>'+esc(titulo)+'</h3>'+
@@ -5663,7 +5682,11 @@ function abrirModal(titulo, cuerpoHTML, botones, ancho){
   m.onclick = e => { if(e.target === m || e.target.closest('[data-cerrar]')) cerrarModal(); };
   return m;
 }
-function cerrarModal(){ const m = $('#modal'); m.classList.remove('on'); m.innerHTML = ''; }
+function cerrarModal(){
+  const m = $('#modal'); m.classList.remove('on'); m.innerHTML = '';
+  const volver = PILA_MODAL.pop();
+  if(volver) volver();
+}
 
 function confirmar(titulo, texto, onOK, textoOK, peligro){
   abrirModal(titulo,
@@ -8641,12 +8664,15 @@ function vistaPerfil(){
     campoTxt('pfDomicilio','Domicilio fiscal', u.domicilio)+
   '</div>'+
 
+  /* El contador no ejerce en ninguna institucion: la tarjeta es solo para
+     los profesionales, que la usan para encabezar la ficha anestesica. */
+  (esContable() ? '' :
   '<div class="card"><h3>'+ico('hospital')+'Lugares de trabajo</h3>'+
     '<div class="chks" id="pfInsts">'+
       insts.map(i => '<label class="chk'+((u.instituciones||[]).indexOf(i.id)>=0?' sel':'')+'">'+
         '<input type="checkbox" value="'+esc(i.id)+'"'+((u.instituciones||[]).indexOf(i.id)>=0?' checked':'')+'>'+
         esc(i.nombre.split('"')[0].trim())+'</label>').join('')+
-    '</div></div>'+
+    '</div></div>')+
 
   '<div class="card"><h3>'+ico('firma')+'Firma y sello digital</h3>'+
     '<p class="mini mb8">Se inserta al pie de las fichas anestésicas y consentimientos que emitas.</p>'+
@@ -8701,7 +8727,10 @@ function vistaPerfil(){
       apellido:g('pfApellido'), nombre:g('pfNombre'), dni:g('pfDni'), fechaNac:g('pfNac'),
       matriculaNacional:g('pfMatNac'), matriculaProvincial:g('pfMatProv'), titulo:g('pfTitulo'),
       telefono:g('pfTel'), cuit:g('pfCuit'), condicionIva:$('#pfIva').value, domicilio:g('pfDomicilio'),
-      instituciones: $$('#pfInsts input:checked').map(i => i.value),
+      /* Sin la tarjeta en pantalla se conserva lo que ya tenia guardado */
+      instituciones: $('#pfInsts')
+        ? $$('#pfInsts input:checked').map(i => i.value)
+        : (u.instituciones || []),
       firmaDataUrl: borradorFirma
     });
     escribir('usuarios', u.uid, u);
@@ -16933,8 +16962,11 @@ function htmlListaAdjuntos(l, conBorrar){
     '</div>').join('');
 }
 
-function cablearAdjuntos(cont, f){
-  $$(cont+' [data-adjver]').forEach(b => b.onclick = () => verAdjunto(b.dataset.adjver));
+/* volver: si los adjuntos se listan DENTRO de un modal (el detalle del
+   envio del contador), es la funcion que vuelve a pintar ese modal cuando
+   se cierra el visor de la foto. Sin esto el visor pisa al detalle. */
+function cablearAdjuntos(cont, f, volver){
+  $$(cont+' [data-adjver]').forEach(b => b.onclick = () => verAdjunto(b.dataset.adjver, volver));
   $$(cont+' [data-adjbaj]').forEach(b => b.onclick = () => bajarAdjunto(b.dataset.adjbaj));
   if(f) $$(cont+' [data-adjdel]').forEach(b =>
     b.onclick = () => quitarParteQuirurgico(f, b.dataset.adjdel));
@@ -16989,17 +17021,19 @@ function dataUrlABlob(dataUrl){
   return new Blob([buf], { type:mime });
 }
 
-function verAdjunto(id){
+function verAdjunto(id, volver){
   toast('Abriendo el archivo…', 'ok');
   archivoLeer(id).then(a => {
     if(!a) return toast('El archivo no está en este dispositivo y no hay conexión con la nube.', 'err');
     if(esImagen(a.mime)){
-      abrirModal(a.nombre,
-        '<div class="visor"><img src="'+esc(a.datos)+'" alt="'+esc(a.nombre)+'"></div>'+
-        '<div class="mini mt8">'+esc(a.nombre)+' · '+fTam(a.tam)+'</div>',
-        '<button class="btn ghost" data-cerrar>Cerrar</button>'+
-        '<button class="btn pri" id="vaBajar">'+ico('descargar')+' Descargar</button>', '840px');
-      $('#vaBajar').onclick = () => descargar(a.nombre, dataUrlABlob(a.datos));
+      abrirModalEncima(volver, () => {
+        abrirModal(a.nombre,
+          '<div class="visor"><img src="'+esc(a.datos)+'" alt="'+esc(a.nombre)+'"></div>'+
+          '<div class="mini mt8">'+esc(a.nombre)+' · '+fTam(a.tam)+'</div>',
+          '<button class="btn ghost" data-cerrar>'+(volver ? 'Volver' : 'Cerrar')+'</button>'+
+          '<button class="btn pri" id="vaBajar">'+ico('descargar')+' Descargar</button>', '840px');
+        $('#vaBajar').onclick = () => descargar(a.nombre, dataUrlABlob(a.datos));
+      });
       return;
     }
     /* PDF, Word y demas: se abren en una pestaña con su propio visor */
@@ -17557,7 +17591,7 @@ function abrirEnvio(id, tipo){
     descargar(e.docNombre || 'documento.doc', '﻿' + textoDeDataUrl(a.datos),
       'application/msword;charset=utf-8');
   });
-  cablearAdjuntos('#enAdj', null);
+  cablearAdjuntos('#enAdj', null, () => abrirEnvio(id, tipo));
   $('#enBajarTodo').onclick = () => bajarTodoElEnvio(e);
   if($('#enMail')) $('#enMail').onclick = () => abrirCorreoAuditoria(e);
 }
