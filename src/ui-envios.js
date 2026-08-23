@@ -170,8 +170,11 @@ function htmlListaAdjuntos(l, conBorrar){
     '</div>').join('');
 }
 
-function cablearAdjuntos(cont, f){
-  $$(cont+' [data-adjver]').forEach(b => b.onclick = () => verAdjunto(b.dataset.adjver));
+/* volver: si los adjuntos se listan DENTRO de un modal (el detalle del
+   envio del contador), es la funcion que vuelve a pintar ese modal cuando
+   se cierra el visor de la foto. Sin esto el visor pisa al detalle. */
+function cablearAdjuntos(cont, f, volver){
+  $$(cont+' [data-adjver]').forEach(b => b.onclick = () => verAdjunto(b.dataset.adjver, volver));
   $$(cont+' [data-adjbaj]').forEach(b => b.onclick = () => bajarAdjunto(b.dataset.adjbaj));
   if(f) $$(cont+' [data-adjdel]').forEach(b =>
     b.onclick = () => quitarParteQuirurgico(f, b.dataset.adjdel));
@@ -226,17 +229,19 @@ function dataUrlABlob(dataUrl){
   return new Blob([buf], { type:mime });
 }
 
-function verAdjunto(id){
+function verAdjunto(id, volver){
   toast('Abriendo el archivo…', 'ok');
   archivoLeer(id).then(a => {
     if(!a) return toast('El archivo no está en este dispositivo y no hay conexión con la nube.', 'err');
     if(esImagen(a.mime)){
-      abrirModal(a.nombre,
-        '<div class="visor"><img src="'+esc(a.datos)+'" alt="'+esc(a.nombre)+'"></div>'+
-        '<div class="mini mt8">'+esc(a.nombre)+' · '+fTam(a.tam)+'</div>',
-        '<button class="btn ghost" data-cerrar>Cerrar</button>'+
-        '<button class="btn pri" id="vaBajar">'+ico('descargar')+' Descargar</button>', '840px');
-      $('#vaBajar').onclick = () => descargar(a.nombre, dataUrlABlob(a.datos));
+      abrirModalEncima(volver, () => {
+        abrirModal(a.nombre,
+          '<div class="visor"><img src="'+esc(a.datos)+'" alt="'+esc(a.nombre)+'"></div>'+
+          '<div class="mini mt8">'+esc(a.nombre)+' · '+fTam(a.tam)+'</div>',
+          '<button class="btn ghost" data-cerrar>'+(volver ? 'Volver' : 'Cerrar')+'</button>'+
+          '<button class="btn pri" id="vaBajar">'+ico('descargar')+' Descargar</button>', '840px');
+        $('#vaBajar').onclick = () => descargar(a.nombre, dataUrlABlob(a.datos));
+      });
       return;
     }
     /* PDF, Word y demas: se abren en una pestaña con su propio visor */
@@ -794,7 +799,7 @@ function abrirEnvio(id, tipo){
     descargar(e.docNombre || 'documento.doc', '﻿' + textoDeDataUrl(a.datos),
       'application/msword;charset=utf-8');
   });
-  cablearAdjuntos('#enAdj', null);
+  cablearAdjuntos('#enAdj', null, () => abrirEnvio(id, tipo));
   $('#enBajarTodo').onclick = () => bajarTodoElEnvio(e);
   if($('#enMail')) $('#enMail').onclick = () => abrirCorreoAuditoria(e);
 }

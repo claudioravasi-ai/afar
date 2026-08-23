@@ -241,8 +241,27 @@ function toast(msg, tipo){
   clearTimeout(toastT);
   toastT = setTimeout(()=>{ t.className = ''; }, tipo === 'err' ? 4200 : 2600);
 }
+/* La app tiene un solo contenedor #modal, asi que abrir un modal encima de
+   otro —el visor de una foto del parte quirurgico sobre el detalle del
+   envio— pisaba al de abajo: al cerrar el visor el contador volvia al
+   listado y perdia la ficha que estaba mirando.
+   Se guarda la funcion que vuelve a pintar el modal de abajo (no su HTML:
+   los botones se cablean por JS DESPUES de abrirModal, restaurar el HTML
+   los dejaria muertos) y cerrarModal la ejecuta al salir del de arriba. */
+let PILA_MODAL = [];
+let apilandoModal = false;
+
+function abrirModalEncima(volver, abrir){
+  if(volver) PILA_MODAL.push(volver);
+  apilandoModal = true;
+  try{ abrir(); }
+  finally{ apilandoModal = false; }
+}
+
 function abrirModal(titulo, cuerpoHTML, botones, ancho){
   const m = $('#modal');
+  /* Un modal que se abre por su cuenta empieza una pila nueva */
+  if(!apilandoModal) PILA_MODAL = [];
   m.innerHTML =
     '<div class="modal-card" style="'+(ancho?('max-width:'+ancho):'')+'">'+
       '<div class="modal-head"><h3>'+esc(titulo)+'</h3>'+
@@ -254,7 +273,11 @@ function abrirModal(titulo, cuerpoHTML, botones, ancho){
   m.onclick = e => { if(e.target === m || e.target.closest('[data-cerrar]')) cerrarModal(); };
   return m;
 }
-function cerrarModal(){ const m = $('#modal'); m.classList.remove('on'); m.innerHTML = ''; }
+function cerrarModal(){
+  const m = $('#modal'); m.classList.remove('on'); m.innerHTML = '';
+  const volver = PILA_MODAL.pop();
+  if(volver) volver();
+}
 
 function confirmar(titulo, texto, onOK, textoOK, peligro){
   abrirModal(titulo,

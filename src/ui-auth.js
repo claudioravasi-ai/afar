@@ -302,12 +302,15 @@ function vistaPerfil(){
     campoTxt('pfDomicilio','Domicilio fiscal', u.domicilio)+
   '</div>'+
 
+  /* El contador no ejerce en ninguna institucion: la tarjeta es solo para
+     los profesionales, que la usan para encabezar la ficha anestesica. */
+  (esContable() ? '' :
   '<div class="card"><h3>'+ico('hospital')+'Lugares de trabajo</h3>'+
     '<div class="chks" id="pfInsts">'+
       insts.map(i => '<label class="chk'+((u.instituciones||[]).indexOf(i.id)>=0?' sel':'')+'">'+
         '<input type="checkbox" value="'+esc(i.id)+'"'+((u.instituciones||[]).indexOf(i.id)>=0?' checked':'')+'>'+
         esc(i.nombre.split('"')[0].trim())+'</label>').join('')+
-    '</div></div>'+
+    '</div></div>')+
 
   '<div class="card"><h3>'+ico('firma')+'Firma y sello digital</h3>'+
     '<p class="mini mb8">Se inserta al pie de las fichas anestésicas y consentimientos que emitas.</p>'+
@@ -362,7 +365,10 @@ function vistaPerfil(){
       apellido:g('pfApellido'), nombre:g('pfNombre'), dni:g('pfDni'), fechaNac:g('pfNac'),
       matriculaNacional:g('pfMatNac'), matriculaProvincial:g('pfMatProv'), titulo:g('pfTitulo'),
       telefono:g('pfTel'), cuit:g('pfCuit'), condicionIva:$('#pfIva').value, domicilio:g('pfDomicilio'),
-      instituciones: $$('#pfInsts input:checked').map(i => i.value),
+      /* Sin la tarjeta en pantalla se conserva lo que ya tenia guardado */
+      instituciones: $('#pfInsts')
+        ? $$('#pfInsts input:checked').map(i => i.value)
+        : (u.instituciones || []),
       firmaDataUrl: borradorFirma
     });
     escribir('usuarios', u.uid, u);
