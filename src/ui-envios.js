@@ -811,9 +811,17 @@ function textoDeDataUrl(d){
   return decodeURIComponent(escape(atob(cuerpo)));
 }
 
-/* Descarga escalonada: los navegadores cancelan las descargas simultaneas */
+/* Descarga escalonada: los navegadores cancelan las descargas simultaneas.
+   Baja el expediente entero —valoracion, ficha anestesica y parte quirurgico—
+   porque es lo mismo que hay que mandarle a la auditoria, y el contador lo
+   usa justamente para adjuntarlo a mano cuando el correo no lleva adjuntos. */
 function bajarTodoElEnvio(e){
-  const cola = [{ id:e.docId, nombre:e.docNombre, doc:true }].concat(e.adjuntos || []);
+  const x = expedienteAuditoria(e);
+  const cola = []
+    .concat(x.val  ? [{ id:x.val.docId,  nombre:x.val.docNombre,  doc:true }] : [])
+    .concat(x.acto ? [{ id:x.acto.docId, nombre:x.acto.docNombre, doc:true }] : [])
+    .concat(x.adjuntos);
+  if(!cola.length) cola.push({ id:e.docId, nombre:e.docNombre, doc:true });
   toast('Descargando '+cola.length+' archivo'+(cola.length===1?'':'s')+'…', 'ok');
   const uno = i => {
     if(i >= cola.length) return;
@@ -849,18 +857,71 @@ function soportaAdjuntos(){
     .catch(() => { __adjuntosSoportados = false; return false; });
 }
 
+/* Las tres piezas que pide una auditoria medica -----------------------------
+   La auditoria del financiador no evalua un papel suelto: pide la valoracion
+   pre-anestesica (que justifica el riesgo y el ASA), la ficha anestesica
+   (que documenta el acto) y el parte quirurgico (que prueba la cirugia). En
+   la app viven en DOS envios distintos del mismo profesional —uno por
+   bandeja— unidos por fichaId, y el parte quirurgico viaja dentro del envio
+   del acto. Se juntan aca para que el contador mande el expediente entero de
+   una sola vez y no tres mails sueltos.
+
+   Solo se toma lo que el profesional YA cedio a contaduria. Si falta una
+   pieza no se genera de la ficha: la cesion de documentacion clinica la
+   decide el tratante, envio por envio (ver el encabezado de este archivo). */
+function expedienteAuditoria(e){
+  const hermanos = e.fichaId ? enviosDeFicha(e.fichaId) : [];
+  const ultimo = t => hermanos.filter(x => x.tipo === t)[0] || (e.tipo === t ? e : null);
+  const val  = ultimo('valoracion');
+  const acto = ultimo('acto');
+  return { val, acto, adjuntos: (acto && acto.adjuntos) || [] };
+}
+
+/* Nombre legible de lo que falta, para avisarle al contador antes de mandar */
+function faltantesExpediente(x){
+  const f = [];
+  if(!x.val)  f.push('la valoración pre-anestésica');
+  if(!x.acto) f.push('la ficha anestésica');
+  if(!x.adjuntos.length) f.push('el parte quirúrgico');
+  return f;
+}
+
 function abrirCorreoAuditoria(e){
+  const x = expedienteAuditoria(e);
+  const faltan = faltantesExpediente(x);
+  const pieza = (hay, txt) => hay ? '<b class="ok">'+esc(txt)+'</b>' : '<b class="warn">falta</b>';
+
   abrirModal('Enviar por correo',
     '<div class="aviso warn">'+ico('alerta')+'<div><b>Estás por enviar documentación clínica '+
       'fuera de la asociación.</b> Hacelo únicamente ante un pedido formal de auditoría médica '+
       'del financiador, y a la casilla que ese pedido indique. El envío queda registrado.</div></div>'+
+
+    '<div class="card"><h3>'+ico('archivo')+'Qué se remite</h3>'+
+      '<p class="mini mb8">La auditoría recibe el expediente completo del acto, no una pieza '+
+        'suelta: los tres documentos van en el cuerpo del mensaje y también adjuntos.</p>'+
+      '<div class="resumen">'+
+        filaEnv('Valoración pre-anestésica', pieza(!!x.val, 'incluida'))+
+        filaEnv('Ficha anestésica', pieza(!!x.acto, 'incluida'))+
+        filaEnv('Parte quirúrgico', x.adjuntos.length
+          ? '<b class="ok">'+x.adjuntos.length+' archivo'+(x.adjuntos.length===1?'':'s')+'</b>'
+          : '<b class="warn">falta</b>')+
+      '</div>'+
+      (faltan.length
+        ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>No está '+esc(faltan.join(' ni '))+
+          '.</b> El profesional todavía no lo envió a contaduría, así que la app no lo tiene. '+
+          'Podés mandar lo que hay —el mail aclara qué no se remite— o pedírselo desde Mensajes '+
+          'y enviar después el expediente completo.</div></div>'
+        : '')+
+    '</div>'+
+
     campoTxt('coPara','Correo de destino')+
     campoTxt('coAsunto','Asunto',
-      TIPOS_ENVIO[e.tipo].t+' — '+e.paciente+' — '+fFecha(e.fecha))+
+      'Documentación anestésica — '+e.paciente+' — '+fFecha(e.fecha))+
     campoArea('coMensaje','Mensaje',
       'Se remite la documentación solicitada por auditoría médica correspondiente al acto '+
       'anestésico del '+fFechaLarga(e.fecha)+', paciente '+e.paciente+
-      (e.afiliado ? ', afiliado N.º '+e.afiliado : '')+', '+e.financiador+'.')+
+      (e.afiliado ? ', afiliado N.º '+e.afiliado : '')+', '+e.financiador+
+      ': valoración pre-anestésica, ficha anestésica y parte quirúrgico.')+
     '<div id="coAdjAviso" class="ayuda">Comprobando si el servicio de correo admite adjuntos…</div>',
     '<button class="btn ghost" data-cerrar>Cancelar</button>'+
     '<button class="btn pri" id="coEnviar">'+ico('correo')+' Enviar</button>', '680px');
@@ -868,14 +929,29 @@ function abrirCorreoAuditoria(e){
   soportaAdjuntos().then(ok => {
     const caja = $('#coAdjAviso');
     if(!caja) return;
-    const n = (e.adjuntos || []).length;
-    caja.innerHTML = ok
-      ? 'Van <b>adjuntos</b> el documento y '+(n || 'ningún')+' archivo del parte quirúrgico.'
-      : '<b>El servicio de correo todavía no admite adjuntos.</b> El documento viaja en el '+
-        'cuerpo del mensaje, pero '+(n ? 'los '+n+' archivos del parte quirúrgico no' : 'el parte quirúrgico no')+
-        ' se adjuntan: descargalos con «Descargar todo» y sumalos desde tu casilla. '+
-        'Para que se adjunten solos hay que volver a publicar el programa de Apps Script '+
-        '(ver ENVIO-DE-MAILS.md).';
+    const nDoc = (x.val ? 1 : 0) + (x.acto ? 1 : 0);
+    const nPq  = x.adjuntos.length;
+    if(ok){
+      caja.className = 'ayuda';
+      caja.innerHTML = 'Van <b>adjuntos</b> '+nDoc+' documento'+(nDoc===1?'':'s')+' y '+
+        (nPq || 'ningún')+' archivo'+(nPq===1?'':'s')+' del parte quirúrgico, además del '+
+        'texto en el cuerpo.';
+      return;
+    }
+    /* Sin adjuntos el parte quirurgico —fotos y PDF— NO puede viajar de
+       ninguna forma: no es texto, no entra en el cuerpo del mensaje. El
+       aviso va destacado porque el contador tiene que enterarse ANTES de
+       mandar, no cuando la auditoria le reclama lo que falta. */
+    caja.className = 'aviso danger';
+    caja.innerHTML = ico('alerta')+'<div><b>El parte quirúrgico NO va a viajar en este '+
+      'correo.</b> El servicio de correo de la asociación todavía está publicado en su '+
+      'versión vieja, que no admite archivos adjuntos. La valoración y la ficha anestésica '+
+      'sí llegan completas, en el cuerpo del mensaje, porque son texto; '+
+      (nPq ? 'los '+nPq+' archivos del parte quirúrgico' : 'el parte quirúrgico')+
+      ' no, porque son fotos o PDF.<br><br>Mientras tanto: cerrá esto, usá <b>«Descargar '+
+      'todo»</b> y adjuntalos a mano desde tu casilla. La solución definitiva la hace el '+
+      'coordinador en una sola vez: volver a publicar el programa de Apps Script '+
+      '(ENVIO-DE-MAILS.md, «Actualización: adjuntos»).</div>';
   });
 
   $('#coEnviar').onclick = () => {
@@ -888,7 +964,10 @@ function abrirCorreoAuditoria(e){
       .then(r => {
         cerrarModal();
         if(r.ok){
-          auditar('envio-auditoria', TIPOS_ENVIO[e.tipo].t+' de '+e.paciente+' a '+para);
+          auditar('envio-auditoria', 'Expediente de '+e.paciente+' a '+para+' ('+
+            [x.val ? 'valoración' : '', x.acto ? 'ficha anestésica' : '',
+             x.adjuntos.length ? x.adjuntos.length+' archivo'+(x.adjuntos.length===1?'':'s')+
+             ' del parte quirúrgico' : ''].filter(Boolean).join(', ')+')');
           toast('Correo enviado a '+para+'.', 'ok');
         } else {
           toast(r.error || 'No se pudo enviar el correo.', 'err');
@@ -898,30 +977,61 @@ function abrirCorreoAuditoria(e){
   };
 }
 
-/* Junta el documento y los adjuntos y se los pasa al Apps Script. El
-   documento va en el cuerpo Y como adjunto: si el Apps Script todavia no
-   soporta adjuntos, el auditor igual recibe la ficha legible. */
+/* Junta las TRES piezas del expediente y se las pasa al Apps Script.
+   Los documentos van en el cuerpo Y como adjunto: si el Apps Script todavia
+   no soporta adjuntos, el auditor igual recibe todo legible en el mail. */
 function enviarEnvioPorCorreo(e, para, asunto, mensaje){
-  const ids = [{ id:e.docId, nombre:e.docNombre || 'documento.doc', mime:'text/html' }]
-    .concat((e.adjuntos || []).map(a => ({ id:a.id, nombre:a.nombre, mime:a.mime })));
+  const x = expedienteAuditoria(e);
+
+  /* Orden con el que la auditoria espera leerlo: antes, durante, despues */
+  const docs = [];
+  if(x.val)  docs.push({ env:x.val,  id:x.val.docId,
+                         nombre:x.val.docNombre  || 'Valoracion-prequirurgica.doc' });
+  if(x.acto) docs.push({ env:x.acto, id:x.acto.docId,
+                         nombre:x.acto.docNombre || 'Ficha-anestesica.doc' });
+  if(!docs.length) docs.push({ env:e, id:e.docId, nombre:e.docNombre || 'documento.doc' });
+
+  const ids = docs.map(d => ({ id:d.id, nombre:d.nombre, mime:'application/msword', doc:true }))
+    .concat(x.adjuntos.map(a => ({ id:a.id, nombre:a.nombre, mime:a.mime })));
+
+  const faltan = faltantesExpediente(x);
 
   let puedeAdjuntar = false;
   return soportaAdjuntos().then(ok => { puedeAdjuntar = ok;
-    return Promise.all(ids.map(x => archivoLeer(x.id).then(a => a ? { x, a } : null))); })
+    return Promise.all(ids.map(x2 => archivoLeer(x2.id).then(a => a ? { x:x2, a } : null))); })
     .then(res => {
       const ok = res.filter(Boolean);
-      const doc = ok.find(r => r.x.id === e.docId);
-      const cuerpoDoc = doc ? textoDeDataUrl(doc.a.datos) : '';
-      const soloCuerpo = (cuerpoDoc.match(/<body[^>]*>([\s\S]*)<\/body>/i) || [, cuerpoDoc])[1];
+
+      /* Cada documento, con su titulo, uno abajo del otro en el cuerpo */
+      const cuerpos = docs.map(d => {
+        const r = ok.find(y => y.x.id === d.id);
+        if(!r) return '';
+        const txt = textoDeDataUrl(r.a.datos);
+        const solo = (txt.match(/<body[^>]*>([\s\S]*)<\/body>/i) || [, txt])[1];
+        return '<h2 style="font-family:Calibri,Arial,sans-serif;font-size:16px;color:#0b2545;'+
+               'margin:26px 0 10px">'+esc(TIPOS_ENVIO[d.env.tipo].t)+'</h2>'+ solo;
+      }).filter(Boolean).join(
+        '<hr style="border:0;border-top:1px solid #ccd;margin:22px 0">');
+
+      const nPq = x.adjuntos.length;
+      const detallePq = nPq
+        ? '<p style="font-size:13px;color:#456">El parte quirúrgico se remite adjunto: '+
+          x.adjuntos.map(a => esc(a.nombre)).join(', ')+'.</p>'
+        : '';
+      const detalleFalta = faltan.length
+        ? '<p style="font-size:13px;color:#8a5a00">No se remite '+esc(faltan.join(' ni '))+
+          ': no obra en poder de la asociación.</p>'
+        : '';
 
       const html =
         '<div style="font-family:Calibri,Arial,sans-serif;font-size:15px;color:#111;line-height:1.6">'+
           '<p>'+esc(mensaje).replace(/\n/g,'<br>')+'</p>'+
+          detallePq + detalleFalta +
           '<p style="font-size:13px;color:#456">Documentación remitida por '+esc(e.profesional)+
           (e.matricula ? ' (M.P. '+esc(matriculaTxt(e.matricula,'M.P.'))+')' : '')+
           ' a través de AFAAR — Asociación Fueguina de Anestesia, Analgesia y Reanimación.</p>'+
           '<hr style="border:0;border-top:1px solid #ccd;margin:22px 0">'+
-          '<style>'+CSS_DOC+'</style>'+ soloCuerpo +
+          '<style>'+CSS_DOC+'</style>'+ cuerpos +
           '<hr style="border:0;border-top:1px solid #ccd;margin:22px 0">'+
           '<div style="font-size:11.5px;color:#455;line-height:1.55">'+
             '<b style="color:#0b2545">AVISO DE CONFIDENCIALIDAD</b><br>'+
@@ -933,10 +1043,12 @@ function enviarEnvioPorCorreo(e, para, asunto, mensaje){
           '</div>'+
         '</div>';
 
+      /* Los documentos son HTML guardado como .doc —igual que en «Descargar
+         todo»—, asi que se adjuntan con el nombre y el mime de Word. */
       const adjuntos = puedeAdjuntar
-        ? ok.filter(r => r.x.id !== e.docId).map(r => ({
-            nombre: r.a.nombre,
-            mime: r.a.mime || 'application/octet-stream',
+        ? ok.map(r => ({
+            nombre: r.x.doc ? r.x.nombre : r.a.nombre,
+            mime: r.x.doc ? 'application/msword' : (r.a.mime || 'application/octet-stream'),
             datos: String(r.a.datos).slice(String(r.a.datos).indexOf(',') + 1)
           }))
         : [];

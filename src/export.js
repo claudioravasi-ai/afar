@@ -63,14 +63,18 @@ function seccion(t, contenido){
 /* opts.parte recorta el documento segun para que se lo pide:
      'valoracion' -> solo lo preoperatorio, que es lo que se factura como
                      consulta prequirurgica;
-     'acto'       -> la ficha completa, incluido el registro intraoperatorio
-                     y la recuperacion, que es lo que respalda el honorario
-                     del acto anestesico;
+     'acto'       -> el registro del acto y la recuperacion, que es lo que
+                     respalda el honorario del acto anestesico. NO repite la
+                     valoracion: viaja como documento aparte en el mismo
+                     envio y, duplicada, obligaba al auditor a leer dos veces
+                     lo mismo. Queda una sintesis prequirurgica de lo que hay
+                     que tener a la vista al leer el intraoperatorio;
      sin opts     -> el documento entero de siempre. */
 function documentoFicha(f, opts){
   const paraPaciente = !!(opts && opts.paraPaciente);
   const parte = (opts && opts.parte) || '';
-  const soloVal = parte === 'valoracion';
+  const soloVal  = parte === 'valoracion';
+  const soloActo = parte === 'acto';
   __secN = 0;
   const p = DB.pacientes[f.pacienteId] || {};
   const v = f.v || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {}, co = f.consent || {};
@@ -150,34 +154,50 @@ function documentoFicha(f, opts){
       : '')+
     '</table>')+
 
-  seccion('Antecedentes patológicos',
+  /* Lo minimo que hay que tener a la vista mientras se lee el
+     intraoperatorio. El resto esta en la valoracion, que va aparte. */
+  (soloActo ? seccion('Síntesis prequirúrgica',
+    par('Riesgo ASA', sc.asa ? 'ASA '+sc.asa+(sc.asaE ? ' E' : '') : '')+
+    par('Aptitud', aptitud)+
+    par('Alergias', (v.alergias && v.alergias.length) ? v.alergias : 'Sin alergias conocidas')+
+    par('Detalle de alergias', v.alergiaDetalle)+
+    par('Vía aérea (El-Ganzouri)', eg.n+'/12 — '+eg.texto)+
+    par('Ayuno', [(v.ayuno||{}).tipo, (v.ayuno||{}).hora ? (v.ayuno).hora+' h' : '']
+      .filter(Boolean).join(' · '))+
+    par('Técnica prevista', pl.tecnica)+
+    '<div class="par"><span>El detalle completo de la valoración pre-anestésica'+
+      ((v.riesgo||{}).fecha ? ' del '+fFecha((v.riesgo).fecha) : '')+
+      ' consta en el documento «Valoración pre-anestésica», que se remite por '+
+      'separado en este mismo envío.</span></div>') : '')+
+
+  (soloActo ? '' : seccion('Antecedentes patológicos',
     ((v.antecedentes2||[]).length
       ? '<div class="par"><b>Antecedentes:</b><span>'+
         esc(v.antecedentes2.map(c => c.n || c.d).join(' · '))+'</span></div>'
       : (v.sinAntecedentes ? '<div class="par"><span>Sin antecedentes relevantes.</span></div>' : ''))+
-    antec + par('Otros antecedentes', v.antecedentesOtros))+
+    antec + par('Otros antecedentes', v.antecedentesOtros)))+
 
-  seccion('Antecedentes anestésicos',
-    par('Antecedentes', v.antAnestesicos) + par('Detalle', v.antAnestDetalle))+
+  (soloActo ? '' : seccion('Antecedentes anestésicos',
+    par('Antecedentes', v.antAnestesicos) + par('Detalle', v.antAnestDetalle)))+
 
-  seccion('Medicación habitual',
+  (soloActo ? '' : seccion('Medicación habitual',
     (v.medicacion||[]).length
       ? '<table><tr><th>Fármaco</th><th>Dosis</th><th>Conducta perioperatoria</th></tr>'+
         v.medicacion.map(m => '<tr><td>'+esc(m.n)+'</td><td>'+esc(m.dosis||'—')+'</td>'+
         '<td><b>'+esc({continuar:'CONTINUAR',suspender:'SUSPENDER',evaluar:'EVALUAR'}[m.accion]||'')+
         '</b>'+(m.nota?'<br><span style="font-size:10px">'+esc(m.nota)+'</span>':'')+'</td></tr>').join('')+
         '</table>'
-      : '' + par('Medicación', v.medicacionOtros))+
+      : '' + par('Medicación', v.medicacionOtros)))+
 
-  seccion('Alergias', par('Alergias', v.alergias) + par('Detalle', v.alergiaDetalle))+
+  (soloActo ? '' : seccion('Alergias', par('Alergias', v.alergias) + par('Detalle', v.alergiaDetalle)))+
 
-  seccion('Hábitos y capacidad funcional',
+  (soloActo ? '' : seccion('Hábitos y capacidad funcional',
     par('Tabaquismo', (v.habitos||{}).tabaco) + par('Carga tabáquica', (v.habitos||{}).tabacoCant)+
     par('Alcohol', (v.habitos||{}).alcohol) + par('Otras sustancias', (v.habitos||{}).drogas)+
     par('Capacidad funcional', sc.mets ? sc.mets + ' MET — ' + interpMET(sc.mets).texto : '')+
-    par('Fragilidad (Rockwood)', sc.fragilidad ? sc.fragilidad + ' — ' + (FRAGILIDAD.find(x => String(x[0])===String(sc.fragilidad))||['',''])[1] : ''))+
+    par('Fragilidad (Rockwood)', sc.fragilidad ? sc.fragilidad + ' — ' + (FRAGILIDAD.find(x => String(x[0])===String(sc.fragilidad))||['',''])[1] : '')))+
 
-  seccion('Examen físico',
+  (soloActo ? '' : seccion('Examen físico',
     par('Signos vitales', [(v.examen||{}).ta ? 'TA '+(v.examen).ta+' mmHg' : '',
       (v.examen||{}).fc ? 'FC '+(v.examen).fc+' lpm' : '',
       (v.examen||{}).fr ? 'FR '+(v.examen).fr+' rpm' : '',
@@ -185,9 +205,9 @@ function documentoFicha(f, opts){
       (v.examen||{}).temp ? 'T '+(v.examen).temp+' °C' : ''].filter(Boolean).join(' · '))+
     par('Cardiovascular', (v.examen||{}).cardio) + par('Respiratorio', (v.examen||{}).respiratorio)+
     par('Abdomen', (v.examen||{}).abdomen) + par('Neurológico', (v.examen||{}).neuro)+
-    par('Accesos venosos', (v.examen||{}).accesos) + par('Columna', (v.examen||{}).columna))+
+    par('Accesos venosos', (v.examen||{}).accesos) + par('Columna', (v.examen||{}).columna)))+
 
-  seccion('Evaluación de la vía aérea',
+  (soloActo ? '' : seccion('Evaluación de la vía aérea',
     par('Mallampati', (v.va||{}).mallampati ? 'Clase '+(v.va).mallampati : '')+
     par('Apertura bucal', (v.va||{}).aperturaBucal ? (v.va).aperturaBucal+' cm' : '')+
     par('Distancia tiromentoniana', (v.va||{}).tiromentoniana ? (v.va).tiromentoniana+' cm' : '')+
@@ -200,9 +220,9 @@ function documentoFicha(f, opts){
     par('Cormack-Lehane previo', (v.va||{}).cormackPrevia)+
     par('Otros hallazgos', (v.va||{}).otros)+
     '<div class="par"><b>Índice de El-Ganzouri:</b><span>'+eg.n+'/12 — '+esc(eg.texto)+'</span></div>'+
-    par('Plan de vía aérea', (v.va||{}).plan))+
+    par('Plan de vía aérea', (v.va||{}).plan)))+
 
-  seccion('Laboratorio y estudios',
+  (soloActo ? '' : seccion('Laboratorio y estudios',
     (labFilas.length ? '<table><tr>'+labFilas.map(x => '<th>'+esc(x[0])+'</th>').join('')+'</tr><tr>'+
       labFilas.map(x => '<td>'+esc(x[1])+' '+esc(x[2])+'</td>').join('')+'</tr></table>'+
       (lab.fecha ? '<div class="par"><b>Fecha del laboratorio:</b><span>'+fFecha(lab.fecha)+'</span></div>' : '')
@@ -210,9 +230,9 @@ function documentoFicha(f, opts){
     par('Electrocardiograma', (v.estudios||{}).ecg)+
     par('Radiografía de tórax', (v.estudios||{}).rx)+
     par('Ecocardiograma', (v.estudios||{}).ecocardio)+
-    par('Otros estudios', (v.estudios||{}).espirometria))+
+    par('Otros estudios', (v.estudios||{}).espirometria)))+
 
-  seccion('Estratificación del riesgo',
+  (soloActo ? '' : seccion('Estratificación del riesgo',
     '<table><tr><th>Escala</th><th>Resultado</th><th>Interpretación</th></tr>'+
       (sc.asa ? '<tr><td>ASA Physical Status</td><td><b>ASA '+esc(sc.asa)+(sc.asaE?' E':'')+'</b></td>'+
         '<td>'+esc((ASA_PS.find(x => x.v === sc.asa)||{}).t||'')+'</td></tr>' : '')+
@@ -222,14 +242,14 @@ function documentoFicha(f, opts){
       '<tr><td>STOP-BANG (SAHOS)</td><td><b>'+sb.n+'/8</b></td><td>'+esc(sb.texto)+'</td></tr>'+
       '<tr><td>Apfel (NVPO)</td><td><b>'+ap.n+'/4</b></td><td>'+esc(ap.texto)+'</td></tr>'+
       '<tr><td>Caprini (TEV)</td><td><b>'+cap.n+'</b></td><td>'+esc(cap.texto)+'</td></tr>'+
-    '</table>')+
+    '</table>'))+
 
-  seccion('Ayuno preoperatorio',
+  (soloActo ? '' : seccion('Ayuno preoperatorio',
     par('Última ingesta', (v.ayuno||{}).tipo) + par('Hora', (v.ayuno||{}).hora)+
     par('Factores de riesgo de aspiración', (v.ayuno||{}).riesgos)+
-    par('Profilaxis indicada', (v.ayuno||{}).profilaxis))+
+    par('Profilaxis indicada', (v.ayuno||{}).profilaxis)))+
 
-  seccion('Plan anestésico',
+  (soloActo ? '' : seccion('Plan anestésico',
     par('Técnica propuesta', pl.tecnica) + par('Manejo de la vía aérea', pl.dispositivosVA)+
     par('Monitoreo estándar', pl.monitoreoEstandar) + par('Monitoreo avanzado', pl.monitoreoAvanzado)+
     par('Accesos vasculares', pl.accesos)+
@@ -237,25 +257,30 @@ function documentoFicha(f, opts){
     par('Tromboprofilaxis', pl.tev) + par('Profilaxis de NVPO', pl.nvpo)+
     par('Analgesia postoperatoria', pl.analgesia) + par('Esquema analgésico', pl.analgesiaDetalle)+
     par('Previsión transfusional', pl.transfusion) + par('Destino postoperatorio', pl.destino)+
-    par('Indicaciones al paciente', pl.indicaciones) + par('Observaciones', pl.observaciones))+
+    par('Indicaciones al paciente', pl.indicaciones) + par('Observaciones', pl.observaciones)))+
 
-  seccion('Conclusión de la valoración preanestésica',
+  (soloActo ? '' : seccion('Conclusión de la valoración preanestésica',
     '<div style="border:2px solid #0b2545;padding:9px;margin-bottom:8px;text-align:center;font-weight:bold;font-size:13px">'+
       esc(aptitud)+'</div>'+
     par('Fundamentación', (v.riesgo||{}).fundamento)+
     par('Interconsultas solicitadas', (v.riesgo||{}).interconsultas)+
     par('Fecha de la evaluación', fFecha((v.riesgo||{}).fecha))+
-    par('Ámbito', (v.riesgo||{}).ambito))+
+    par('Ámbito', (v.riesgo||{}).ambito)))+
 
   ((paraPaciente || soloVal) ? '' : documentoActo(f))+
   ((paraPaciente || soloVal) ? '' : documentoRecuperacion(f))+
 
+  /* En la ficha del acto va la constancia de que se firmo, no el texto
+     entero: ese ya viaja completo en la valoracion del mismo envio. */
   (co.quien ? seccion('Consentimiento informado anestésico',
-    '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
-      'border:1px solid #c9d6e3;padding:9px;background:#fbfdff">'+esc(TEXTO_CONSENTIMIENTO)+'</div>'+
+    (soloActo ? '' :
+      '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
+      'border:1px solid #c9d6e3;padding:9px;background:#fbfdff">'+esc(TEXTO_CONSENTIMIENTO)+'</div>')+
     par('Firma', co.quien) + par('Firmante', co.firmante)+
     par('Declaraciones', co.items) + par('Aclaraciones', co.observaciones)+
-    par('Fecha del consentimiento', fFecha(co.fecha) + (co.hora ? ' — ' + co.hora + ' h' : ''))) : '')+
+    par('Fecha del consentimiento', fFecha(co.fecha) + (co.hora ? ' — ' + co.hora + ' h' : ''))+
+    (soloActo ? '<div class="par"><span>El texto completo del consentimiento consta en la '+
+      'valoración pre-anestésica.</span></div>' : '')) : '')+
 
   ((!paraPaciente && (h.modalidad || (f.honConsulta||{}).modalidad)) ? seccion('Honorarios profesionales',
     '<table><tr><th>Concepto</th><th>Profesional</th><th>Modalidad</th><th>Importe</th><th>Estado</th></tr>'+
