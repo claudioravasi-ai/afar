@@ -289,9 +289,15 @@ function confirmar(titulo, texto, onOK, textoOK, peligro){
 
 /* --------------------------------------------------------- Persistencia */
 function guardarLocal(){
-  try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); }
+  try{
+    /* Al navegador va la ventana viva, no el archivo historico entero.
+       Lo que se trajo a pedido queda en memoria durante la sesion. */
+    const copia = {};
+    COLECCIONES.forEach(c => { copia[c] = (c === 'fichas') ? fichasParaGuardar() : DB[c]; });
+    localStorage.setItem(LS_DB, JSON.stringify(copia));
+  }
   catch(e){ console.warn('No se pudo guardar en localStorage', e);
-    toast('Almacenamiento local lleno. Descargá un respaldo.', 'err'); }
+    toast('Almacenamiento local lleno. Descargá un respaldo y avisá a coordinación.', 'err'); }
 }
 function cargarLocal(){
   try{
@@ -677,10 +683,129 @@ function identificarseEnLaNube(){
 
 let avisoPermisoNube = false;
 
+/* =========================================================================
+   LA VENTANA VIVA DE FICHAS
+   -------------------------------------------------------------------------
+   Hasta ahora cada dispositivo le pedia a la base TODAS las fichas de la
+   asociacion, desde el principio, y guardaba una copia completa en el
+   navegador. El telefono de un socio contenia las fichas de todos los demas.
+
+   Con 30 cirugias diarias eso son mas de 4 MB por dia en CADA equipo, y el
+   navegador da unos 5 MB en total: la aplicacion dejaba de guardar al segundo
+   dia. Y cada apertura de la aplicacion se bajaba la base entera.
+
+   Ahora el pedido esta acotado a los ultimos DIAS_EN_VIVO dias. Eso es lo que
+   se sincroniza en vivo y lo unico que se guarda en el navegador. Lo mas
+   viejo sigue estando entero en la nube y se trae cuando hace falta:
+
+     - al abrir una ficha vieja                -> asegurarFicha()
+     - al pedir estadisticas o facturacion
+       de un periodo anterior                  -> cargarFichasDesde()
+     - al pedir «todo el historial» en Fichas  -> cargarFichasDesde('2000-01-01')
+
+   Lo que se trae a pedido vive en memoria mientras dura la sesion y NO se
+   guarda en el navegador: si no, volveriamos al problema del principio.
+
+   Es el mismo criterio que la aplicacion ya usa con los archivos pesados
+   (afar/archivos): nadie los escucha en vivo y se leen de a uno.
+   ========================================================================= */
+const DIAS_EN_VIVO = 90;
+
+function desdeEnVivo(){
+  const d = new Date();
+  d.setDate(d.getDate() - DIAS_EN_VIVO);
+  return d.toISOString().slice(0, 10);
+}
+
+/* Hasta que fecha hacia atras tenemos fichas cargadas en esta sesion */
+let rangoFichas = null;          /* null = solo la ventana viva */
+
+function desdeCargado(){
+  const v = desdeEnVivo();
+  return (rangoFichas && rangoFichas < v) ? rangoFichas : v;
+}
+/* ¿Tenemos cargado todo lo necesario para cubrir este periodo? */
+function periodoCargado(desde){
+  if(!nubeOK) return true;                 /* sin nube, lo local es todo lo que hay */
+  return !desde || desde >= desdeCargado();
+}
+
+/* Trae de la nube las fichas desde una fecha y las suma a las que ya hay.
+   No las guarda en el navegador: son de consulta, no de trabajo diario. */
+function cargarFichasDesde(desde){
+  if(!nubeOK || !fbDb) return Promise.resolve(false);
+  if(periodoCargado(desde)) return Promise.resolve(true);
+  return fbDb.ref('afar/fichas').orderByChild('fecha').startAt(desde).once('value')
+    .then(snap => {
+      const v = snap.val() || {};
+      Object.keys(v).forEach(k => { if(!DB.fichas[k]) DB.fichas[k] = v[k]; });
+      rangoFichas = desde;
+      return true;
+    })
+    .catch(e => { console.warn('AFAAR: no se pudo traer el histórico —', e && e.message);
+                  return false; });
+}
+
+/* Trae UNA ficha por su id, si no esta en memoria */
+function asegurarFicha(id){
+  if(!id || DB.fichas[id]) return Promise.resolve(!!DB.fichas[id]);
+  if(!nubeOK || !fbDb) return Promise.resolve(false);
+  return fbDb.ref('afar/fichas/' + id).once('value')
+    .then(snap => { const v = snap.val();
+                    if(v) DB.fichas[id] = v;
+                    return !!v; })
+    .catch(() => false);
+}
+
+/* -------------------------------------------------------------------------
+   QUE SE GUARDA EN EL NAVEGADOR
+   Dos topes, y manda el que se cumpla primero:
+
+     1. La VENTANA de dias. Lo de siempre: los ultimos DIAS_EN_VIVO.
+     2. Un TOPE DE PESO. Porque la ventana de dias no alcanza sola: en una
+        asociacion con 30 cirugias diarias, 90 dias son 2.700 fichas, y eso
+        no entra en los 5 MB que da el navegador por mas acotada que este la
+        ventana. Con el tope de peso da igual el volumen de la asociacion:
+        se guardan las mas nuevas hasta llenar el presupuesto y punto.
+
+   Lo que no entra NO se pierde: esta entero en la nube y se trae al abrirlo.
+   El presupuesto es holgado —el resto de las colecciones ocupa poco— y deja
+   margen para que el navegador no rechace la escritura.
+   ------------------------------------------------------------------------- */
+const FICHAS_LOCALES_KB = 2200;
+
+function fichasParaGuardar(){
+  if(!nubeOK) return DB.fichas;            /* sin nube, el equipo es la unica copia */
+  const corte = desdeEnVivo();
+  /* De la mas nueva a la mas vieja: si hay que recortar, se recorta por atras */
+  const dentro = Object.keys(DB.fichas)
+    .map(k => DB.fichas[k])
+    .filter(f => f && (f.demo || (f.fecha || '') >= corte))
+    .sort((a,b) => (a.fecha || '') < (b.fecha || '') ? 1 : -1);
+
+  const tope = FICHAS_LOCALES_KB * 1024;
+  const out = {};
+  let peso = 0;
+  for(let i = 0; i < dentro.length; i++){
+    const f = dentro[i];
+    const p = JSON.stringify(f).length;
+    /* La demostracion entra siempre: no esta en la nube, si se recorta se pierde */
+    if(!f.demo && peso + p > tope) break;
+    out[f.id] = f;
+    peso += p;
+  }
+  return out;
+}
+
 function suscribirColecciones(){
   try{
     COLECCIONES.forEach(col => {
-      fbDb.ref('afar/'+col).on('value', snap => {
+      /* Las fichas se piden acotadas a la ventana viva; el resto de las
+         colecciones son chicas y se traen enteras. */
+      const ref = col === 'fichas'
+        ? fbDb.ref('afar/fichas').orderByChild('fecha').startAt(desdeEnVivo())
+        : fbDb.ref('afar/'+col);
+      ref.on('value', snap => {
         const v = snap.val() || {};
         /* Los registros de demostracion viven solo en el equipo y nunca suben.
            El volcado remoto los pisaria: si alguien prueba el circuito con la
@@ -691,7 +816,18 @@ function suscribirColecciones(){
           if(r && r.demo && !v[k]) v[k] = r;
         });
         aplicandoRemoto = true;
-        DB[col] = v;
+        if(col === 'fichas'){
+          /* Reemplazar borraria las fichas viejas que se trajeron a pedido en
+             esta sesion, que no estan en la ventana viva. Se conservan. */
+          const corte = desdeEnVivo(), fuera = {};
+          Object.keys(DB.fichas || {}).forEach(k => {
+            const f = DB.fichas[k];
+            if(f && !v[k] && (f.demo || (f.fecha || '') < corte)) fuera[k] = f;
+          });
+          DB.fichas = Object.assign(fuera, v);
+        } else {
+          DB[col] = v;
+        }
         aplicandoRemoto = false;
         guardarLocal();
         if(typeof refrescarVistaActual === 'function') refrescarVistaActual();
@@ -1383,6 +1519,96 @@ function descargar(nombre, contenido, mime){
 }
 
 /* ------------------------------------------------------------ Firma ---- */
+/* =========================================================================
+   COMPRESION DE LA FIRMA
+   -------------------------------------------------------------------------
+   Una firma se guardaba tal como salia del lienzo: `canvas.toDataURL()` sobre
+   un canvas que en una pantalla retina tiene el doble de pixeles de los que
+   se ven, y con TODO el recuadro incluido aunque la firma ocupe un tercio.
+   Resultado: 45 KB por firma. Una ficha firmada llegaba a 140 KB, de los
+   cuales 135 eran las tres firmas y solo 3,5 KB el contenido clinico.
+
+   Con 30 cirugias diarias eso llenaba el almacenamiento del navegador en poco
+   mas de un dia y se llevaba puesta la base entera.
+
+   Ahora se hacen dos cosas antes de guardar:
+
+     1. RECORTAR. Se busca el rectangulo que ocupa el trazo y se descarta el
+        resto. Es la mitad del ahorro y no se pierde nada: lo que se tira es
+        recuadro vacio.
+     2. ACHICAR. Se lleva a 360 px de ancho como maximo. Una firma se lee
+        perfecto a ese tamano —en el PDF se imprime a 4 cm— y deja de
+        arrastrar el doble de pixeles de las pantallas retina.
+
+   Se guarda en PNG, no en JPEG: la firma es un trazo de un solo color sobre
+   fondo transparente y el PNG la comprime mucho mejor que el JPEG, que
+   ademas le agregaria un halo gris alrededor del trazo.
+   ========================================================================= */
+const FIRMA_ANCHO_MAX = 300;      /* px de ancho maximo del trazo recortado */
+const FIRMA_MARGEN    = 6;        /* px de aire alrededor del trazo */
+const FIRMA_NIVELES   = 4;        /* escalones de transparencia del antialiasing */
+const FIRMA_TINTA     = [11, 37, 69];   /* el azul AFAAR, #0b2545 */
+
+function firmaComprimida(canvas){
+  try{
+    const w = canvas.width, h = canvas.height;
+    if(!w || !h) return '';
+    const ctx = canvas.getContext('2d');
+    const d = ctx.getImageData(0, 0, w, h).data;
+
+    /* 1. Rectangulo que ocupa el trazo */
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for(let y = 0; y < h; y++){
+      for(let x = 0; x < w; x++){
+        if(d[(y * w + x) * 4 + 3] > 12){          /* pixel con tinta */
+          if(x < x0) x0 = x;
+          if(x > x1) x1 = x;
+          if(y < y0) y0 = y;
+          if(y > y1) y1 = y;
+        }
+      }
+    }
+    if(x1 < 0) return '';                          /* lienzo vacio */
+
+    x0 = Math.max(0, x0 - FIRMA_MARGEN); y0 = Math.max(0, y0 - FIRMA_MARGEN);
+    x1 = Math.min(w - 1, x1 + FIRMA_MARGEN); y1 = Math.min(h - 1, y1 + FIRMA_MARGEN);
+    const rw = x1 - x0 + 1, rh = y1 - y0 + 1;
+
+    /* 2. Achicar a lo sumo a FIRMA_ANCHO_MAX de ancho */
+    const k = Math.min(1, FIRMA_ANCHO_MAX / rw);
+    const dw = Math.max(1, Math.round(rw * k)), dh = Math.max(1, Math.round(rh * k));
+
+    const cv = document.createElement('canvas');
+    cv.width = dw; cv.height = dh;
+    const cx = cv.getContext('2d');
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(canvas, x0, y0, rw, rh, 0, 0, dw, dh);
+
+    /* 3. Unificar la tinta y escalonar la transparencia.
+       El trazo sale del lienzo con antialiasing en color: cada pixel del
+       borde tiene un tono ligeramente distinto, y eso son miles de colores
+       que el PNG no puede comprimir. Como la firma es un solo color sobre
+       fondo transparente, se le pone a todos los pixeles la misma tinta y se
+       redondea la transparencia a unos pocos escalones. El trazo se sigue
+       viendo suave y el archivo baja a la mitad. */
+    const im = cx.getImageData(0, 0, dw, dh), px = im.data;
+    const paso = Math.round(255 / FIRMA_NIVELES);
+    for(let i = 0; i < px.length; i += 4){
+      if(px[i+3] === 0) continue;
+      px[i] = FIRMA_TINTA[0]; px[i+1] = FIRMA_TINTA[1]; px[i+2] = FIRMA_TINTA[2];
+      px[i+3] = Math.min(255, Math.round(px[i+3] / paso) * paso);
+    }
+    cx.putImageData(im, 0, 0);
+
+    return cv.toDataURL('image/png');
+  }catch(e){
+    /* Ante cualquier problema, la firma sin comprimir antes que ninguna firma */
+    console.warn('AFAAR: no se pudo comprimir la firma —', e && e.message);
+    try{ return canvas.toDataURL('image/png'); }catch(e2){ return ''; }
+  }
+}
+
 function montarFirma(canvas, onCambio){
   const ctx = canvas.getContext('2d');
   const rect = () => canvas.getBoundingClientRect();
@@ -1407,7 +1633,7 @@ function montarFirma(canvas, onCambio){
   const empezar = e => { e.preventDefault(); dib = true; const [x,y] = pos(e); ctx.beginPath(); ctx.moveTo(x,y); };
   const mover = e => { if(!dib) return; e.preventDefault(); const [x,y] = pos(e); ctx.lineTo(x,y); ctx.stroke();
     canvas.dataset.tieneTrazo = '1'; const h = canvas.parentElement.querySelector('.hint'); if(h) h.style.display='none'; };
-  const soltar = () => { if(dib && onCambio) onCambio(canvas.toDataURL('image/png')); dib = false; };
+  const soltar = () => { if(dib && onCambio) onCambio(firmaComprimida(canvas)); dib = false; };
   canvas.addEventListener('mousedown', empezar); canvas.addEventListener('mousemove', mover);
   window.addEventListener('mouseup', soltar);
   canvas.addEventListener('touchstart', empezar, {passive:false});
@@ -1416,9 +1642,16 @@ function montarFirma(canvas, onCambio){
   return {
     limpiar(){ const r = rect(); ctx.clearRect(0,0,r.width,r.height); delete canvas.dataset.tieneTrazo;
       const h = canvas.parentElement.querySelector('.hint'); if(h) h.style.display=''; if(onCambio) onCambio(''); },
+    /* La firma guardada viene recortada al trazo, asi que estirarla a todo el
+       recuadro la deformaria. Se dibuja centrada, respetando su proporcion. */
     cargar(dataUrl){ if(!dataUrl) return; const img = new Image();
-      img.onload = () => { const r = rect(); ctx.drawImage(img, 0, 0, r.width, r.height);
-        canvas.dataset.tieneTrazo='1'; const h = canvas.parentElement.querySelector('.hint'); if(h) h.style.display='none'; };
+      img.onload = () => {
+        const r = rect();
+        const k = Math.min(r.width / img.width, r.height / img.height, 1);
+        const w = img.width * k, h = img.height * k;
+        ctx.drawImage(img, (r.width - w) / 2, (r.height - h) / 2, w, h);
+        canvas.dataset.tieneTrazo='1';
+        const hint = canvas.parentElement.querySelector('.hint'); if(hint) hint.style.display='none'; };
       img.src = dataUrl; }
   };
 }

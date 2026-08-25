@@ -797,6 +797,10 @@ function abrirPaciente(id){
   '</div>'+
 
   '<h3 class="sec-t">Fichas anestésicas ('+fichas.length+')</h3>'+
+  (nubeOK && !periodoCargado('2000-01-01')
+    ? '<div class="aviso info mb8">'+ico('nube')+'<div>Se listan las fichas de los últimos 90 días '+
+      'y las que ya se trajeron. <button type="button" class="btn ghost chico mt8" id="pdHistorial">'+
+      ico('descargar')+' Traer el historial completo</button></div></div>' : '')+
   (fichas.length ? '<div class="lista">'+ fichas.map(f =>
       '<div class="item" data-ficha="'+f.id+'">'+
         '<div class="avatar" style="background:'+(f.caracter==='urgencia'?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
@@ -819,6 +823,14 @@ function abrirPaciente(id){
     '<button class="btn ghost" id="pdEditar">'+ico('editar')+' Editar historia</button>'+
     '<button class="btn pri" id="pdNuevaFicha">'+ico('mas')+' Nueva ficha</button>', '980px');
 
+  if($('#pdHistorial')) $('#pdHistorial').onclick = () => {
+    toast('Trayendo el historial…');
+    cargarFichasDesde('2000-01-01').then(ok => {
+      cerrarModal();
+      if(ok) setTimeout(() => abrirPaciente(id), 150);
+      else toast('No se pudo traer el historial. Revisá la conexión.', 'err');
+    });
+  };
   $('#pdEditar').onclick = () => { cerrarModal(); setTimeout(() => editarPaciente(id), 180); };
   $('#pdNuevaFicha').onclick = () => { cerrarModal(); setTimeout(() => abrirFicha(null, id), 180); };
   $$('#modal .item[data-ficha]').forEach(it => {

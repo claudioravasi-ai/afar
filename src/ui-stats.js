@@ -49,6 +49,20 @@ function agrupar(fichas, fn){
 function vistaStats(){
   const cont = $('#vStats');
   const [d,h] = rangoPeriodo();
+  /* Igual que en facturación: si el período pedido es anterior a la ventana
+     viva, primero se trae de la nube. Estadísticas a medias engañan más que
+     no tener estadísticas. */
+  if(!periodoCargado(d)){
+    cont.innerHTML = '<div class="aviso info">'+ico('nube')+
+      '<div><b>Trayendo el histórico desde '+fFecha(d)+'…</b><br>'+
+      'En el dispositivo viven los últimos 90 días; el resto está en la nube.</div></div>';
+    cargarFichasDesde(d).then(ok => {
+      if(ok) vistaStats();
+      else cont.innerHTML = '<div class="aviso danger">'+ico('alerta')+
+        '<div><b>No se pudo traer el histórico.</b> Revisá la conexión y volvé a entrar.</div></div>';
+    });
+    return;
+  }
   const l = fichasEnRango();
   const [rd,rh] = rangoPeriodo();
 

@@ -82,7 +82,27 @@ function modoDeFicha(g){
 }
 
 /* ============================ LISTADO ============================ */
-let filtroFichas = { texto:'', caracter:'', institucion:'', estado:'', alcance:'mias' };
+let filtroFichas = { texto:'', caracter:'', institucion:'', estado:'', alcance:'mias',
+                     periodo:'vivo' };
+
+/* Desde qué fecha pide cada opción del selector de período */
+function desdeDelPeriodo(k){
+  if(k === 'anio') return new Date().getFullYear() + '-01-01';
+  if(k === 'todo') return '2000-01-01';
+  return desdeEnVivo();
+}
+/* Cambia el período: si hace falta traer histórico de la nube, lo trae y
+   recién entonces repinta. */
+function cambiarPeriodoFichas(k){
+  filtroFichas.periodo = k;
+  const desde = desdeDelPeriodo(k);
+  if(periodoCargado(desde)) return vistaFichas();
+  toast('Trayendo el histórico…');
+  cargarFichasDesde(desde).then(ok => {
+    vistaFichas();
+    if(!ok) toast('No se pudo traer el histórico. Revisá la conexión.', 'err');
+  });
+}
 
 function vistaFichas(){
   const cont = $('#vFichas');
@@ -93,8 +113,11 @@ function vistaFichas(){
     : (filtroFichas.alcance === 'colegas'     ? fichasCompartidas()
      : filtroFichas.alcance === 'disponibles' ? fichasDisponibles()
      :                                          misFichas());
-  let l = universo.sort((a,b) =>
-    (fechaDeFicha(b)||'') + (b.hora||'') < (fechaDeFicha(a)||'') + (a.hora||'') ? -1 : 1);
+  const desdeP = desdeDelPeriodo(filtroFichas.periodo);
+  let l = universo
+    .filter(f => !nubeOK || (fechaDeFicha(f) || '') >= desdeP)
+    .sort((a,b) =>
+      (fechaDeFicha(b)||'') + (b.hora||'') < (fechaDeFicha(a)||'') + (a.hora||'') ? -1 : 1);
   const q = norm(filtroFichas.texto);
   if(q) l = l.filter(f => {
     const p = DB.pacientes[f.pacienteId] || {};
@@ -124,6 +147,14 @@ function vistaFichas(){
         ? 'Valoraciones prequirúrgicas de la asociación cuyo acto anestésico todavía no tiene anestesiólogo. Cualquiera puede tomarlas. Al tomar una, pasa a «Mías».'
         : 'Pacientes en los que interviniste, por la valoración prequirúrgica, por el acto anestésico o por los dos.')+
     '</div>')+
+
+  (nubeOK ? '<div class="seg mb8" id="fPeriodo">'+
+      [['vivo','Últimos 90 días'],['anio','Este año'],['todo','Todo el historial']].map(a =>
+        '<button type="button" data-v="'+a[0]+'"'+(filtroFichas.periodo===a[0]?' class="on"':'')+'>'+
+        a[1]+'</button>').join('')+
+    '</div>'+
+    '<div class="ayuda mb8">En el dispositivo viven los <b>últimos 90 días</b>, que son los que se '+
+      'sincronizan al instante. El resto está completo en la nube y se trae al pedirlo.</div>' : '')+
 
   '<div class="filtros">'+
     '<div class="campo" style="flex:2"><label>Buscar</label>'+
@@ -191,6 +222,7 @@ function vistaFichas(){
     const i = $('#fBuscar'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 260);
   $$('#fAlcance button').forEach(b => b.onclick = () => {
     filtroFichas.alcance = b.dataset.v; vistaFichas(); });
+  $$('#fPeriodo button').forEach(b => b.onclick = () => cambiarPeriodoFichas(b.dataset.v));
   $('#fCaracter').onchange = e => { filtroFichas.caracter = e.target.value; vistaFichas(); };
   $('#fInst').onchange = e => { filtroFichas.institucion = e.target.value; vistaFichas(); };
   $('#fEstado').onchange = e => { filtroFichas.estado = e.target.value; vistaFichas(); };
@@ -319,7 +351,14 @@ function migrarFicha(f){
 
 function abrirFicha(id, pacienteId){
   const nueva = !id;
-  if(id && !DB.fichas[id]) return toast('No se encontró la ficha.', 'err');
+  /* Las fichas de más de 90 días no viven en el dispositivo: se traen de la
+     nube en el momento en que alguien las abre. Se pide y se vuelve a entrar. */
+  if(id && !DB.fichas[id]){
+    toast('Buscando la ficha en el archivo…');
+    return asegurarFicha(id).then(ok => ok
+      ? abrirFicha(id, pacienteId)
+      : toast('No se encontró la ficha.', 'err'));
+  }
   /* Una ficha de un paciente en el que nunca intervine y cuyo acto ya tiene
      dueño no se abre: no es mi historia clínica para leer. */
   if(id && !puedeAbrirFicha(DB.fichas[id]))

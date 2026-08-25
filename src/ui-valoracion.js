@@ -548,21 +548,22 @@ function cablearConsentimiento(f){
       return toast('No tenés firma guardada. Cargala en Mi perfil o subí una imagen.', 'err');
     ca.limpiar(); ca.cargar(USUARIO.firmaDataUrl); coFirmaAnest = USUARIO.firmaDataUrl;
   };
+  /* La imagen que sube el profesional puede venir de la cámara y pesar
+     megabytes. Se achica igual que la firma dibujada —360 px de ancho— antes
+     de guardarla: si no, una sola firma subida pesaría más que toda la ficha. */
   $('#coSubirFirma').onclick = () => pedirArchivos('image/*', false, fs => {
     if(!fs || !fs.length) return;
-    const fr = new FileReader();
-    fr.onload = () => {
-      ca.limpiar(); ca.cargar(fr.result); coFirmaAnest = fr.result;
+    comprimirImagen(fs[0], FIRMA_ANCHO_MAX, 0.82).then(d => {
+      ca.limpiar(); ca.cargar(d); coFirmaAnest = d;
       /* Se guarda en el perfil: la próxima vez alcanza con «Usar mi firma guardada» */
       if(USUARIO && SESION){
         const u = JSON.parse(JSON.stringify(USUARIO));
-        u.firmaDataUrl = fr.result;
+        u.firmaDataUrl = d;
         escribir('usuarios', SESION.uid, u);
         USUARIO = u;
-        toast('Firma cargada y guardada en tu perfil.', 'ok');
+        toast('Firma cargada y guardada en tu perfil ('+Math.round(d.length/1024)+' KB).', 'ok');
       }
-    };
-    fr.readAsDataURL(fs[0]);
+    }).catch(e => toast('No se pudo procesar la imagen: '+e.message, 'err'));
   });
 }
 

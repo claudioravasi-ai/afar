@@ -9,6 +9,19 @@ let facMes = '', facInst = '', facOS = '', facModalidad = '', facEstado = '', fa
 function vistaFacturacion(){
   if(!facMes) facMes = mesDe(hoyISO());
   const cont = $('#vFacturacion');
+  /* Un mes anterior a la ventana viva no está en el dispositivo: se trae de la
+     nube antes de calcular nada, o la facturación saldría incompleta. */
+  if(!periodoCargado(facMes + '-01')){
+    cont.innerHTML = '<div class="aviso info">'+ico('nube')+
+      '<div><b>Trayendo la facturación de '+esc(nombreMes(facMes))+'…</b><br>'+
+      'Los meses anteriores a los últimos 90 días viven en la nube.</div></div>';
+    cargarFichasDesde(facMes + '-01').then(ok => {
+      if(ok) vistaFacturacion();
+      else cont.innerHTML = '<div class="aviso danger">'+ico('alerta')+
+        '<div><b>No se pudo traer el histórico.</b> Revisá la conexión y volvé a entrar.</div></div>';
+    });
+    return;
+  }
   let l = misPrestaciones().filter(x => mesDe(x.fecha) === facMes);
   if(facInst)      l = l.filter(x => x.ficha.institucion === facInst);
   if(facOS)        l = l.filter(x => x.ficha.obraSocial === facOS);
