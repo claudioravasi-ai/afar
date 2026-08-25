@@ -259,10 +259,13 @@ function componerHilo(preParticipante, preAsunto){
     const id = crearHilo({ participantes:parts, asunto:asunto, texto:texto,
       tipo:$('#mhTipo').value, prioridad:$('#mhPrio').value });
     cerrarModal();
-    toast('Mensaje enviado.', 'ok');
+    /* NO se reabre el hilo. Acabás de escribir vos: lo único que la app
+       podría ofrecerte ahí es responderte a vos mismo. El turno es del
+       otro, y hasta que conteste no hay nada que hacer. */
+    const aQuien = parts.map(nombreParticipante).join(', ');
+    toast('Mensaje enviado a ' + aQuien + '. Te aviso cuando responda.', 'ok');
     if(vistaActual === 'mensajes') vistaMensajes();
     pintarBadgeAvisos();
-    setTimeout(() => abrirHilo(id), 220);
   };
 }
 
@@ -275,6 +278,9 @@ function abrirHilo(id){
   const t = TIPOS_HILO.find(x => x.id === h.tipo) || TIPOS_HILO[1];
   const otros = (h.participantes||[]).filter(p => p !== SESION.uid).map(nombreParticipante).join(', ');
   const venc = hiloVencido(h);
+  /* miTurno: el último mensaje lo escribió otro, así que me toca contestar */
+  const miTurno = esperaRespuestaMia(h);
+  const esperando = horasDesde((ultimoMensaje(h) || {}).cuando);
 
   const cuerpo = ''+
     '<div class="aviso '+(h.estado==='resuelto'?'ok':(venc?'danger':'info'))+'">'+
@@ -303,28 +309,73 @@ function abrirHilo(id){
       }).join('')+
     '</div>'+
 
-    (h.estado === 'resuelto' ? '' :
-      '<div class="campo" style="margin-bottom:8px"><label>Responder</label>'+
-      '<textarea id="mhResp" rows="3" placeholder="Escribí tu respuesta"></textarea></div>');
+    /* ------------------------------------------------------------------
+       De quién es el turno.
+
+       Antes la caja de «Responder» aparecía siempre, incluso debajo de un
+       mensaje recién escrito por uno mismo. Eso invitaba a responderse a
+       uno mismo y, peor, hacía parecer que el hilo estaba esperando algo
+       de vos cuando en realidad estaba esperando al otro.
+
+       Ahora la caja aparece sólo cuando el último mensaje es del otro, que
+       es cuando efectivamente hay algo que contestar. Si el último es
+       tuyo, el hilo dice que está esperando y ofrece dos salidas
+       razonables: insistir con otro mensaje, o darlo por resuelto.
+       ------------------------------------------------------------------ */
+    (h.estado === 'resuelto' ? '' : (miTurno
+      ? '<div class="campo" style="margin-bottom:8px"><label>Responder</label>'+
+        '<textarea id="mhResp" rows="3" placeholder="Escribí tu respuesta"></textarea></div>'
+      : '<div class="aviso '+(esperando >= HORAS_SIN_RESPONDER ? 'warn' : 'info')+'">'+
+          ico('reloj')+'<div><b>Enviado. Ahora es el turno de '+esc(otros)+'.</b><br>'+
+          (esperando >= 1
+            ? 'Sin respuesta hace '+Math.floor(esperando)+' hora'+(Math.floor(esperando)===1?'':'s')+'. '
+            : '')+
+          'Cuando conteste te avisa la campana del encabezado.</div></div>'+
+        '<div class="btn-row" style="margin-bottom:8px">'+
+          '<button type="button" class="btn ghost chico" id="mhAgregar">'+ico('mas')+
+          ' Agregar otro mensaje</button></div>'+
+        '<div class="campo oculto" id="mhRespBox" style="margin-bottom:8px">'+
+          '<label>Mensaje</label>'+
+          '<textarea id="mhResp" rows="3" placeholder="Lo que quieras agregar"></textarea></div>'));
 
   abrirModal(h.asunto, cuerpo,
     (h.estado === 'resuelto'
       ? '<button class="btn ghost" id="mhReabrir">'+ico('refrescar')+' Reabrir</button>'+
         '<button class="btn pri" data-cerrar>Cerrar</button>'
       : '<button class="btn ghost" id="mhResolver">'+ico('check')+' Dar por resuelto</button>'+
-        '<button class="btn pri" id="mhResponder">'+ico('correo')+' Responder</button>'), '640px');
+        (miTurno
+          ? '<button class="btn pri" id="mhResponder">'+ico('correo')+' Responder</button>'
+          : '<button class="btn pri" id="mhCerrar" data-cerrar>Cerrar</button>')), '640px');
 
   const conv = $('#mhConv'); if(conv) conv.scrollTop = conv.scrollHeight;
 
-  if($('#mhResponder')) $('#mhResponder').onclick = () => {
-    const txt = $('#mhResp').value.trim();
-    if(!txt) return toast('Escribí una respuesta.', 'err');
+  /* Enviar cierra el hilo y vuelve al listado: el turno pasó al otro y no
+     hay nada más que hacer acá. Reabrirlo sólo servía para mostrar otra vez
+     una caja de respuesta que ya no correspondía. */
+  const enviarRespuesta = () => {
+    const c = $('#mhResp');
+    const txt = c ? c.value.trim() : '';
+    if(!txt) return toast('Escribí el mensaje.', 'err');
     responderHilo(id, txt);
     cerrarModal();
-    toast('Respuesta enviada.', 'ok');
+    toast('Enviado a ' + otros + '. Te aviso cuando conteste.', 'ok');
     if(vistaActual === 'mensajes') vistaMensajes();
     pintarBadgeAvisos();
-    setTimeout(() => abrirHilo(id), 200);
+  };
+  if($('#mhResponder')) $('#mhResponder').onclick = enviarRespuesta;
+
+  /* Insistir sin que la app te lo proponga: el que quiere agregar algo lo
+     pide, y recién ahí aparece la caja. */
+  if($('#mhAgregar')) $('#mhAgregar').onclick = () => {
+    $('#mhRespBox').classList.remove('oculto');
+    $('#mhAgregar').classList.add('oculto');
+    const b = $('#mhCerrar');
+    if(b){
+      b.removeAttribute('data-cerrar');       /* deja de cerrar el modal */
+      b.innerHTML = ico('correo') + ' Enviar';
+      b.onclick = enviarRespuesta;
+    }
+    const c = $('#mhResp'); if(c) c.focus();
   };
   if($('#mhResolver')) $('#mhResolver').onclick = () => {
     resolverHilo(id, true); cerrarModal(); toast('Marcado como resuelto.', 'ok');
