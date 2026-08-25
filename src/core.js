@@ -462,6 +462,37 @@ function iconoArchivo(mime, nombre){
 }
 
 /* ------------------------------------------------------------ Auditoria */
+/* =========================================================================
+   AUDITORIA
+   -------------------------------------------------------------------------
+   Es el registro de quien vio y quien cambio cada cosa. Responde la pregunta
+   «quien abrio esta historia clinica y cuando», que es la trazabilidad que
+   pide la Ley 25.326 para datos sensibles y lo unico que respalda al
+   profesional si alguna vez se discute quien modifico que.
+
+   ANTES: se guardaban los ultimos 800 eventos y el 801 se BORRABA, del
+   dispositivo y de la nube, sin dejar rastro. Con ocho socios trabajando,
+   entre ingresos, guardados de ficha y exportaciones se van 40 o 50 eventos
+   por dia: el historial no llegaba a las tres semanas.
+
+   AHORA: nada se borra sin haberse guardado antes. Al pasar el tope, los mas
+   viejos se mandan a la carpeta de Drive de la asociacion como una planilla
+   CSV —que se abre con un clic en Google Sheets— y RECIEN ENTONCES se sacan
+   del dispositivo. Si el archivado falla, no se borra nada y se reintenta la
+   proxima vez. El registro se conserva completo en Drive; lo que queda en el
+   equipo es solo lo que se consulta a mano.
+
+   POR QUE 5.000 Y NO MAS
+   Cada registro pesa unos 173 bytes, asi que 5.000 son 0,8 MB. El navegador
+   da alrededor de 5 MB por sitio para TODA la base, y ahi adentro tienen que
+   entrar tambien las fichas, que pesan unos 15 KB cada una. Subir el tope a
+   20.000 se comeria 3,3 MB y dejaria a las fichas sin lugar para guardarse.
+   Como el historial completo vive en Drive, el numero de aca no decide
+   cuanta historia se conserva: decide cuanta se ve sin abrir Drive.
+   ========================================================================= */
+const AUDITORIA_TOPE  = 5000;    /* lo que queda a mano en el dispositivo */
+const AUDITORIA_LOTE  = 1500;    /* cuantos se archivan por vez */
+
 function auditar(accion, detalle){
   const id = uid('log');
   escribir('auditoria', id, {
@@ -470,9 +501,77 @@ function auditar(accion, detalle){
     quien: USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : 'sistema',
     cuando: new Date().toISOString()
   });
-  // Poda: conserva los ultimos 800 registros
-  const todos = lista('auditoria').sort((a,b)=> a.cuando < b.cuando ? 1 : -1);
-  if(todos.length > 800) todos.slice(800).forEach(l => eliminar('auditoria', l.id));
+  /* La comprobacion tiene que ser barata: corre en CADA evento auditado.
+     Contar claves es inmediato; ordenar 5.000 registros, no. */
+  if(Object.keys(DB.auditoria || {}).length > AUDITORIA_TOPE) podarAuditoria();
+}
+
+/* ---- CSV del registro, para que se abra en Google Sheets o en Excel ---- */
+function csvAuditoria(l){
+  const q = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
+  const filas = l.map(x => [
+    String(x.cuando || '').slice(0,10),
+    String(x.cuando || '').slice(11,19),
+    x.quien || '', x.uid || '', x.accion || '', x.detalle || ''
+  ].map(q).join(','));
+  /* El BOM hace que Excel abra bien las tildes y las enies */
+  return '\ufeff' + ['Fecha,Hora,Quien,Usuario,Accion,Detalle'].concat(filas).join('\r\n');
+}
+
+/* ---- Archivar en Drive y recien despues borrar del dispositivo ---- */
+let __podando = false;
+
+function podarAuditoria(){
+  if(__podando) return Promise.resolve(false);
+  const todos = lista('auditoria').sort((a,b) => (a.cuando||'') < (b.cuando||'') ? 1 : -1);
+  const sobran = todos.length - AUDITORIA_TOPE;
+  if(sobran <= 0) return Promise.resolve(false);
+
+  /* Los mas viejos primero, de a lotes, en orden cronologico dentro del
+     archivo para que la planilla se lea de arriba hacia abajo. */
+  const lote = todos.slice(AUDITORIA_TOPE, AUDITORIA_TOPE + AUDITORIA_LOTE).reverse();
+  if(!lote.length) return Promise.resolve(false);
+
+  __podando = true;
+  const desde = String(lote[0].cuando || '').slice(0,10);
+  const hasta = String(lote[lote.length-1].cuando || '').slice(0,10);
+  const nombre = 'auditoria-AFAAR-' + desde + '_a_' + hasta + '.csv';
+
+  return archivarEnDrive(nombre, csvAuditoria(lote))
+    .then(res => {
+      if(!res || !res.ok) throw new Error(res && res.error ? res.error : 'no se pudo archivar');
+      /* Guardado en Drive: recien ahora se sacan del dispositivo */
+      lote.forEach(x => eliminar('auditoria', x.id));
+      const reg = Object.assign({}, DB.config.auditoriaArchivo || {}, {
+        ultimo: new Date().toISOString(),
+        nombre: nombre, url: res.url || '', cantidad: lote.length,
+        desde: desde, hasta: hasta,
+        total: Number((DB.config.auditoriaArchivo || {}).total || 0) + lote.length
+      });
+      DB.config.auditoriaArchivo = reg;
+      escribir('config', 'auditoriaArchivo', reg);
+      console.info('AFAAR: ' + lote.length + ' eventos archivados en Drive (' + nombre + ')');
+      return true;
+    })
+    .catch(e => {
+      /* NO se borra nada. Se reintenta en el proximo evento auditado. */
+      console.warn('AFAAR: no se pudo archivar la auditoria —', e && e.message);
+      return false;
+    })
+    .then(v => { __podando = false; return v; });
+}
+
+/* Manda el CSV al Apps Script de la asociacion, que lo guarda en el Drive de
+   la cuenta de AFAAR. Se reusa el mismo servicio que envia los correos: ya
+   corre con la cuenta de Google de la asociacion, asi que no hace falta que
+   nadie inicie sesion ni que la app pida permisos de Drive. */
+function archivarEnDrive(nombre, csv){
+  if(typeof envioConfigurado !== 'function' || !envioConfigurado())
+    return Promise.reject(new Error('el servicio de Google no está configurado'));
+  return fetch(ENVIO_URL, {
+    method: 'POST', redirect: 'follow',
+    body: JSON.stringify({ clave: ENVIO_CLAVE, auditoria: { nombre: nombre, csv: csv } })
+  }).then(r => r.json());
 }
 
 /* ------------------------------------------------------ Firebase (nube) */

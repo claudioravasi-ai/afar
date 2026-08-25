@@ -34,6 +34,14 @@ var TOPE_BYTES = 900000;
    contando la codificación; se deja margen. */
 var TOPE_ADJUNTOS = 18000000;
 
+/* Carpeta del Drive de la asociación donde se archiva el registro de
+   auditoría. Se crea sola la primera vez, en "Mi unidad" de la cuenta que
+   ejecuta este programa. Si querés otro nombre, cambialo acá. */
+var CARPETA_AUDITORIA = 'AFAAR — Auditoría';
+
+/* Tope de un archivo de auditoría, por las dudas */
+var TOPE_AUDITORIA = 12000000;
+
 /* ————————————————————————————————— Envío ————————————————————————————————— */
 
 function doPost(e) {
@@ -48,6 +56,12 @@ function doPost(e) {
     if (!d.clave || d.clave !== CLAVE_COMPARTIDA) {
       registrar('RECHAZADO clave incorrecta', d.para || '(sin destinatario)');
       return responder({ ok: false, error: 'No autorizado.' });
+    }
+
+    /* 1b. ¿Es un archivado de auditoría? No lleva destinatario ni correo:
+       se guarda en el Drive de la asociación y termina acá. */
+    if (d.auditoria && d.auditoria.csv) {
+      return archivarAuditoria(d.auditoria);
     }
 
     /* 2. Datos mínimos */
@@ -150,6 +164,47 @@ function doPost(e) {
   }
 }
 
+/* ——————————————————————— Archivo de auditoría ———————————————————————
+   Guarda en el Drive de la asociación el tramo viejo del registro de
+   auditoría que la app está por sacar del dispositivo.
+
+   Va como CSV a propósito: pesa poco, lo abre Google Sheets con un clic, se
+   puede filtrar y ordenar, y se sigue leyendo dentro de veinte años con
+   cualquier programa. Un archivo de 1.500 eventos ocupa unos 250 KB.
+
+   La app NO borra nada hasta que esta función confirma que quedó guardado.  */
+function archivarAuditoria(a) {
+  var csv = String(a.csv || '');
+  if (!csv) return responder({ ok: false, error: 'Archivo vacío.' });
+  if (csv.length > TOPE_AUDITORIA) {
+    return responder({ ok: false, error: 'El archivo de auditoría es demasiado grande.' });
+  }
+
+  var nombre = a.nombre || ('auditoria-' + Utilities.formatDate(new Date(),
+    Session.getScriptTimeZone(), 'yyyy-MM-dd-HHmm') + '.csv');
+  if (nombre.slice(-4).toLowerCase() !== '.csv') nombre += '.csv';
+
+  /* La carpeta se busca por nombre y se crea sólo si no existe */
+  var carpeta;
+  var it = DriveApp.getFoldersByName(CARPETA_AUDITORIA);
+  carpeta = it.hasNext() ? it.next() : DriveApp.createFolder(CARPETA_AUDITORIA);
+
+  var archivo = carpeta.createFile(
+    Utilities.newBlob(csv, 'text/csv', nombre));
+
+  registrar('AUDITORIA archivada: ' + nombre + ' (' + Math.round(csv.length/1024) + ' KB)',
+            carpeta.getName());
+
+  return responder({
+    ok: true,
+    nombre: archivo.getName(),
+    url: archivo.getUrl(),
+    id: archivo.getId(),
+    carpeta: carpeta.getName(),
+    kb: Math.round(csv.length / 1024)
+  });
+}
+
 /* Si alguien abre la dirección en el navegador, que no muestre nada útil.
    Lo único que informa es de qué versión es este programa, para que la app
    sepa si puede mandarle adjuntos o si todavía está publicada la versión
@@ -158,9 +213,10 @@ function doGet() {
   return responder({
     ok: false,
     error: 'Este servicio sólo recibe envíos.',
-    version: 3,
+    version: 4,
     adjuntos: true,
-    documentosPdf: true
+    documentosPdf: true,
+    auditoriaDrive: true
   });
 }
 

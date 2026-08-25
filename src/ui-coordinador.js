@@ -290,9 +290,44 @@ function seccionCatalogos(c){
 
 /* --------------------------------------------------------- Auditoría -- */
 function seccionAuditoria(c){
-  const l = lista('auditoria').sort((a,b) => a.cuando < b.cuando ? 1 : -1).slice(0, 200);
+  const todos = lista('auditoria').sort((a,b) => (a.cuando||'') < (b.cuando||'') ? 1 : -1);
+  const l = todos.slice(0, 200);
+  const arch = (DB.config || {}).auditoriaArchivo || {};
+  const pct = Math.min(100, Math.round(todos.length / AUDITORIA_TOPE * 100));
+
   c.innerHTML = ''+
-  '<div class="aviso info">'+ico('ojo')+'<div>Registro de accesos y cambios. Se conservan los últimos 800 eventos.</div></div>'+
+  /* Antes esta pantalla decía «se conservan los últimos 800 eventos» y no
+     aclaraba que el 801 se destruía. Ahora dice la verdad completa: qué hay
+     en el dispositivo, qué se archivó y dónde está lo que ya no se ve. */
+  '<div class="aviso info">'+ico('ojo')+'<div><b>Registro de accesos y cambios.</b><br>'+
+    'En este dispositivo hay <b>'+todos.length+'</b> evento'+(todos.length===1?'':'s')+
+    ' de los '+AUDITORIA_TOPE+' que se guardan a mano. Al pasar ese número, los más viejos '+
+    'se archivan en el Drive de la asociación <b>antes</b> de sacarlos de acá: no se pierde '+
+    'ninguno. En pantalla se listan los últimos 200.</div></div>'+
+
+  '<div class="card"><h3>'+ico('nube')+'Archivo en Drive</h3>'+
+    '<div class="barra mb8"><span style="width:'+pct+'%"></span></div>'+
+    '<p class="mini">'+todos.length+' de '+AUDITORIA_TOPE+' ('+pct+' %) del espacio local.</p>'+
+    (arch.ultimo
+      ? '<div class="aviso ok mt8">'+ico('check')+'<div><b>Último archivado:</b> '+
+        fFechaLarga(String(arch.ultimo).slice(0,10))+' a las '+esc(String(arch.ultimo).slice(11,16))+' h.<br>'+
+        esc(arch.cantidad||0)+' eventos del '+fFecha(arch.desde)+' al '+fFecha(arch.hasta)+
+        (arch.total ? ' · <b>'+arch.total+'</b> archivados en total' : '')+'.'+
+        (arch.url ? '<br><a href="'+esc(arch.url)+'" target="_blank" rel="noopener">'+
+          'Abrir «'+esc(arch.nombre||'el archivo')+'» en Drive</a>' : '')+
+        '</div></div>'
+      : '<div class="aviso info mt8">'+ico('info')+'<div>Todavía no se archivó nada: no hizo falta. '+
+        'El primer archivado ocurre solo al superar los '+AUDITORIA_TOPE+' eventos.</div></div>')+
+    '<div class="btn-row mt14">'+
+      '<button class="btn ghost chico" id="auArchivar">'+ico('nube')+' Archivar ahora en Drive</button>'+
+      '<button class="btn ghost chico" id="auDescargar">'+ico('descargar')+' Descargar CSV completo</button>'+
+    '</div>'+
+    '<div class="ayuda">El archivo va como planilla CSV a la carpeta <b>«AFAAR — Auditoría»</b> del '+
+      'Drive de la asociación. Se abre con un clic en Google Sheets, se puede filtrar y ordenar, y '+
+      'unos 1.500 eventos ocupan apenas 250 KB. Requiere el servicio de Google configurado '+
+      '(el mismo que envía los correos).</div>'+
+  '</div>'+
+
   (l.length ? '<div class="tabla-wrap"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th>'+
     '<th>Acción</th><th>Detalle</th></tr></thead><tbody>'+
     l.map(x => '<tr><td>'+fFecha(x.cuando)+' '+String(x.cuando).slice(11,16)+'</td>'+
@@ -300,6 +335,29 @@ function seccionAuditoria(c){
       '<td>'+esc(x.detalle)+'</td></tr>').join('')+
     '</tbody></table></div>'
     : '<div class="vacio">'+ico('ojo')+'<b>Sin eventos registrados</b></div>');
+
+  /* Descarga local: se lleva TODO lo que hay en el dispositivo, no los 200
+     que se ven. Sirve como respaldo a mano y no depende de Google. */
+  if($('#auDescargar')) $('#auDescargar').onclick = () => {
+    if(!todos.length) return toast('No hay eventos para descargar.', 'warn');
+    const orden = todos.slice().reverse();          /* cronológico */
+    descargar('auditoria-AFAAR-' + hoyISO() + '.csv',
+              csvAuditoria(orden), 'text/csv;charset=utf-8');
+    toast(todos.length + ' eventos descargados.', 'ok');
+  };
+
+  /* Archivado a pedido: no espera a llegar al tope */
+  if($('#auArchivar')) $('#auArchivar').onclick = () => {
+    if(todos.length <= AUDITORIA_TOPE)
+      return toast('Todavía no hace falta: hay ' + todos.length + ' de ' + AUDITORIA_TOPE +
+                   '. Podés bajar el CSV completo cuando quieras.', 'warn');
+    toast('Archivando en Drive…');
+    podarAuditoria().then(ok => {
+      if(ok){ toast('Archivado en Drive.', 'ok'); vistaCoordinador(); }
+      else   toast('No se pudo archivar. Revisá que el servicio de Google esté configurado y '+
+                   'republicado. No se borró ningún evento.', 'err');
+    });
+  };
 }
 
 
