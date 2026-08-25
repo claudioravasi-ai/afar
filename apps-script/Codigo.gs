@@ -25,7 +25,9 @@ var CLAVE_COMPARTIDA = 'CAMBIAR-ESTA-FRASE-POR-UNA-LARGA-Y-PROPIA';
    dejamos margen para no agotar la cuota de la cuenta. */
 var TOPE_DIARIO = 40;
 
-/* Tamaño máximo del cuerpo del mail, por las dudas */
+/* Tamaño máximo del cuerpo del mail, por las dudas. No cuenta los
+   documentos: esos viajan aparte, en d.documentos, y se miden contra
+   TOPE_ADJUNTOS una vez convertidos a PDF. */
 var TOPE_BYTES = 900000;
 
 /* Tamaño máximo del conjunto de adjuntos. Gmail rechaza por encima de 25 MB
@@ -102,6 +104,33 @@ function doPost(e) {
       }
       if (blobs.length) opciones.attachments = blobs;
     }
+    /* 5c. Documentos que llegan como HTML y hay que convertir a PDF.
+       Es lo que le mandamos al paciente: valoracion pre-anestesica,
+       consentimiento informado e indicaciones, cada uno en su propio
+       archivo. La app no tiene libreria de PDF; el conversor de Google si,
+       y produce un PDF de verdad, que se abre en cualquier telefono.
+       Llegan como [{nombre, html}]. */
+    if (d.documentos && d.documentos.length) {
+      var pdfs = opciones.attachments || [];
+      var pesoPdf = 0;
+      for (var j = 0; j < d.documentos.length; j++) {
+        var doc = d.documentos[j];
+        if (!doc || !doc.html) continue;
+        var nombre = doc.nombre || ('documento-' + (j + 1) + '.pdf');
+        if (nombre.slice(-4).toLowerCase() !== '.pdf') nombre += '.pdf';
+        var pdf = Utilities.newBlob(doc.html, 'text/html', nombre)
+                           .getAs('application/pdf')
+                           .setName(nombre);
+        pesoPdf += pdf.getBytes().length;
+        if (pesoPdf > TOPE_ADJUNTOS) {
+          return responder({ ok: false,
+            error: 'Los documentos superan los ' + Math.round(TOPE_ADJUNTOS/1048576) + ' MB.' });
+        }
+        pdfs.push(pdf);
+      }
+      if (pdfs.length) opciones.attachments = pdfs;
+    }
+
     if (d.responderA && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.responderA)) {
       opciones.replyTo = d.responderA;
     }
@@ -129,8 +158,9 @@ function doGet() {
   return responder({
     ok: false,
     error: 'Este servicio sólo recibe envíos.',
-    version: 2,
-    adjuntos: true
+    version: 3,
+    adjuntos: true,
+    documentosPdf: true
   });
 }
 

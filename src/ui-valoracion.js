@@ -50,7 +50,7 @@ function htmlValoracion(f){
       '<div class="buscador"><input type="search" id="dxBuscar" placeholder="Ej.: hipertensión, diabetes, asma…" autocomplete="off">'+
       '<div class="res" id="dxRes"></div></div>'+
       '<div class="ayuda">Escribí al menos 2 letras. Si el antecedente no figura, podés agregarlo '+
-      'manualmente desde el propio buscador. La app ya no usa codificación CIE-10.</div>'+
+      'manualmente desde el propio buscador.</div>'+
       '<div class="seleccionados" id="dxSel"></div></div>'+
     '<div id="dxMeds"></div>'+
     '<hr class="sep">'+
@@ -385,7 +385,185 @@ function htmlPlan(f){
       '<div class="ayuda">Queda registrado en el documento. Como no tiene usuario en la app, '+
         'el honorario del acto no entra en la facturación de nadie.</div></div>'+
 
-    '<div id="qxAsignadoAviso"></div>', true);
+    '<div id="qxAsignadoAviso"></div>', true)+
+
+  htmlConsentimiento(f);
+}
+
+/* =========================================================================
+   15. CONSENTIMIENTO INFORMADO ANESTESICO
+   -------------------------------------------------------------------------
+   Estaba en una ventana aparte, a la que se llegaba por un boton perdido al
+   pie de la ficha. Ahi se olvidaba: quedaban valoraciones completas y bien
+   hechas sin el papel que la ley exige. Ahora es el punto 15 de la propia
+   valoracion y es CONDICION para darla por concluida (ver
+   consentimientoCompleto() en ui-ficha.js): la Ley 26.529 lo pide por
+   escrito para todo procedimiento con riesgo relevante, y la anestesia lo
+   es. Las dos unicas salidas legitimas —urgencia vital del art. 9 y
+   revocacion del paciente— se eligen en el mismo desplegable y quedan
+   asentadas, que es exactamente lo que la ley manda hacer con ellas.
+
+   Se firma con el dedo en la tablet, con el mouse en la computadora o con el
+   dedo en el telefono, sobre el mismo lienzo. El anestesiologo, ademas,
+   puede traer la firma que tiene guardada en su perfil o subir una imagen.
+   ========================================================================= */
+function htmlConsentimiento(f){
+  const c = f.consent || {};
+  const p = DB.pacientes[f.pacienteId] || {};
+  const completo = consentimientoCompleto(f);
+  const sinFirma = consentSinFirma(c.quien);
+
+  return acc('acConsent','firma','15 · Consentimiento informado anestésico',
+    (completo
+      ? '<div class="aviso ok">'+ico('check')+'<div><b>Consentimiento otorgado.</b> '+
+        (sinFirma
+          ? esc(c.quien)+'. Queda documentado en la historia clínica, como exige la ley.'
+          : 'Firmado por '+esc(c.firmante || 'el paciente')+
+            (c.fecha ? ' el '+fFechaLarga(c.fecha)+(c.hora ? ' a las '+esc(c.hora)+' h' : '') : '')+'.')+
+        '</div></div>'
+      : '<div class="aviso warn">'+ico('alerta')+'<div><b>Sin el consentimiento no se puede '+
+        'concluir la valoración.</b> Es un requisito de la Ley 26.529 para todo procedimiento '+
+        'con riesgo relevante. Si el paciente no puede firmarlo, dejá asentado el motivo en '+
+        '«Quién firma».</div></div>')+
+
+    '<label class="mini strong mt14" style="display:block">Texto que se le lee y se le entrega al paciente</label>'+
+    '<div class="consent-texto">'+esc(TEXTO_CONSENTIMIENTO)+'</div>'+
+    '<div class="ayuda">Redactado sobre el modelo de consentimiento anestésico de la Asociación '+
+      'de Anestesia, Analgesia y Reanimación de Buenos Aires y los formularios del Ministerio de '+
+      'Salud de la Nación, conforme a las leyes 26.529, 26.742, 17.132 y 25.326, el decreto '+
+      '1089/2012 y el art. 59 del Código Civil y Comercial. Se imprime completo en el documento '+
+      'y viaja como PDF aparte en el envío al paciente.</div>'+
+
+    '<div class="grid c2 mt14">'+
+      '<div class="campo"><label>Quién firma <span class="req">*</span></label>'+
+        '<select id="coQuien">'+ CONSENT_QUIEN.map(o =>
+          '<option value="'+esc(o)+'"'+(c.quien===o?' selected':'')+'>'+
+          esc(o || '— Seleccionar —')+'</option>').join('') +'</select></div>'+
+      campoTxt('coFirmante','Nombre y DNI del firmante',
+        c.firmante || (p.apellido ? p.apellido+', '+p.nombre+' — DNI '+(p.dni||'') : ''))+
+    '</div>'+
+    '<div id="coAvisoQuien"></div>'+
+
+    '<label class="mini strong mt14" style="display:block">Declaraciones del paciente</label>'+
+    chksHTML('coItems', CONSENT_ITEMS, c.items)+
+    '<div id="coAvisoTransf"></div>'+
+
+    '<div id="coFirmas"'+(sinFirma ? ' class="oculto"' : '')+'>'+
+      '<label class="mini strong mt14" style="display:block">Firma del paciente o representante</label>'+
+      '<div class="firma-box"><canvas id="coFirmaPac"></canvas><div class="hint">Firmar aquí con el dedo o el mouse</div></div>'+
+      '<div class="btn-row mt8"><button type="button" class="btn ghost chico" id="coLimpiarPac">'+
+        ico('borrar')+' Borrar</button></div>'+
+
+      '<label class="mini strong mt14" style="display:block">Firma del anestesiólogo</label>'+
+      '<div class="firma-box"><canvas id="coFirmaAnest"></canvas><div class="hint">Firmar aquí</div></div>'+
+      '<div class="btn-row mt8">'+
+        '<button type="button" class="btn ghost chico" id="coLimpiarAnest">'+ico('borrar')+' Borrar</button>'+
+        '<button type="button" class="btn ghost chico" id="coUsarPerfil">'+ico('firma')+' Usar mi firma guardada</button>'+
+        '<button type="button" class="btn ghost chico" id="coSubirFirma">'+ico('adjunto')+' Subir imagen de firma</button>'+
+      '</div>'+
+      '<div class="ayuda">La firma guardada es la que cargaste en <b>Mi perfil</b>. Si subís una '+
+        'imagen, se guarda también en tu perfil para las próximas fichas.</div>'+
+    '</div>'+
+
+    campoArea('coObs','Aclaraciones', c.observaciones,
+      'Lo que se conversó, quién estuvo presente, objeciones del paciente'),
+    !completo);
+}
+
+/* ---- Lo que el punto 15 escribe en f.consent (no dentro de f.v) ---- */
+let coFirmaPac = '', coFirmaAnest = '';
+
+function leerConsentimiento(f){
+  if(!$('#coQuien')) return f.consent || {};      /* el paso no está en pantalla */
+  const previo = f.consent || {};
+  const quien = val('coQuien');
+  const hayAlgo = quien || coFirmaPac || coFirmaAnest || val('coObs');
+  return {
+    quien, firmante: val('coFirmante'), items: leerChks('coItems'),
+    observaciones: val('coObs'),
+    firmaPaciente: coFirmaPac, firmaAnestesiologo: coFirmaAnest,
+    /* la fecha del consentimiento es la del dia en que se firmo, no la de
+       cada vez que se vuelve a abrir la ficha */
+    fecha: previo.fecha || (hayAlgo ? hoyISO() : ''),
+    hora:  previo.hora  || (hayAlgo ? ahoraHora() : '')
+  };
+}
+
+function cablearConsentimiento(f){
+  if(!$('#coQuien')) return;
+  const c = f.consent || {};
+  coFirmaPac   = c.firmaPaciente || '';
+  coFirmaAnest = c.firmaAnestesiologo || (USUARIO ? USUARIO.firmaDataUrl : '') || '';
+
+  cablearChks('coItems');
+
+  /* Aceptar y rechazar la transfusión a la vez es una contradicción que no
+     puede quedar en un documento que se firma. */
+  const revisarTransf = () => {
+    const l = leerChks('coItems');
+    const si = l.indexOf('Acepta transfusión de hemoderivados si fuera indispensable') >= 0;
+    const no = l.indexOf('RECHAZA transfusión de hemoderivados') >= 0;
+    $('#coAvisoTransf').innerHTML = (si && no)
+      ? '<div class="aviso danger mt8">'+ico('alerta')+'<div><b>Se marcó aceptar y rechazar la '+
+        'transfusión al mismo tiempo.</b> Dejá una sola: el documento no puede decir las dos cosas.</div></div>'
+      : (no ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>El paciente rechaza la '+
+        'transfusión de hemoderivados.</b> Queda asentado en el consentimiento y se imprime '+
+        'destacado en la ficha. Preveé las alternativas de ahorro de sangre en el punto 13.</div></div>' : '');
+  };
+  $$('#coItems input').forEach(i => i.addEventListener('change', revisarTransf));
+  revisarTransf();
+
+  const revisarQuien = () => {
+    const q = $('#coQuien').value;
+    const sin = consentSinFirma(q);
+    $('#coFirmas').classList.toggle('oculto', sin);
+    $('#coAvisoQuien').innerHTML = !q
+      ? ''
+      : q === 'No firmado — urgencia vital (art. 9 Ley 26.529)'
+        ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Excepción del art. 9 de la Ley '+
+          '26.529.</b> Se prescinde del consentimiento por grave peligro para la vida del '+
+          'paciente. Dejá constancia del motivo en «Aclaraciones»: es lo que respalda la '+
+          'excepción ante una auditoría.</div></div>'
+      : q === 'Consentimiento revocado por el paciente'
+        ? '<div class="aviso danger mt8">'+ico('alerta')+'<div><b>Consentimiento revocado.</b> '+
+          'El paciente puede revocarlo en cualquier momento y sin expresar causa. Queda '+
+          'documentado por escrito, como exige la ley, y <b>no se debe realizar el acto '+
+          'anestésico</b>.</div></div>'
+      : q.indexOf('Representante') >= 0 || q.indexOf('Menor') >= 0
+        ? '<div class="aviso info mt8">'+ico('info')+'<div>Cargá en «Nombre y DNI del firmante» '+
+          'los datos del representante y su vínculo con el paciente.</div></div>'
+        : '';
+  };
+  $('#coQuien').onchange = revisarQuien;
+  revisarQuien();
+
+  const cp = montarFirma($('#coFirmaPac'),   d => coFirmaPac = d);
+  const ca = montarFirma($('#coFirmaAnest'), d => coFirmaAnest = d);
+  setTimeout(() => { if(coFirmaPac) cp.cargar(coFirmaPac); if(coFirmaAnest) ca.cargar(coFirmaAnest); }, 150);
+
+  $('#coLimpiarPac').onclick   = () => { cp.limpiar(); coFirmaPac = ''; };
+  $('#coLimpiarAnest').onclick = () => { ca.limpiar(); coFirmaAnest = ''; };
+  $('#coUsarPerfil').onclick = () => {
+    if(!USUARIO || !USUARIO.firmaDataUrl)
+      return toast('No tenés firma guardada. Cargala en Mi perfil o subí una imagen.', 'err');
+    ca.limpiar(); ca.cargar(USUARIO.firmaDataUrl); coFirmaAnest = USUARIO.firmaDataUrl;
+  };
+  $('#coSubirFirma').onclick = () => pedirArchivos('image/*', false, fs => {
+    if(!fs || !fs.length) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      ca.limpiar(); ca.cargar(fr.result); coFirmaAnest = fr.result;
+      /* Se guarda en el perfil: la próxima vez alcanza con «Usar mi firma guardada» */
+      if(USUARIO && SESION){
+        const u = JSON.parse(JSON.stringify(USUARIO));
+        u.firmaDataUrl = fr.result;
+        escribir('usuarios', SESION.uid, u);
+        USUARIO = u;
+        toast('Firma cargada y guardada en tu perfil.', 'ok');
+      }
+    };
+    fr.readAsDataURL(fs[0]);
+  });
 }
 
 /* Lo que el punto 14 escribe en la raíz de la ficha (no dentro de f.plan) */
@@ -655,6 +833,7 @@ function cablearValoracion(f){
     $('#scAsaEL').classList.toggle('sel', $('#scAsaE').checked), 0);
 
   cablearAsignacionActo();      /* punto 14 */
+  cablearConsentimiento(f);     /* punto 15 */
   cablearEnvioValoracion(f);    /* envío de la valoración a contaduría */
 
   recalcular();

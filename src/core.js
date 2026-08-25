@@ -1352,6 +1352,83 @@ function nombreActor(f){
   return u ? nombreUsuario(u) : '—';
 }
 
+/* =========================================================================
+   LAS DOS FECHAS DE UNA FICHA
+   -------------------------------------------------------------------------
+   Una ficha tiene dos fechas y casi nunca coinciden:
+
+     fechaValoracion  el dia de la consulta prequirurgica. Es cuando el
+                      anestesiologo vio al paciente, y es el mes en que se
+                      factura e informa esa consulta.
+
+     fechaCirugia     el dia del acto anestesico. Se carga en el paso
+                      Anestesia, que es cuando se sabe: al hacer la
+                      valoracion la cirugia todavia no esta programada. Es
+                      el mes en que se factura e informa el acto.
+
+   Mezclarlas rompe la facturacion: una valoracion de marzo con cirugia en
+   abril iba entera a marzo, y el honorario del acto aparecia en el mes
+   equivocado. Por eso cada prestacion lleva la suya.
+
+   `f.fecha` se conserva como espejo —la fecha del acto si la hay, si no la
+   de la valoracion— porque es lo que ordena listados y busquedas, y porque
+   las fichas viejas solo tienen eso.
+   ========================================================================= */
+function fechaValoracionDe(f){
+  if(!f) return '';
+  return f.fechaValoracion || ((f.v || {}).riesgo || {}).fecha ||
+         (f.creado || '').slice(0,10) || f.fecha || '';
+}
+function fechaCirugiaDe(f){
+  if(!f) return '';
+  const a = f.acto || {};
+  if(a.fechaCirugia) return a.fechaCirugia;
+  if(f.fechaCirugia) return f.fechaCirugia;
+  /* Ficha del modelo viejo, con una sola fecha. Alli `f.fecha` ERA la de la
+     cirugia: se cargaba en el paso 1 junto con la hora y el turno. Se la lee
+     como tal, pero solo si la cirugia efectivamente paso o quedo registrada;
+     una fecha futura sin acto es una programacion, no un acto realizado.
+     La misma cuenta la hace migrarFicha() cuando la ficha se abre, y ahi
+     queda escrita; esto es para las que todavia no se abrieron. */
+  if(f.__fechas2 || f.fechaValoracion || !f.fecha) return '';
+  const hubo = !!(a.finAnestesia || a.finCirugia || a.inicioAnestesia ||
+                  (a.tecnicas || []).length || (f.firma || {}).firmado);
+  return (hubo || f.fecha < hoyISO()) ? f.fecha : '';
+}
+/* La fecha con la que se muestra y se ordena la ficha */
+function fechaDeFicha(f){
+  return fechaCirugiaDe(f) || fechaValoracionDe(f) || (f ? f.fecha : '') || '';
+}
+/* Deja `f.fecha` al dia con las dos anteriores. Se llama en cada guardado. */
+function sincronizarFechas(f){
+  if(!f) return f;
+  f.fechaValoracion = fechaValoracionDe(f) || hoyISO();
+  const cx = fechaCirugiaDe(f);
+  if(cx) f.fechaCirugia = cx;
+  f.fecha = cx || f.fechaValoracion;
+  return f;
+}
+
+/* -------------------------------------------------------------------------
+   VIGENCIA DE LA VALORACION PREQUIRURGICA
+   Una valoracion no vale para siempre: entre que se hizo y la cirugia el
+   paciente pudo cambiar de medicacion, descompensarse o cursar una
+   infeccion respiratoria. El criterio corriente es reevaluar pasados 30
+   dias. La app no bloquea nada —el que anestesia decide— pero avisa.
+   ------------------------------------------------------------------------- */
+const DIAS_VIGENCIA_VALORACION = 30;
+
+function diasDeValoracion(f){
+  const v = fechaValoracionDe(f);
+  if(!v) return null;
+  const ref = fechaCirugiaDe(f) || hoyISO();
+  return Math.round((new Date(ref+'T12:00:00') - new Date(v+'T12:00:00')) / 86400000);
+}
+function valoracionVencida(f){
+  const d = diasDeValoracion(f);
+  return d !== null && d > DIAS_VIGENCIA_VALORACION;
+}
+
 /* Fichas en las que intervengo, por cualquiera de los dos conceptos.
    Son la base de las estadisticas, la facturacion y los avisos. */
 function misFichas(){
@@ -1359,9 +1436,74 @@ function misFichas(){
   return esCoordinador() ? t
     : t.filter(f => f.ownerUid === SESION.uid || actorFicha(f) === SESION.uid);
 }
-/* Fichas que se pueden abrir: todas. Un colega puede necesitar completar el
-   acto anestesico de una valoracion que hizo otro. */
-function fichasVisibles(){ return lista('fichas'); }
+/* =========================================================================
+   QUE FICHAS VE CADA ANESTESIOLOGO
+   -------------------------------------------------------------------------
+   Antes se veian todas, siempre. Eso es mas de lo que hace falta y mas de lo
+   que corresponde: la historia clinica de un paciente en el que no intervine
+   no es asunto mio (Ley 26.529, art. 2 inc. c y Ley 25.326).
+
+   La regla es de acceso por intervencion, con una excepcion necesaria:
+
+     MIAS         hice la valoracion, el acto, o los dos.
+     DE COLEGAS   intervine yo y tambien otro: uno valoro y el otro
+                  anestesio. Los dos comparten esa ficha, porque los dos
+                  necesitan verla entera —el que anestesia tiene que leer el
+                  prequirurgico, y el que valoro tiene derecho a saber como
+                  termino su paciente.
+     DISPONIBLES  valoraciones cuyo acto todavia no tiene dueno. Se comparten
+                  con TODOS los socios porque cualquiera puede tener que
+                  tomar ese acto —de eso se trata una guardia—. En cuanto
+                  alguien lo toma, sale de esta lista y pasa a ser suya y del
+                  que valoro.
+
+   Una ficha en la que nunca intervine y cuyo acto ya tiene dueno no se ve ni
+   se abre. El coordinador ve todo: es su funcion.
+   ========================================================================= */
+
+/* El acto todavia no tiene anestesiologo: cualquiera lo puede tomar */
+function actoLibre(f){
+  if(!f) return false;
+  if((f.firma || {}).firmado) return false;
+  if(f.actoPorUid) return false;
+  if(f.actorExterno) return false;
+  return !f.asignadoUid || f.asignadoUid === 'sinasignar';
+}
+/* El acto esta designado a alguien pero todavia no lo tomo */
+function actoDesignadoAMi(f){
+  return !!SESION && !!f && !f.actoPorUid && f.asignadoUid === SESION.uid;
+}
+/* Fichas que se pueden ABRIR: las mias, las que comparto y las libres */
+function fichasVisibles(){
+  if(esCoordinador()) return lista('fichas');
+  if(!SESION) return [];
+  return lista('fichas').filter(f =>
+    f.ownerUid === SESION.uid || actorFicha(f) === SESION.uid ||
+    actoDesignadoAMi(f) || actoLibre(f));
+}
+/* Valoraciones de cualquiera esperando quien las anestesie */
+function fichasDisponibles(){
+  if(!SESION) return [];
+  return lista('fichas').filter(f =>
+    (actoLibre(f) || actoDesignadoAMi(f)) && actorFicha(f) !== SESION.uid);
+}
+/* Fichas compartidas: intervine yo y tambien otro profesional */
+function fichasCompartidas(){
+  if(!SESION) return [];
+  return misFichas().filter(f => {
+    const act = actorFicha(f);
+    if(f.actorExterno && f.ownerUid === SESION.uid) return true;   /* acto de un externo */
+    return !!act && !!f.ownerUid && act !== f.ownerUid &&
+           (act === SESION.uid || f.ownerUid === SESION.uid);
+  });
+}
+/* Puerta de entrada: ¿puedo abrir esta ficha? */
+function puedeAbrirFicha(f){
+  if(esCoordinador()) return true;
+  if(!f || !SESION) return false;
+  return f.ownerUid === SESION.uid || actorFicha(f) === SESION.uid ||
+         actoDesignadoAMi(f) || actoLibre(f);
+}
 
 /* El padron de pacientes es de la asociacion: lo ven y lo editan todos. */
 function misPacientes(){ return lista('pacientes'); }
@@ -1379,20 +1521,24 @@ function autorFicha(f){
    Cada ficha genera hasta dos renglones, con distinto titular. */
 function prestacionesDeFicha(f){
   const l = [];
+  /* Cada renglon lleva SU fecha: la consulta se imputa al mes en que se vio
+     al paciente y el acto al mes en que se lo anestesio. */
   const hc = f.honConsulta || {};
   if(hc.modalidad && hc.modalidad !== 'incluida')
     l.push({ ficha:f, tipo:'consulta', uid:f.ownerUid,
       concepto:'Consulta prequirúrgica (valoración)',
       monto:Number(hc.total || 0), estado:hc.estado || 'Pendiente',
       comprobante:hc.comprobante || '', cobrado:Number(hc.cobrado || 0),
-      fechaPresentacion:hc.fechaPresentacion || '', fecha:f.fecha });
+      fechaPresentacion:hc.fechaPresentacion || '',
+      fecha: fechaValoracionDe(f) || f.fecha });
   const ha = f.hon || {};
   if(ha.modalidad)
     l.push({ ficha:f, tipo:'acto', uid:actorFicha(f),
       concepto:'Acto anestésico',
       monto:Number(ha.total || 0), estado:ha.estado || 'Pendiente',
       comprobante:ha.comprobante || '', cobrado:Number(ha.cobrado || 0),
-      fechaPresentacion:ha.fechaPresentacion || '', fecha:f.fecha });
+      fechaPresentacion:ha.fechaPresentacion || '',
+      fecha: fechaCirugiaDe(f) || f.fecha });
   return l;
 }
 /* Todas las prestaciones que me corresponden a mi (o todas, si coordino) */
@@ -1555,7 +1701,8 @@ function partesQuirurgicos(f){ return (f && f.acto && f.acto.parteQuirurgico) ||
 function hayValoracion(f){
   if(!f) return false;
   const v = f.v || {}, pl = f.plan || {}, sc = v.scores || {};
-  return !!(sc.asa || (v.antecedentes2 || []).length || (v.medicacion || []).length ||
+  return !!(f.valoracionGuardada || (f.consent || {}).quien ||
+            sc.asa || (v.antecedentes2 || []).length || (v.medicacion || []).length ||
             (v.riesgo || {}).aptitud || (v.riesgo || {}).fundamento ||
             (pl.tecnica || []).length || (pl.destino) ||
             (f.honConsulta || {}).modalidad);
@@ -1563,7 +1710,7 @@ function hayValoracion(f){
 function hayActo(f){
   if(!f) return false;
   const a = f.acto || {};
-  return !!(a.inicioCirugia || a.inicioAnestesia || a.finCirugia ||
+  return !!(a.fechaCirugia || a.inicioCirugia || a.inicioAnestesia || a.finCirugia ||
             (a.drogas || []).length || (a.controles || []).length ||
             (a.tecnicas || []).length || (f.hon || {}).modalidad ||
             (f.firma || {}).firmado);

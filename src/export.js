@@ -272,7 +272,7 @@ function documentoFicha(f, opts){
 
   /* En la ficha del acto va la constancia de que se firmo, no el texto
      entero: ese ya viaja completo en la valoracion del mismo envio. */
-  (co.quien ? seccion('Consentimiento informado anestésico',
+  ((co.quien && !(opts && opts.sinConsentimiento)) ? seccion('Consentimiento informado anestésico',
     (soloActo ? '' :
       '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
       'border:1px solid #c9d6e3;padding:9px;background:#fbfdff">'+esc(TEXTO_CONSENTIMIENTO)+'</div>')+
@@ -463,6 +463,195 @@ const CSS_DOC = 'body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:
   '.par{margin-bottom:2px;font-size:10pt}.par b{color:#0b2545}'+
   '.firmas{margin-top:34px}.firmas div{display:inline-block;width:45%;text-align:center;'+
     'border-top:.5pt solid #444;padding-top:3px;font-size:8.5pt;margin:0 2%}';
+
+/* =========================================================================
+   LOS TRES DOCUMENTOS QUE SE LE MANDAN AL PACIENTE
+   -------------------------------------------------------------------------
+   Van como TRES ARCHIVOS PDF SEPARADOS, no pegados uno abajo del otro en el
+   cuerpo del mail:
+
+     1. Valoracion pre-anestesica.  Lo clinico: filiacion, antecedentes,
+        medicacion, alergias, examen, laboratorio, escalas y plan.
+     2. Consentimiento informado anestesico.  Documento aparte porque es un
+        instrumento juridico autonomo: se firma, se guarda y eventualmente se
+        presenta solo. Mezclado adentro de otro papel pierde esa condicion.
+     3. Hoja de indicaciones.  En castellano llano: ayuno, medicacion,
+        horario, acompanante. Es la unica de las tres que el paciente
+        realmente va a leer, y por eso va suelta.
+
+   NINGUNO lleva un solo dato de facturacion: honorarios, modalidades e
+   importes son cosa entre el anestesiologo y el financiador.
+
+   Los tres se arman aca como HTML completo y el conversor de Google los pasa
+   a PDF antes de adjuntarlos (ver apps-script/Codigo.gs). La app no necesita
+   ninguna libreria de PDF y el paciente recibe archivos de verdad.
+   ========================================================================= */
+
+/* Envoltorio comun: hoja A4 con los estilos del documento */
+function hojaHTML(titulo, cuerpo){
+  return '<!DOCTYPE html><html lang="es-AR"><head><meta charset="utf-8">'+
+    '<title>'+esc(titulo)+'</title>'+
+    '<style>@page{size:A4;margin:1.5cm}'+CSS_DOC+
+    '.consentimiento{font-size:10pt;white-space:pre-line;text-align:justify;line-height:1.5}'+
+    '.declaraciones{font-size:10pt;margin:8px 0}'+
+    '.declaraciones div{margin-bottom:3px}'+
+    '.indic{font-size:11.5pt;line-height:1.7}'+
+    '.indic h2{margin-top:14px}'+
+    '.indic li{margin-bottom:6px}'+
+    '.caja-legal{border:1pt solid #c9d6e3;background:#fbfdff;padding:8pt;font-size:8.5pt;'+
+      'color:#456;line-height:1.5;margin-top:16px}'+
+    '</style></head><body>'+cuerpo+'</body></html>';
+}
+
+/* Pie legal comun a los tres documentos */
+function pieLegalPaciente(f){
+  const u = DB.usuarios[f.ownerUid] || USUARIO || {};
+  return '<div class="caja-legal">'+
+    '<b>AFAAR — Asociación Fueguina de Anestesia, Analgesia y Reanimación.</b> '+
+    'Tierra del Fuego, Antártida e Islas del Atlántico Sur, República Argentina.<br>'+
+    'Profesional actuante: '+esc((u.apellido||'')+', '+(u.nombre||''))+' — '+
+    esc(u.titulo || 'Médico/a Especialista en Anestesiología')+' — '+
+    'M.N. '+esc(matriculaTxt(u.matriculaNacional,'M.N.'))+' · '+
+    'M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+
+    (u.email ? ' — '+esc(u.email) : '')+'.<br><br>'+
+    'Este documento contiene datos de salud, que la ley considera datos sensibles, y se entrega '+
+    'a su titular. <b>Ley 26.529</b> de Derechos del Paciente y su modificatoria <b>Ley 26.742</b>: '+
+    'integra su historia clínica, le pertenece y se conserva por un plazo mínimo de diez años. '+
+    '<b>Ley 17.132</b> del Ejercicio de la Medicina: el profesional firmante está obligado a guardar '+
+    'secreto profesional. <b>Ley 25.326</b> de Protección de los Datos Personales: usted puede '+
+    'acceder a sus datos, pedir su rectificación y conocer su destino. Si usted no es el '+
+    'destinatario de este documento, destrúyalo y avise al remitente.'+
+  '</div>';
+}
+
+/* ---- 1. Valoracion pre-anestesica, sin una linea de facturacion ---- */
+function docPacienteValoracion(f){
+  return hojaHTML('Valoración pre-anestésica',
+    documentoFicha(f, { paraPaciente:true, parte:'valoracion', sinConsentimiento:true })+
+    pieLegalPaciente(f));
+}
+
+/* ---- 2. Consentimiento informado anestesico, como instrumento aparte ---- */
+function docPacienteConsentimiento(f){
+  const p  = DB.pacientes[f.pacienteId] || {};
+  const co = f.consent || {};
+  const u  = DB.usuarios[f.ownerUid] || USUARIO || {};
+  const ed = edadDe(p.fechaNac, fechaValoracionDe(f));
+  __secN = 0;
+
+  return hojaHTML('Consentimiento informado anestésico',
+    membrete(f, 'CONSENTIMIENTO INFORMADO ANESTÉSICO')+
+
+    seccion('Datos del paciente',
+      par('Apellido y nombre', (p.apellido||'')+', '+(p.nombre||''))+
+      par('DNI', p.dni) + par('Historia clínica', p.hc)+
+      par('Edad', ed !== null ? ed+' años' : '')+
+      par('Cirugía propuesta', f.cirugia)+
+      par('Diagnóstico', f.diagnostico)+
+      par('Lateralidad', f.lateralidad && f.lateralidad !== 'No aplica' ? f.lateralidad : '')+
+      par('Institución', nombreInstitucion(f.institucion))+
+      par('Técnica anestésica propuesta', (f.plan||{}).tecnica))+
+
+    seccion('Declaración de consentimiento',
+      '<div class="consentimiento">'+esc(TEXTO_CONSENTIMIENTO)+'</div>')+
+
+    ((co.items||[]).length ? seccion('Declaraciones del paciente',
+      '<div class="declaraciones">'+ (co.items||[]).map(i =>
+        '<div>'+(i.indexOf('RECHAZA') === 0 ? '<b style="color:#a11">☒ '+esc(i)+'</b>'
+                                            : '☒ '+esc(i))+'</div>').join('') +'</div>') : '')+
+
+    seccion('Otorgamiento',
+      par('Firma el consentimiento', co.quien)+
+      par('Nombre y documento del firmante', co.firmante)+
+      par('Aclaraciones', co.observaciones)+
+      par('Lugar y fecha', (nombreInstitucion(f.institucion)||'')+', '+
+        fFechaLarga(co.fecha || fechaValoracionDe(f))+(co.hora ? ' — '+co.hora+' h' : ''))+
+      ((co.quien||'').indexOf('revocado') >= 0
+        ? '<div style="border:2px solid #a11;color:#a11;padding:8px;text-align:center;'+
+          'font-weight:bold;margin-top:8px">CONSENTIMIENTO REVOCADO POR EL PACIENTE — '+
+          'NO SE DEBE REALIZAR EL ACTO ANESTÉSICO</div>' : ''))+
+
+    '<div class="firmas">'+
+      '<div>'+(co.firmaPaciente
+        ? '<img src="'+co.firmaPaciente+'" style="height:52px;display:block;margin:0 auto -6px">'
+        : '<div style="height:46px"></div>')+
+        esc(co.firmante || 'Paciente o representante legal')+'<br>Firma y aclaración</div>'+
+      '<div>'+((co.firmaAnestesiologo || u.firmaDataUrl)
+        ? '<img src="'+(co.firmaAnestesiologo || u.firmaDataUrl)+'" style="height:52px;display:block;margin:0 auto -6px">'
+        : '<div style="height:46px"></div>')+
+        esc((u.apellido||'')+', '+(u.nombre||''))+'<br>M.P. '+
+        esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+' — Anestesiología</div>'+
+    '</div>'+
+
+    '<div style="margin-top:18px;font-size:9px;color:#678;text-align:center">'+
+      'El paciente puede revocar este consentimiento en cualquier momento anterior al acto '+
+      'anestésico, en forma libre y sin expresar causa (Ley 26.529, art. 10).</div>'+
+
+    pieLegalPaciente(f));
+}
+
+/* ---- 3. Hoja de indicaciones, en castellano llano ---- */
+function docPacienteIndicaciones(f){
+  const p  = DB.pacientes[f.pacienteId] || {};
+  const pl = f.plan || {};
+  const v  = f.v || {};
+  const ay = v.ayuno || {};
+  const meds = (v.medicacion2 || v.medicacion || []).map(m => typeof m === 'string' ? m : (m.n || m.d || ''))
+    .filter(Boolean);
+
+  const li = (t, d) => d ? '<li><b>'+esc(t)+'</b> '+esc(d)+'</li>' : '';
+
+  return hojaHTML('Indicaciones para el día de la cirugía',
+    membrete(f, 'INDICACIONES PARA EL DÍA DE LA CIRUGÍA')+
+    '<div class="indic">'+
+      '<p>Estimado/a <b>'+esc(p.nombre || p.apellido || 'paciente')+'</b>: estas son las '+
+      'indicaciones que tiene que cumplir antes de su '+
+      (f.cirugia ? '<b>'+esc(f.cirugia)+'</b>' : 'intervención')+'. '+
+      'Léalas con atención y guarde esta hoja.</p>'+
+
+      '<h2>Ayuno</h2>'+
+      '<ul>'+
+        '<li><b>Ocho horas</b> sin comidas sólidas ni leche de vaca.</li>'+
+        '<li><b>Seis horas</b> sin comidas livianas.</li>'+
+        '<li><b>Dos horas</b> sin líquidos claros (agua, té o jugo colado sin pulpa).</li>'+
+        (ay.tipo ? '<li><b>Indicación particular:</b> '+esc(ay.tipo)+
+          (ay.desde ? ' — desde las '+esc(ay.desde)+' h' : '')+'</li>' : '')+
+      '</ul>'+
+      '<p><b>Importante:</b> si no cumple el ayuno, la cirugía se suspende. No es un capricho: '+
+      'con el estómago lleno el contenido puede pasar al pulmón durante la anestesia.</p>'+
+
+      '<h2>Medicación</h2>'+
+      '<ul>'+
+        li('Medicación que debe seguir tomando:', pl.indicaciones)+
+        (meds.length ? '<li><b>Su medicación habitual registrada:</b> '+esc(meds.join(' · '))+
+          '. Consulte con su anestesiólogo/a cuál suspender.</li>' : '')+
+        '<li>El día de la cirugía tome la medicación indicada <b>con un sorbo de agua</b>.</li>'+
+        '<li><b>No suspenda ni agregue ningún medicamento por su cuenta.</b></li>'+
+      '</ul>'+
+
+      '<h2>El día de la cirugía</h2>'+
+      '<ul>'+
+        '<li>Preséntese en <b>'+esc(nombreInstitucion(f.institucion) || 'la institución indicada')+'</b>'+
+          (fechaCirugiaDe(f) ? ' el <b>'+fFechaLarga(fechaCirugiaDe(f))+'</b>' : ' el día y horario que le indiquen')+
+          '.</li>'+
+        '<li>Venga <b>con un acompañante adulto responsable</b>.</li>'+
+        '<li>Sin maquillaje ni esmalte de uñas. Retire alhajas, piercings, lentes de contacto, '+
+          'audífonos y prótesis dentales.</li>'+
+        '<li>Traiga esta hoja, su documento, el carnet de la obra social y los estudios que tenga.</li>'+
+        (pl.destino ? '<li><b>Destino previsto después de la cirugía:</b> '+esc(pl.destino)+'</li>' : '')+
+      '</ul>'+
+
+      '<h2>Avísenos antes si…</h2>'+
+      '<ul>'+
+        '<li>Tiene fiebre, tos, catarro o cualquier síntoma nuevo.</li>'+
+        '<li>Empezó a tomar una medicación nueva.</li>'+
+        '<li>Cambió algo en su salud desde la consulta.</li>'+
+        '<li>Está o podría estar embarazada.</li>'+
+      '</ul>'+
+      '<p>Puede avisarnos respondiendo al correo con el que recibió esta documentación.</p>'+
+    '</div>'+
+    pieLegalPaciente(f));
+}
 
 function exportarFichaWord(f){
   const p = DB.pacientes[f.pacienteId] || {};

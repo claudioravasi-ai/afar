@@ -847,14 +847,28 @@ function bajarTodoElEnvio(e){
    no —o si no contesta—, el mail sale igual con el documento en el cuerpo y
    se le avisa al contador que los adjuntos los tiene que agregar a mano.
    Sin esto, la app mandaría megabytes de fotos que el script viejo tira. */
-let __adjuntosSoportados = null;
 function soportaAdjuntos(){
-  if(__adjuntosSoportados !== null) return Promise.resolve(__adjuntosSoportados);
-  if(!envioConfigurado()){ __adjuntosSoportados = false; return Promise.resolve(false); }
-  return fetch(ENVIO_URL, { method:'GET', mode:'cors' })
+  return versionDelServicio().then(j => !!(j && j.adjuntos));
+}
+
+/* Los PDF del paciente los arma el conversor de Google, no la app. Eso lo
+   agrego la version 3 del programa de Apps Script: si el coordinador todavia
+   no lo republico, el pedido saldria igual y el paciente recibiria un correo
+   SIN un solo documento. Peor que fallar. Se pregunta antes. */
+function soportaDocumentosPdf(){
+  return versionDelServicio().then(j => !!(j && j.documentosPdf));
+}
+
+/* Una sola consulta al servicio, cacheada: dice que sabe hacer la version
+   publicada. No revela la clave ni ningun dato. */
+let __versionServicio = null;
+function versionDelServicio(){
+  if(__versionServicio) return __versionServicio;
+  if(!envioConfigurado()) return Promise.resolve(null);
+  __versionServicio = fetch(ENVIO_URL, { method:'GET', mode:'cors' })
     .then(r => r.json())
-    .then(j => { __adjuntosSoportados = !!(j && j.adjuntos); return __adjuntosSoportados; })
-    .catch(() => { __adjuntosSoportados = false; return false; });
+    .catch(() => null);
+  return __versionServicio;
 }
 
 /* Las tres piezas que pide una auditoria medica -----------------------------

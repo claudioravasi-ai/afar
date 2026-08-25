@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b2545">
+<title>Puesta en línea de AFAAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+/* ===== Paleta: tomada de la propia app — azul AFAAR y aqua institucional ===== */
+:root{
+  --papel:#f6f9fc;
+  --panel:#ffffff;
+  --panel-2:#eef4fa;
+  --tinta:#0b2545;
+  --tinta-2:#3d5872;
+  --tinta-3:#6b829a;
+  --acento:#0e8f95;
+  --acento-fuerte:#0b6f74;
+  --acento-tenue:#dcf1f1;
+  --linea:#d7e3ef;
+  --linea-fuerte:#b9cbdd;
+  --alerta:#a35a06;
+  --alerta-fondo:#fdf4e3;
+  --peligro:#b3261e;
+  --peligro-fondo:#fdeceb;
+  --ok:#15803d;
+  --ok-fondo:#e6f5ec;
+  --codigo-fondo:#0d1f33;
+  --codigo-tinta:#d6e6f5;
+  --sombra:0 1px 2px rgba(11,37,69,.05), 0 8px 28px rgba(11,37,69,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --papel:#08131f;
+    --panel:#0e2036;
+    --panel-2:#13293f;
+    --tinta:#e8f1fa;
+    --tinta-2:#a7bed3;
+    --tinta-3:#7d95ad;
+    --acento:#2dd4bf;
+    --acento-fuerte:#5fe3d1;
+    --acento-tenue:#0d3d3c;
+    --linea:#1d3852;
+    --linea-fuerte:#2d5175;
+    --alerta:#e5a952;
+    --alerta-fondo:#33270d;
+    --peligro:#f28b82;
+    --peligro-fondo:#3a1614;
+    --ok:#6ee7a0;
+    --ok-fondo:#0d2e1c;
+    --codigo-fondo:#050d17;
+    --codigo-tinta:#cbdcee;
+    --sombra:0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --papel:#08131f;
+  --panel:#0e2036;
+  --panel-2:#13293f;
+  --tinta:#e8f1fa;
+  --tinta-2:#a7bed3;
+  --tinta-3:#7d95ad;
+  --acento:#2dd4bf;
+  --acento-fuerte:#5fe3d1;
+  --acento-tenue:#0d3d3c;
+  --linea:#1d3852;
+  --linea-fuerte:#2d5175;
+  --alerta:#e5a952;
+  --alerta-fondo:#33270d;
+  --peligro:#f28b82;
+  --peligro-fondo:#3a1614;
+  --ok:#6ee7a0;
+  --ok-fondo:#0d2e1c;
+  --codigo-fondo:#050d17;
+  --codigo-tinta:#cbdcee;
+  --sombra:0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--papel);
+  color:var(--tinta);
+  font-family:"Source Sans 3",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:17px;
+  line-height:1.62;
+  -webkit-text-size-adjust:100%;
+}
+.envoltorio{max-width:44rem;margin:0 auto;padding:0 1.25rem 6rem}
+
+/* ---------- Encabezado ---------- */
+header.cabecera{
+  padding:3.5rem 0 2rem;
+  border-bottom:2px solid var(--tinta);
+}
+.marca{
+  font-family:"Source Sans 3",sans-serif;
+  font-size:.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--acento);margin:0 0 .9rem;
+}
+h1{
+  font-family:"Newsreader",Georgia,serif;
+  font-weight:600;font-size:clamp(2.1rem,6vw,3.1rem);line-height:1.08;
+  margin:0 0 .7rem;letter-spacing:-.015em;text-wrap:balance;
+}
+.bajada{
+  font-size:1.08rem;color:var(--tinta-2);margin:0;max-width:34rem;
+}
+.bajada strong{color:var(--tinta);font-weight:600}
+
+/* ---------- Tabla resumen de las tres partes ---------- */
+.resumen{margin:2.25rem 0 0;display:flex;flex-direction:column;gap:.6rem}
+.resumen-fila{
+  display:grid;grid-template-columns:2.1rem 1fr;gap:.9rem;align-items:start;
+  padding:.95rem 1.05rem;background:var(--panel);border:1px solid var(--linea);
+  border-radius:10px;box-shadow:var(--sombra);
+}
+.resumen-n{
+  font-family:"JetBrains Mono",monospace;font-size:.95rem;font-weight:600;
+  color:var(--acento);padding-top:.1rem;
+}
+.resumen-fila b{display:block;font-size:1rem;font-weight:700;margin-bottom:.1rem}
+.resumen-fila span{display:block;font-size:.9rem;color:var(--tinta-2);line-height:1.5}
+.resumen-fila i{
+  font-style:normal;display:block;font-size:.86rem;color:var(--tinta-3);margin-top:.3rem;
+}
+
+/* ---------- Partes ---------- */
+section.parte{margin-top:4.5rem;scroll-margin-top:1rem}
+.parte-eyebrow{
+  display:flex;align-items:baseline;gap:.75rem;margin-bottom:.35rem;
+}
+.parte-num{
+  font-family:"JetBrains Mono",monospace;font-size:.75rem;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--acento);
+  background:var(--acento-tenue);padding:.2rem .55rem;border-radius:4px;
+}
+.parte-tiempo{font-size:.82rem;color:var(--tinta-3);letter-spacing:.02em}
+h2{
+  font-family:"Newsreader",Georgia,serif;font-weight:600;
+  font-size:clamp(1.6rem,4.2vw,2.15rem);line-height:1.15;
+  margin:0 0 .55rem;letter-spacing:-.012em;text-wrap:balance;
+}
+.parte-intro{color:var(--tinta-2);margin:0 0 1.6rem;font-size:1.02rem}
+h3{
+  font-family:"Source Sans 3",sans-serif;
+  font-size:.78rem;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--tinta-3);margin:2.5rem 0 .9rem;
+  padding-bottom:.4rem;border-bottom:1px solid var(--linea);
+}
+p{margin:0 0 1rem}
+a{color:var(--acento-fuerte);text-decoration:underline;text-underline-offset:2px;
+  text-decoration-thickness:1px;overflow-wrap:anywhere}
+a:hover{color:var(--acento)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--acento);outline-offset:2px;border-radius:3px}
+
+/* ---------- Pasos numerados ---------- */
+ol.pasos{list-style:none;counter-reset:paso;margin:0 0 1.4rem;padding:0;
+  display:flex;flex-direction:column;gap:1.05rem}
+ol.pasos > li{
+  counter-increment:paso;position:relative;padding-left:2.55rem;
+}
+ol.pasos > li::before{
+  content:counter(paso);position:absolute;left:0;top:.06rem;
+  width:1.72rem;height:1.72rem;border-radius:50%;
+  display:grid;place-items:center;
+  font-family:"JetBrains Mono",monospace;font-size:.8rem;font-weight:600;
+  color:var(--acento);background:var(--acento-tenue);
+  border:1px solid var(--acento);
+}
+ol.pasos > li > p{margin:0 0 .55rem}
+ol.pasos > li > p:last-child{margin-bottom:0}
+ul.simple{margin:.5rem 0 0;padding-left:1.15rem}
+ul.simple li{margin-bottom:.35rem}
+
+/* ---------- Llamadas ---------- */
+.nota{
+  border-left:3px solid var(--acento);background:var(--acento-tenue);
+  padding:.85rem 1.05rem;border-radius:0 8px 8px 0;margin:1.2rem 0;
+  font-size:.96rem;
+}
+.nota.ojo{border-left-color:var(--alerta);background:var(--alerta-fondo)}
+.nota.stop{border-left-color:var(--peligro);background:var(--peligro-fondo)}
+.nota p{margin:0}
+.nota p + p{margin-top:.55rem}
+.nota-rotulo{
+  display:block;font-size:.72rem;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;margin-bottom:.3rem;
+}
+.nota .nota-rotulo{color:var(--acento-fuerte)}
+.nota.ojo .nota-rotulo{color:var(--alerta)}
+.nota.stop .nota-rotulo{color:var(--peligro)}
+
+/* ---------- Código ---------- */
+pre{
+  background:var(--codigo-fondo);color:var(--codigo-tinta);
+  padding:.95rem 1.1rem;border-radius:9px;overflow-x:auto;
+  font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:.83rem;line-height:1.65;margin:.85rem 0 1.1rem;
+  border:1px solid var(--linea-fuerte);
+}
+pre code{font-family:inherit}
+code{
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.86em;
+  background:var(--panel-2);padding:.1em .38em;border-radius:4px;
+  border:1px solid var(--linea);overflow-wrap:anywhere;
+}
+pre code{background:none;border:0;padding:0}
+kbd{
+  font-family:"JetBrains Mono",monospace;font-size:.82em;font-weight:600;
+  background:var(--panel);border:1px solid var(--linea-fuerte);
+  border-bottom-width:2px;border-radius:5px;padding:.12em .42em;
+  color:var(--tinta);white-space:nowrap;
+}
+
+/* ---------- Tablas ---------- */
+.tabla-caja{overflow-x:auto;margin:1.1rem 0 1.3rem;
+  border:1px solid var(--linea);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.94rem;min-width:26rem}
+th,td{text-align:left;padding:.68rem .9rem;border-bottom:1px solid var(--linea);
+  vertical-align:top}
+th{
+  font-size:.7rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--tinta-3);background:var(--panel-2);
+}
+tr:last-child td{border-bottom:0}
+td code{font-size:.82em}
+
+/* ---------- Qué subir / qué no ---------- */
+.archivos{display:grid;gap:1rem;margin:1.2rem 0 1.4rem}
+@media (min-width:40rem){.archivos.par{grid-template-columns:1fr 1fr}}
+.caja-arch{
+  border:1px solid var(--linea);border-radius:11px;background:var(--panel);
+  padding:1.1rem 1.15rem;box-shadow:var(--sombra);
+}
+.caja-arch.si{border-top:3px solid var(--ok)}
+.caja-arch.no{border-top:3px solid var(--peligro)}
+.caja-arch h4{
+  margin:0 0 .75rem;font-size:.74rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.caja-arch.si h4{color:var(--ok)}
+.caja-arch.no h4{color:var(--peligro)}
+.caja-arch ul{list-style:none;margin:0;padding:0;
+  display:flex;flex-direction:column;gap:.6rem}
+.caja-arch li{font-size:.92rem;line-height:1.45}
+.caja-arch li b{
+  font-family:"JetBrains Mono",monospace;font-size:.86em;font-weight:600;
+  display:block;color:var(--tinta);
+}
+.caja-arch li span{color:var(--tinta-2);font-size:.88rem}
+.carpeta::after{
+  content:"carpeta";font-family:"Source Sans 3",sans-serif;font-size:.62rem;
+  font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--acento);background:var(--acento-tenue);
+  padding:.1em .4em;border-radius:3px;margin-left:.45em;vertical-align:.12em;
+}
+
+/* ---------- Comprobaciones finales ---------- */
+.chequeo{
+  display:grid;grid-template-columns:auto 1fr;gap:.85rem;
+  padding:1rem 0;border-bottom:1px solid var(--linea);
+}
+.chequeo:last-of-type{border-bottom:0}
+.chequeo-caja{
+  width:1.35rem;height:1.35rem;border:2px solid var(--linea-fuerte);
+  border-radius:5px;margin-top:.22rem;flex:none;
+}
+.chequeo b{display:block;margin-bottom:.15rem}
+.chequeo span{font-size:.93rem;color:var(--tinta-2)}
+
+/* ---------- Pie ---------- */
+footer{
+  margin-top:4.5rem;padding-top:1.6rem;border-top:2px solid var(--tinta);
+  font-size:.88rem;color:var(--tinta-3);
+}
+footer strong{color:var(--tinta-2);font-weight:600}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="envoltorio">
+
+<header class="cabecera">
+  <p class="marca">AFAAR · Asociación Fueguina de Anestesia, Analgesia y Reanimación</p>
+  <h1>Puesta en línea de AFAAR</h1>
+  <p class="bajada">Tres cosas independientes, y las tres tienen que estar para que la app funcione entera en <strong>cualquier computadora o teléfono, en tiempo real</strong>.</p>
+
+  <div class="resumen">
+    <div class="resumen-fila">
+      <div class="resumen-n">01</div>
+      <div>
+        <b>Apps Script</b>
+        <span>Los tres PDF que se le mandan al paciente.</span>
+        <i>Si falta: el botón «Enviar valoración al paciente» avisa y cancela. El resto anda.</i>
+      </div>
+    </div>
+    <div class="resumen-fila">
+      <div class="resumen-n">02</div>
+      <div>
+        <b>Firebase</b>
+        <span>Que todos los dispositivos vean lo mismo en tiempo real, con la base cerrada.</span>
+        <i>Si falta: cada equipo guarda lo suyo por separado, sin compartir nada.</i>
+      </div>
+    </div>
+    <div class="resumen-fila">
+      <div class="resumen-n">03</div>
+      <div>
+        <b>GitHub Pages</b>
+        <span>La dirección web desde donde se abre la app.</span>
+        <i>Si falta: sólo se puede abrir el archivo local, en tu Mac.</i>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin-top:1.6rem;font-size:.95rem;color:var(--tinta-2)">
+    Tu repositorio es <code>claudioravasi-ai/afar</code> y la dirección pública va a ser
+    <code>https://claudioravasi-ai.github.io/afar/</code>
+  </p>
+</header>
+
+<!-- ============================ PARTE 1 ============================ -->
+<section class="parte">
+  <div class="parte-eyebrow">
+    <span class="parte-num">Parte 01</span>
+    <span class="parte-tiempo">unos 5 minutos</span>
+  </div>
+  <h2>Apps Script: los PDF del paciente</h2>
+  <p class="parte-intro">La app <strong>no genera PDF</strong>: no tiene librería de PDF ni proceso de compilación donde meterla. Le manda a Google el HTML de cada documento y el conversor de Google lo devuelve como PDF listo para adjuntar. Eso lo hace la <strong>versión 3</strong> del programa.</p>
+
+  <h3>Abrir el proyecto</h3>
+  <ol class="pasos">
+    <li><p>Entrá a <a href="https://script.google.com">script.google.com</a> con la cuenta de Google de la AFAAR — la misma desde la que salen los correos, no una personal.</p></li>
+    <li><p>Abrí el proyecto de AFAAR que ya existe.</p>
+      <p><strong>No crees uno nuevo.</strong> Si creás otro cambia la dirección <code>/exec</code> y habría que tocar el código de la app.</p></li>
+  </ol>
+
+  <h3>Reemplazar el código</h3>
+  <ol class="pasos">
+    <li><p>En el editor, seleccioná <strong>todo</strong> el contenido de <code>Codigo.gs</code> y borralo.</p></li>
+    <li><p>Abrí en tu Mac el archivo <code>afar/apps-script/Codigo.gs</code> y copiá todo. Pegalo en el editor.</p></li>
+    <li><p>Buscá la línea de arriba de todo y reemplazá la frase por la que ya venías usando, que es la que está en <code>src/email-config.js</code>:</p>
+      <pre><code>var CLAVE_COMPARTIDA = 'AFAAR-CONTACTO-PACIENTES-x7kq93m4';</code></pre>
+      <div class="nota stop">
+        <span class="nota-rotulo">Si saltás esto, el envío deja de funcionar</span>
+        <p>El programa rechaza los pedidos de la app por clave incorrecta, y el error no dice cuál fue el motivo real.</p>
+      </div></li>
+    <li><p>Tocá el ícono del <strong>disquete</strong> para guardar el proyecto.</p></li>
+  </ol>
+
+  <h3>Volver a publicarlo</h3>
+  <div class="nota ojo">
+    <span class="nota-rotulo">Este es el paso que se saltea</span>
+    <p>Sin volver a publicar <strong>no cambia nada</strong>: Apps Script sigue sirviendo la versión anterior, por más que hayas guardado el código nuevo.</p>
+  </div>
+  <ol class="pasos">
+    <li><p>Arriba a la derecha: <strong>Implementar → Gestionar implementaciones</strong>.</p></li>
+    <li><p>En la implementación que ya existe, tocá el <strong>lápiz</strong> (Editar).</p></li>
+    <li><p>En <strong>Versión</strong> elegí <strong>«Versión nueva»</strong> y tocá <strong>Implementar</strong>.</p>
+      <p>Editá la que existe, <strong>no crees una nueva</strong>: así la dirección <code>/exec</code> sigue siendo la misma y no hay que tocar nada en la app.</p></li>
+  </ol>
+
+  <h3>Comprobar que quedó</h3>
+  <p>Abrí en el navegador la dirección que está en <code>src/email-config.js</code>, la que termina en <code>/exec</code>. Tiene que responder:</p>
+  <pre><code>{"ok":false,"error":"Este servicio sólo recibe envíos.",
+ "version":3,"adjuntos":true,"documentosPdf":true}</code></pre>
+  <p>Lo que importa es <code>"version":3</code> y <code>"documentosPdf":true</code>. Si dice <code>version: 2</code>, la publicación no se hizo o no se guardó.</p>
+</section>
+
+<!-- ============================ PARTE 2 ============================ -->
+<section class="parte">
+  <div class="parte-eyebrow">
+    <span class="parte-num">Parte 02</span>
+    <span class="parte-tiempo">unos 10 minutos</span>
+  </div>
+  <h2>Firebase: tiempo real y base cerrada</h2>
+  <p class="parte-intro">La conexión <strong>ya está escrita dentro de la app</strong> (<code>src/firebase-config.js</code>, proyecto <code>afar-anestesia</code>). No hay que pegar nada en ninguna pantalla. Lo que sí hay que hacer, en la consola de Firebase, son dos cosas — <strong>y en este orden</strong>.</p>
+
+  <h3>Primero: activar el proveedor Anónimo</h3>
+  <p>Desde el 23-08-2026 la app <strong>pide sola un pase a Firebase</strong> al arrancar, sin que el usuario vea ni haga nada. Si el proveedor no está activado, ese pase falla y la app se queda trabajando sólo en el dispositivo.</p>
+  <ol class="pasos">
+    <li><p><a href="https://console.firebase.google.com">console.firebase.google.com</a> → proyecto <code>afar-anestesia</code>.</p></li>
+    <li><p>Menú izquierdo: <strong>Compilación (Build) → Authentication</strong>. Si es la primera vez, tocá <strong>«Comenzar»</strong>.</p></li>
+    <li><p>Pestaña <strong>Sign-in method</strong> → en la lista, <strong>Anónimo</strong>.</p></li>
+    <li><p>Activá el interruptor y tocá <strong>Guardar</strong>.</p></li>
+  </ol>
+  <div class="nota">
+    <span class="nota-rotulo">Qué es y qué no es este pase</span>
+    <p>No reemplaza el ingreso a la app: el socio sigue entrando con su correo y su contraseña, y el coordinador con su credencial. Es la cerradura de la <strong>base de datos</strong>, no la de la aplicación.</p>
+  </div>
+
+  <h3>Después: cerrar las reglas</h3>
+  <ol class="pasos">
+    <li><p><strong>Compilación (Build) → Realtime Database → pestaña «Reglas»</strong>.</p></li>
+    <li><p>Borrá lo que haya y pegá exactamente esto:</p>
+      <pre><code>{
+  "rules": {
+    "afar": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "fichas":    { ".indexOn": ["ownerUid", "fecha"] },
+      "pacientes": { ".indexOn": ["ownerUid"] },
+      "archivos": {
+        "$id": {
+          ".write": "auth != null && newData.child('datos').val().length &lt; 12000000"
+        }
+      }
+    }
+  }
+}</code></pre></li>
+    <li><p>Tocá <strong>Publicar</strong>.</p></li>
+  </ol>
+  <p>Con esto, quien conozca la dirección de la base <strong>ya no puede leerla ni escribirla</strong> sin pasar por la app. Antes alcanzaba con conocer la URL para llevarse todas las historias clínicas.</p>
+
+  <div class="nota ojo">
+    <span class="nota-rotulo">Por qué importa el orden</span>
+    <p>Si cerrás las reglas <em>antes</em> de activar el proveedor Anónimo, la app deja de sincronizar y avisa «La nube rechazó el acceso». No se pierde nada —sigue guardando en el dispositivo— pero hasta que actives el proveedor nadie ve lo del otro.</p>
+  </div>
+
+  <h3>Restringir la clave de API — opcional, y para el final</h3>
+  <div class="nota ojo">
+    <span class="nota-rotulo">No es obligatorio, y tiene un riesgo</span>
+    <p>La app funciona perfectamente sin esta restricción. Y esta clave es la que usa para <strong>pedir el pase anónimo a Firebase</strong>: si queda mal escrita, el pase falla y la app <strong>deja de sincronizar en silencio</strong> — vuelve a decir «Local» y cada equipo queda aislado. No se pierde ningún dato, pero cuesta darse cuenta.</p>
+    <p>Hacelo <strong>después</strong> de tener la app publicada y andando, nunca antes.</p>
+  </div>
+
+  <p><strong>No hay que crear ningún proyecto.</strong> Todo proyecto de Firebase <em>es</em> también un proyecto de Google Cloud: se crea solo, con el mismo nombre. <code>afar-anestesia</code> ya existe ahí — lo que pasa es que la consola no lo muestra hasta que se lo pedís, y por eso parece que no está.</p>
+
+  <ol class="pasos">
+    <li><p>Entrá con el proyecto ya elegido:</p>
+      <pre><code>https://console.cloud.google.com/apis/credentials?project=afar-anestesia</code></pre>
+      <p>Ese <code>?project=afar-anestesia</code> del final es lo que lo selecciona. Si entrás a <code>console.cloud.google.com</code> a secas, quedás en el selector vacío.</p>
+      <p>Si aun así no aparece, es la <strong>cuenta de Google</strong>: el avatar de arriba a la derecha tiene que ser el mismo con el que entrás a Firebase. También podés tocar la pestaña <strong>«Todos»</strong> del selector de proyectos —no «Recientes»— y buscar <code>afar-anestesia</code>.</p></li>
+    <li><p>Abrí la clave llamada <strong>«Browser key (auto created by Firebase)»</strong>.</p></li>
+    <li><p>En <strong>Restricciones de aplicación</strong> elegí <strong>Sitios web (referentes HTTP)</strong> y agregá estas <strong>tres</strong> líneas:</p>
+      <pre><code>https://claudioravasi-ai.github.io/*
+http://localhost/*
+http://127.0.0.1/*</code></pre>
+      <p>La tercera hace falta porque <code>abrir-afar.command</code> abre la app en <code>http://127.0.0.1:8777</code>, que para Google es una dirección <strong>distinta</strong> de <code>localhost</code>. Sin esa línea, la copia local deja de sincronizar.</p></li>
+    <li><p><strong>Guardar</strong> y esperar unos 5 minutos a que tome efecto.</p></li>
+    <li><p>Abrí la app en la dirección pública y confirmá que arriba diga <strong>«En línea»</strong>. Si dice «Local», volvé la restricción a <strong>«Ninguna»</strong> y la sincronización vuelve enseguida.</p></li>
+  </ol>
+
+  <div class="nota">
+    <span class="nota-rotulo">Lo que sí deja de andar</span>
+    <p>La línea que imprime <code>abrir-afar.command</code> para ver la app <strong>desde el celular en la misma red</strong> (<code>http://192.168.x.x:8777</code>) va a dejar de sincronizar: esa IP cambia y no se puede poner en la lista. Para probar desde el teléfono, usá la dirección pública de GitHub Pages.</p>
+  </div>
+</section>
+
+<!-- ============================ PARTE 3 ============================ -->
+<section class="parte">
+  <div class="parte-eyebrow">
+    <span class="parte-num">Parte 03</span>
+    <span class="parte-tiempo">unos 10 minutos</span>
+  </div>
+  <h2>Subir a GitHub a mano</h2>
+  <p class="parte-intro">Sin terminal, desde la web. Sirve igual para la primera vez que para cada actualización.</p>
+
+  <h3>Reconstruir antes de subir nada</h3>
+  <pre><code>cd ~/Desktop/Claude/afar &amp;&amp; python3 build.py</code></pre>
+  <div class="nota stop">
+    <span class="nota-rotulo">No lo saltees nunca</span>
+    <p><code>index.html</code> se <strong>arma</strong> a partir de <code>src/</code>. Si editás <code>src/</code> y no reconstruís, subís la versión vieja y no vas a entender por qué no cambió nada. El comando tiene que responder <code>OK  index.html …</code></p>
+  </div>
+
+  <h3>Qué archivos y qué carpetas</h3>
+  <div class="archivos">
+    <div class="caja-arch si">
+      <h4>Obligatorio — hace funcionar la app</h4>
+      <ul>
+        <li><b>index.html</b><span>La app entera, 1 MB. Es el archivo que importa.</span></li>
+        <li><b>manifest.webmanifest</b><span>Nombre, colores e íconos para instalarla como app.</span></li>
+        <li><b>sw.js</b><span>Service worker: la hace andar sin conexión.</span></li>
+        <li><b class="carpeta">icons/</b><span>Los tres PNG: 192, 512 y maskable-512.</span></li>
+        <li><b>.nojekyll</b><span>Archivo vacío. Evita que GitHub procese la carpeta a su manera.</span></li>
+      </ul>
+    </div>
+    <div class="caja-arch si">
+      <h4>Muy recomendable — el código fuente</h4>
+      <ul>
+        <li><b class="carpeta">src/</b><span>Los 34 archivos de donde sale <code>index.html</code>. Sin esto no se puede volver a modificar la app desde otra computadora.</span></li>
+        <li><b>build.py</b><span>El armador.</span></li>
+        <li><b class="carpeta">apps-script/</b><span>El programa de los correos.</span></li>
+        <li><b>README.md · PUBLICAR.md<br>ENVIO-DE-MAILS.md<br>reglas-firebase.txt</b><span>La documentación.</span></li>
+        <li><b>make-icons.py<br>abrir-afar.command</b><span>Utilidades.</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="caja-arch no">
+    <h4>No subir</h4>
+    <ul>
+      <li><b>.DS_Store</b><span>Basura de macOS.</span></li>
+      <li><b class="carpeta">.claude/</b><span>Configuración local.</span></li>
+      <li><b class="carpeta">respaldos/ · afar-respaldo-*.json</b><span><strong>Contienen historias clínicas.</strong> No van a un repositorio público, nunca.</span></li>
+      <li><b>GUÍA COMPLETA… .webarchive</b><span>Pesa 1,6 MB y no sirve para nada en línea.</span></li>
+    </ul>
+  </div>
+
+  <h3>Ver los archivos ocultos en el Finder</h3>
+  <p><code>.nojekyll</code> y <code>.gitignore</code> empiezan con punto y el Finder los esconde. En la ventana del Finder apretá <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>.</kbd> y aparecen en gris. Con la misma combinación se vuelven a ocultar.</p>
+
+  <h3>Subir</h3>
+  <ol class="pasos">
+    <li><p>Entrá a <a href="https://github.com/claudioravasi-ai/afar">github.com/claudioravasi-ai/afar</a>.</p></li>
+    <li><p>Botón <strong>Add file</strong> (arriba a la derecha) → <strong>Upload files</strong>.</p></li>
+    <li><p>Abrí el Finder en <code>~/Desktop/Claude/afar</code> y arrastrá al navegador los archivos sueltos y <strong>las carpetas enteras</strong> <code>icons</code>, <code>src</code> y <code>apps-script</code>.</p>
+      <div class="nota ojo">
+        <span class="nota-rotulo">Arrastrá la carpeta, no lo de adentro</span>
+        <p>GitHub respeta la estructura si arrastrás la carpeta. Si la abrís y subís los archivos sueltos, quedan todos en la raíz y la app no los encuentra.</p>
+      </div></li>
+    <li><p>Abajo, en <strong>Commit changes</strong>, escribí qué cambiaste. Por ejemplo: <em>Flujo de cinco pasos, consentimiento como punto 15 y PDF al paciente</em>.</p></li>
+    <li><p>Dejá marcado <strong>«Commit directly to the <code>main</code> branch»</strong> y tocá <strong>Commit changes</strong>.</p></li>
+  </ol>
+  <p>Los archivos que ya existían se <strong>reemplazan</strong> por los nuevos; los que no tocaste quedan como estaban.</p>
+  <div class="nota">
+    <span class="nota-rotulo">Para una corrección chica</span>
+    <p>Alcanza con <code>index.html</code> y el archivo de <code>src/</code> que cambió. Pero <code>index.html</code> <strong>siempre</strong>: es lo único que se ejecuta.</p>
+  </div>
+
+  <h3>Activar GitHub Pages — una sola vez</h3>
+  <ol class="pasos">
+    <li><p>En el repositorio: pestaña <strong>Settings</strong> → menú izquierdo <strong>Pages</strong>.</p></li>
+    <li><p><strong>Source</strong>: <code>Deploy from a branch</code>.</p></li>
+    <li><p><strong>Branch</strong>: <code>main</code>, carpeta <code>/ (root)</code> → <strong>Save</strong>.</p></li>
+    <li><p>Esperá 1 o 2 minutos y recargá. Arriba aparece la dirección:</p>
+      <pre><code>https://claudioravasi-ai.github.io/afar/</code></pre></li>
+  </ol>
+
+  <h3>Cuánto tarda en verse el cambio</h3>
+  <p>Entre 1 y 2 minutos. En la pestaña <strong>Actions</strong> del repositorio se ve el tilde verde cuando terminó de publicar.</p>
+  <p>A los socios les llega sola al abrir la app: el service worker pide siempre la última versión y usa la copia guardada sólo si no hay señal. Si a alguien le quedó una versión vieja pegada, que cierre la app del todo y la vuelva a abrir.</p>
+</section>
+
+<!-- ============================ INSTALAR ============================ -->
+<section class="parte">
+  <div class="parte-eyebrow">
+    <span class="parte-num">Después</span>
+    <span class="parte-tiempo">1 minuto por equipo</span>
+  </div>
+  <h2>Instalarla en cada dispositivo</h2>
+  <p class="parte-intro">Abrila desde <code>https://claudioravasi-ai.github.io/afar/</code> e instalala. Queda con ícono propio, a pantalla completa y sin barra del navegador.</p>
+
+  <div class="tabla-caja">
+    <table>
+      <thead><tr><th>Equipo</th><th>Cómo</th></tr></thead>
+      <tbody>
+        <tr><td><strong>iPhone / iPad</strong></td><td>Abrir en <strong>Safari</strong> —no en Chrome—, botón <strong>Compartir</strong> → <em>Agregar a pantalla de inicio</em>.</td></tr>
+        <tr><td><strong>Android</strong></td><td>En Chrome, menú <strong>⋮</strong> → <em>Instalar aplicación</em>.</td></tr>
+        <tr><td><strong>Mac / Windows</strong></td><td>En Chrome o Edge, el ícono <strong>⊕</strong> de la barra de direcciones.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Cada socio entra con <strong>su</strong> correo y <strong>su</strong> contraseña. El primer ingreso queda <strong>pendiente</strong> hasta que la coordinación verifique matrícula y comprobante y lo apruebe.</p>
+</section>
+
+<!-- ============================ COMPROBAR ============================ -->
+<section class="parte">
+  <div class="parte-eyebrow">
+    <span class="parte-num">Control</span>
+    <span class="parte-tiempo">5 comprobaciones</span>
+  </div>
+  <h2>Comprobar que quedó todo bien</h2>
+  <p class="parte-intro">En orden. Si alguna falla, el problema está exactamente ahí.</p>
+
+  <div class="chequeo">
+    <div class="chequeo-caja"></div>
+    <div><b>La app abre</b><span>Andá a <code>https://claudioravasi-ai.github.io/afar/</code>. Tiene que aparecer la pantalla de ingreso con el logo.</span></div>
+  </div>
+  <div class="chequeo">
+    <div class="chequeo-caja"></div>
+    <div><b>La base está conectada</b><span>Entrá como socio y mirá arriba a la derecha: tiene que decir <strong>«En línea»</strong> con un punto turquesa que late. Si dice <strong>«Local»</strong>, revisá la Parte 2 — casi siempre es el proveedor Anónimo sin activar.</span></div>
+  </div>
+  <div class="chequeo">
+    <div class="chequeo-caja"></div>
+    <div><b>El tiempo real anda</b><span>Abrí la app en la computadora y en el teléfono con el mismo usuario. Cargá un paciente en una: tiene que aparecer en la otra en unos segundos, sin recargar.</span></div>
+  </div>
+  <div class="chequeo">
+    <div class="chequeo-caja"></div>
+    <div><b>Los PDF salen</b><span>Hacé una valoración de prueba con un paciente que tenga tu propio correo, completá el punto 15 y tocá <strong>Enviar valoración al paciente</strong>. Te tienen que llegar <strong>tres archivos PDF separados</strong>. Si avisa que el servicio está en una versión vieja, volvé a la Parte 1.</span></div>
+  </div>
+  <div class="chequeo">
+    <div class="chequeo-caja"></div>
+    <div><b>Borrá la demostración</b><span>Antes del primer paciente real, tocá <strong>Borrar</strong> en el cartel amarillo del inicio. Laura Fernández, Juan Pablo Gómez y sus fichas son de ejemplo y no deben quedar mezclados con datos reales.</span></div>
+  </div>
+</section>
+
+<!-- ============================ ANTES DE PACIENTES ============================ -->
+<section class="parte">
+  <div class="parte-eyebrow">
+    <span class="parte-num">Pendiente</span>
+  </div>
+  <h2>Antes de usarla con pacientes reales</h2>
+
+  <h3>Cambiar las claves de coordinación y del contable</h3>
+  <p><code>0112</code> y <code>2358</code> están escritas en el código y <strong>cualquiera que abra la página puede encontrarlas</strong>. Coordinación ve todas las historias clínicas; el portal contable, toda la facturación de la asociación.</p>
+  <p>Editá estas dos líneas de <code>src/core.js</code>:</p>
+  <pre><code>const CLAVE_COORDINADOR = '0112';
+const CLAVE_CONTABLE    = '2358';</code></pre>
+  <p>Reconstruí con <code>python3 build.py</code> y volvé a subir <code>index.html</code> y <code>src/core.js</code>. Elegí claves distintas entre sí y no las mandes por WhatsApp. Aun así siguen siendo visibles para quien inspeccione el código: es una limitación de cualquier app sin servidor propio.</p>
+
+  <h3>Qué protege y qué no</h3>
+  <div class="tabla-caja">
+    <table>
+      <tbody>
+        <tr><td>Contraseñas de los socios</td><td>Hash SHA-256, no en texto plano ✅</td></tr>
+        <tr><td>Base de datos</td><td>Cerrada: exige pase de Firebase ✅</td></tr>
+        <tr><td>Clave de API</td><td>Restringida al dominio ✅</td></tr>
+        <tr><td>Acceso por intervención</td><td>Cada socio ve sólo los pacientes en los que actuó ✅</td></tr>
+        <tr><td>Aprobación de altas por la coordinación</td><td>Sí ✅</td></tr>
+        <tr><td>Registro de auditoría</td><td>Sí ✅</td></tr>
+        <tr><td>Portal contable sin datos clínicos</td><td>Sí, por lista blanca de campos ✅</td></tr>
+        <tr><td>Claves de coordinación y contable</td><td>Visibles en el código ⚠️</td></tr>
+        <tr><td>Clave del envío de correos</td><td>Visible en el código ⚠️ Se corta cambiándola en Apps Script y en la app</td></tr>
+        <tr><td>Cifrado de los datos en reposo</td><td>No — lo que ofrece Firebase de fábrica</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p><strong>Marco legal.</strong> Ley 25.326 (datos personales), Leyes 26.529 y 26.742 (derechos del paciente e historia clínica). Conservación mínima: <strong>diez años</strong> desde la última actuación. Los respaldos JSON contienen datos de salud: guardalos cifrados y nunca en un repositorio público.</p>
+  <p style="margin-top:1rem">Esta misma guía queda en el repositorio como <code>PUBLICAR.md</code>, y el detalle del envío de correos en <code>ENVIO-DE-MAILS.md</code>.</p>
+</footer>
+
+</div>
+</body>
+</html>

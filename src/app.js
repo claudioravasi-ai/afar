@@ -153,17 +153,21 @@ function vistaPanel(){
   const hoy = hoyISO();
   const mes = mesDe(hoy);
   const todas = misFichas();
-  const dia = todas.filter(f => f.fecha === hoy);
-  const delMes = todas.filter(f => mesDe(f.fecha) === mes);
-  const semana = todas.filter(f => f.fecha && semanaISO(f.fecha) === semanaISO(hoy));
+  /* La actividad del día son las dos cosas que puede haber hecho hoy: ver
+     pacientes en el consultorio y anestesiar en el quirófano. */
+  const dia = todas.filter(f => fechaCirugiaDe(f) === hoy || fechaValoracionDe(f) === hoy);
+  const delMes = todas.filter(f => mesDe(fechaDeFicha(f)) === mes);
+  const semana = todas.filter(f => fechaDeFicha(f) && semanaISO(fechaDeFicha(f)) === semanaISO(hoy));
   const borradores = todas.filter(f => (f.estado || 'borrador') === 'borrador');
   const finalizadas = todas.filter(f => f.estado === 'cerrada');
-  const sinFirmar = todas.filter(f => f.fecha && f.fecha < hoy &&
-    f.estado !== 'cerrada' && (f.acto || {}).finCirugia);
+  const sinFirmar = todas.filter(f => { const cx = fechaCirugiaDe(f);
+    return cx && cx < hoy && f.estado !== 'cerrada' && (f.acto || {}).finCirugia; });
+  const honPend = honorariosDiferidos();
   /* Los importes del mes y lo pendiente de cobro se consultan en Facturación,
      no en el inicio. */
-  const proximas = todas.filter(f => f.fecha && f.fecha >= hoy && diasHasta(f.fecha) <= 7)
-    .sort((a,b) => (a.fecha + (a.hora||'')) < (b.fecha + (b.hora||'')) ? -1 : 1);
+  const proximas = todas.filter(f => { const cx = fechaCirugiaDe(f);
+      return cx && cx >= hoy && diasHasta(cx) <= 7; })
+    .sort((a,b) => (fechaCirugiaDe(a) + (a.hora||'')) < (fechaCirugiaDe(b) + (b.hora||'')) ? -1 : 1);
 
   /* fila de la lista de estado: rotulo, cuenta y a donde lleva */
   const filaEstado = (id, icono, txt, n, cls) =>
@@ -207,6 +211,8 @@ function vistaPanel(){
     filaEstado('Borr','ficha','Borradores', borradores.length, borradores.length?'warn':'')+
     filaEstado('Fin','check','Finalizadas', finalizadas.length, 'ok')+
     (sinFirmar.length ? filaEstado('Firm','firma','Pendientes de firma', sinFirmar.length, 'danger') : '')+
+    (honPend.length ? filaEstado('Hon','dinero','Honorarios que dejaste para después',
+      honPend.length, 'danger') : '')+
   '</div>'+
 
   tarjetaAvisosPanel()+
@@ -275,6 +281,9 @@ function vistaPanel(){
                        irA('fichas'); });
   ir('peFirm', () => { filtroFichas = Object.assign({}, filtroFichas, { estado:'realizada' });
                        irA('fichas'); });
+  /* Los honorarios diferidos se abren desde acá sin esperar al cartel de
+     las tres horas: el que quiere sacárselos de encima puede hacerlo ya. */
+  ir('peHon', () => { marcarCartelHon0(); revisarRecordatorioHonorarios(); });
   ir('tlIrPacientes', () => irA('pacientes'));
   ir('tlIrFichas', () => irA('fichas'));
   ir('tlIrVademecum', abrirVademecumSuelto);
@@ -324,7 +333,12 @@ function arrancarApp(){
   $('#app').classList.add('on');
   pintarEncabezado();
   irA(vistaInicial());
-  if(verDatosClinicos()) notificarCirugias();
+  if(verDatosClinicos()){
+    notificarCirugias();
+    /* Los honorarios que el anestesiólogo dejó para después se le recuerdan
+       cada tres horas hasta que los cargue. */
+    iniciarRecordatorioHonorarios();
+  }
   /* Refresco periodico: avisos clinicos cada 10 min y, para que el umbral de
      2 h de los reclamos se note sin recargar, los mensajes cada 2 minutos. */
   clearInterval(window.__tAvisos);

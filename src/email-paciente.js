@@ -1,22 +1,35 @@
 /* =========================================================================
-   ENVIO AL PACIENTE DE LA VALORACION PREQUIRURGICA Y EL CONSENTIMIENTO
+   ENVIO AL PACIENTE DE SU VALORACION Y SU CONSENTIMIENTO
    -------------------------------------------------------------------------
    QUE SE LE MANDA Y QUE NO
-   Al paciente se le manda SOLO su valoracion pre-anestesica —datos de
-   filiacion, antecedentes, medicacion, alergias, examen, escalas y plan— con
-   su consentimiento informado. Es lo que tiene que leer, firmar y llevar el
-   dia de la cirugia.
+   Al paciente se le manda SOLO su valoracion pre-anestesica —filiacion,
+   antecedentes, medicacion, alergias, examen, escalas y plan—, su
+   consentimiento informado y la hoja de indicaciones.
 
-   NO se le manda el registro del acto anestesico, la recuperacion ni la ficha
-   firmada: son el registro del equipo tratante, con valor medico-legal y
-   destino de auditoria, y no se entregan por correo. El boton para enviar
-   existe unicamente en los pasos Paciente y Preanestesia (ver ui-ficha.js);
-   tampoco salen los honorarios.
-   -------------------------------------------------------------------------
-   Arma el mail y se lo pasa al Apps Script configurado en email-config.js.
-   Los documentos van en el CUERPO del mail, no como adjuntos: la app no
-   genera PDF de verdad (el "PDF" es la impresion del navegador), asi que un
-   adjunto seria un .doc que en el telefono se ve mal o no abre.
+   NO se le manda el registro del acto anestesico, la recuperacion ni la
+   ficha firmada: son el registro del equipo tratante, con valor
+   medico-legal y destino de auditoria, y no se entregan por correo. Tampoco
+   sale un solo dato de facturacion: honorarios, modalidades e importes son
+   cosa entre el anestesiologo y el financiador.
+
+   COMO VIAJAN
+   En TRES ARCHIVOS PDF SEPARADOS, no pegados uno abajo del otro en el cuerpo
+   del mail:
+
+     1. Valoracion pre-anestesica
+     2. Consentimiento informado anestesico
+     3. Indicaciones para el dia de la cirugia
+
+   Van separados porque son tres cosas distintas: una es historia clinica,
+   otra es un instrumento juridico que se firma y se presenta solo, y la
+   tercera es la que el paciente lleva en el bolsillo. Cada una con su
+   membrete de la institucion, los datos del anestesiologo y de la AFAAR y el
+   pie legal que corresponde.
+
+   La app no genera el PDF: manda el HTML de cada documento y el conversor de
+   Google lo pasa a PDF antes de adjuntarlo (ver apps-script/Codigo.gs). Asi
+   no hace falta cargar ninguna libreria de PDF en la app y el paciente
+   recibe archivos de verdad, no un .doc que en el telefono no abre.
 
    El remitente es la cuenta de Google de la asociacion, no el mail personal
    del anestesiologo: ningun servicio puede enviar en nombre de una casilla
@@ -28,6 +41,26 @@
 function envioConfigurado(){
   return typeof ENVIO_URL === 'string' && ENVIO_URL.trim().length > 0 &&
          typeof ENVIO_CLAVE === 'string' && ENVIO_CLAVE.trim().length > 0;
+}
+
+/* Los documentos que se adjuntan, en el orden en que los va a ver */
+function documentosParaPaciente(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const ape = (p.apellido || 'paciente').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g,'');
+  const fch = fechaValoracionDe(f) || hoyISO();
+  const l = [
+    { nombre:'Valoracion-preanestesica-'+ape+'-'+fch+'.pdf',
+      titulo:'Valoración pre-anestésica',
+      html: docPacienteValoracion(f) },
+    { nombre:'Consentimiento-informado-anestesico-'+ape+'-'+fch+'.pdf',
+      titulo:'Consentimiento informado anestésico',
+      html: docPacienteConsentimiento(f) }
+  ];
+  if(INDICACIONES_AL_PACIENTE) l.push({
+    nombre:'Indicaciones-'+ape+'-'+fch+'.pdf',
+    titulo:'Indicaciones para el día de la cirugía',
+    html: docPacienteIndicaciones(f) });
+  return l;
 }
 
 /* ------------------------------------------------- Cuerpo del mail (HTML) */
@@ -45,16 +78,21 @@ function htmlMailPaciente(f, prof){
     '<p>Le escribo en mi carácter de médico/a anestesiólogo/a que realizó su '+
     'valoración prequirúrgica.</p>'+
 
-    '<p>Más abajo encontrará la documentación correspondiente a su evaluación '+
-    'anestesiológica:</p>'+
+    '<p>Adjunto a este correo va la documentación de su evaluación '+
+    'anestesiológica, en <b>archivos PDF separados</b>:</p>'+
 
     '<div style="border-left:4px solid #0b2545;padding:2px 0 2px 14px;margin:18px 0">'+
-      '<p style="margin:6px 0"><b>Valoración prequirúrgica.</b> Resumen de su historia '+
+      '<p style="margin:6px 0"><b>1. Valoración pre-anestésica.</b> Resumen de su historia '+
       'clínica, antecedentes, medicación, alergias y la evaluación realizada. '+
       'Es la información que necesita el equipo quirúrgico.</p>'+
-      '<p style="margin:6px 0"><b>Consentimiento informado en anestesia.</b> Deja constancia '+
+      '<p style="margin:6px 0"><b>2. Consentimiento informado anestésico.</b> Deja constancia '+
       'de que se le explicaron los riesgos, los beneficios y las alternativas del '+
-      'procedimiento anestésico, y de que usted lo autoriza.</p>'+
+      'procedimiento anestésico, y de que usted lo autoriza. Puede revocarlo en cualquier '+
+      'momento antes de la anestesia.</p>'+
+      (INDICACIONES_AL_PACIENTE
+        ? '<p style="margin:6px 0"><b>3. Indicaciones para el día de la cirugía.</b> Ayuno, '+
+          'medicación que debe seguir tomando y cuál suspender, qué llevar y con quién venir. '+
+          'Es la hoja que conviene tener a mano.</p>' : '')+
     '</div>'+
 
     '<div style="background:#fff8e6;border:1px solid #e6d08a;border-radius:8px;padding:12px 14px;margin:18px 0">'+
@@ -76,18 +114,6 @@ function htmlMailPaciente(f, prof){
     '</table>'+
 
     '<p>Saludos cordiales,<br><b>'+esc(firma)+'</b></p>'+
-
-    '<hr style="border:0;border-top:1px solid #ccd;margin:26px 0 14px">'+
-
-    /* ---- Los documentos, con el mismo formato que la version impresa ---- */
-    '<div style="font-family:Calibri,Arial,sans-serif;font-size:12px">'+
-      '<style>'+CSS_DOC+'</style>'+
-      /* Doble llave sobre lo que sale: `paraPaciente` ya deja afuera el
-         registro intraoperatorio, la recuperación y los honorarios, y
-         `parte:'valoracion'` lo vuelve a recortar. Al paciente se le manda su
-         valoración pre-anestésica y su consentimiento, nada más. */
-      documentoFicha(f, { paraPaciente:true, parte:'valoracion' })+
-    '</div>'+
 
     '<hr style="border:0;border-top:1px solid #ccd;margin:26px 0 14px">'+
 
@@ -118,23 +144,38 @@ function enviarDocumentacionPaciente(f){
     return toast('El envío por mail todavía no está configurado. Ver ENVIO-DE-MAILS.md', 'err');
   if(!f.pacienteId) return toast('La ficha no tiene paciente.', 'err');
   if(!p.email)      return toast('El paciente no tiene correo cargado. Agregalo en su ficha.', 'err');
-  if(!(f.consent && f.consent.quien))
-    return toast('Todavía no está firmado el consentimiento informado.', 'warn');
+  if(!consentimientoCompleto(f))
+    return toast('Falta completar el punto 15: el consentimiento informado.', 'warn');
+  if(!f.valoracionGuardada)
+    return toast('Guardá primero la valoración con el botón «Guardar valoración».', 'warn');
 
   const asunto = 'Documentación de valoración prequirúrgica — ' +
     (p.apellido || '') + ', ' + (p.nombre || '');
 
+  const docs = documentosParaPaciente(f);
+
   confirmar('Enviar documentación al paciente',
-    'Se envía a <b>'+esc(p.email)+'</b> la valoración prequirúrgica y el '+
-    'consentimiento informado de <b>'+esc((p.apellido||'')+', '+(p.nombre||''))+'</b>.<br><br>'+
+    'Se envía a <b>'+esc(p.email)+'</b> la documentación de <b>'+
+    esc((p.apellido||'')+', '+(p.nombre||''))+'</b> en '+docs.length+
+    ' archivos PDF <b>separados</b>:<br><br>'+
+    '<ol style="margin:0 0 12px 18px;padding:0;line-height:1.7">'+
+      docs.map(d => '<li>'+esc(d.titulo)+'</li>').join('')+
+    '</ol>'+
+    'Cada uno con el membrete de <b>'+esc(nombreInstitucion(f.institucion) || 'la institución')+
+    '</b>, tus datos de matrícula y el pie legal de la AFAAR.<br><br>'+
     'El mail sale a nombre de la AFAAR y las respuestas del paciente te llegan a '+
     '<b>'+esc(prof.email||'—')+'</b>.<br><br>'+
-    'Va únicamente la <b>valoración pre-anestésica</b> —filiación, antecedentes, '+
-    'medicación, alergias, examen y plan— con el consentimiento informado. '+
-    'No se incluyen el registro del acto anestésico, la recuperación ni ningún '+
-    'dato económico.',
+    'No se incluyen el registro del acto anestésico, la recuperación ni <b>ningún '+
+    'dato de facturación</b>.',
     async () => {
-      toast('Enviando…');
+      /* El conversor a PDF lo pone la versión 3 del programa de Apps Script.
+         Si el coordinador todavía no la republicó, el pedido saldría igual y
+         el paciente recibiría un correo SIN un solo documento adjunto: peor
+         que fallar. Se comprueba antes y no se manda nada. */
+      if(!(await soportaDocumentosPdf()))
+        return toast('El servicio de correo está en una versión vieja y no puede armar los PDF. '+
+                     'El coordinador tiene que volver a publicar el programa: ver ENVIO-DE-MAILS.md.', 'err');
+      toast('Generando los PDF y enviando…');
       try{
         /* Sin encabezados propios a proposito: agregar Content-Type dispara una
            consulta previa de permisos que Apps Script no responde y el envio
@@ -149,6 +190,9 @@ function enviarDocumentacionPaciente(f){
             nombre:     typeof ENVIO_NOMBRE !== 'undefined' ? ENVIO_NOMBRE : 'AFAAR',
             asunto:     asunto,
             html:       htmlMailPaciente(f, prof),
+            /* Cada documento va como HTML; el conversor de Google lo pasa a
+               PDF y lo adjunta con este nombre de archivo. */
+            documentos: docs.map(d => ({ nombre:d.nombre, html:d.html })),
             fichaId:    f.id,
             profesional: (prof.apellido||'')+', '+(prof.nombre||'')
           })
@@ -160,12 +204,14 @@ function enviarDocumentacionPaciente(f){
         const base = JSON.parse(JSON.stringify(DB.fichas[f.id] || f));
         base.envios = (base.envios || []).concat([{
           fecha: new Date().toISOString(), a: p.email,
+          documentos: docs.map(d => d.titulo),
           porUid: SESION ? SESION.uid : '', por: (prof.apellido||'')+', '+(prof.nombre||'')
         }]);
         escribir('fichas', base.id, base);
         if(fichaActual && fichaActual.id === base.id) fichaActual.envios = base.envios;
-        auditar('email-paciente', 'Documentación enviada a ' + p.email);
-        toast('Documentación enviada a ' + p.email, 'ok');
+        auditar('email-paciente',
+          docs.length + ' documentos enviados en PDF a ' + p.email);
+        toast(docs.length + ' PDF enviados a ' + p.email, 'ok');
         pintarFicha();
       }catch(err){
         toast('No se pudo enviar: ' + err.message, 'err');

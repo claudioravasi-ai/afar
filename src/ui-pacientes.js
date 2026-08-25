@@ -9,10 +9,39 @@
 let filtroPac = '';
 let pacEdit = null;          /* borrador del paciente en edicion */
 let solapaPac = 'fil';
+let alcancePac = 'mios';     /* mios | padron */
+
+/* =========================================================================
+   QUE PACIENTES VE CADA ANESTESIOLOGO
+   -------------------------------------------------------------------------
+   El listado arranca en MIS PACIENTES: aquellos en los que intervine, por la
+   valoracion prequirurgica, por el acto anestesico o por los dos. La historia
+   clinica de un paciente en el que nunca intervine no es asunto mio.
+
+   El PADRON completo sigue existiendo y sigue siendo consultable, porque sin
+   el la app se llena de pacientes duplicados: antes de cargar a alguien hay
+   que poder averiguar si ya esta. Pero en esa solapa solo se ven los datos
+   que hacen falta para reconocerlo —apellido, nombre y documento—; los
+   antecedentes, las alergias y las fichas quedan fuera hasta que se
+   intervenga. El selector de paciente del paso 1 tambien ve el padron
+   entero, por la misma razon.
+   ========================================================================= */
+function pacientesMios(){
+  if(esCoordinador()) return misPacientes();
+  const ids = {};
+  misFichas().forEach(f => { if(f.pacienteId) ids[f.pacienteId] = true; });
+  return misPacientes().filter(p => ids[p.id]);
+}
+function intervineEn(p){
+  if(esCoordinador()) return true;
+  return misFichas().some(f => f.pacienteId === p.id);
+}
 
 function vistaPacientes(){
   const cont = $('#vPacientes');
-  const todos = misPacientes().sort((a,b) =>
+  const padron = misPacientes();
+  const propios = pacientesMios();
+  const todos = (alcancePac === 'padron' ? padron : propios).sort((a,b) =>
     (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre, 'es'));
   const q = norm(filtroPac).trim();
   /* cada palabra tipeada debe aparecer en algún dato del paciente, así
@@ -27,47 +56,84 @@ function vistaPacientes(){
       })
     : todos;
 
+  const enPadron = alcancePac === 'padron';
+
   cont.innerHTML = ''+
   '<div class="vista-head"><div><h1>Pacientes</h1>'+
-    '<p>'+todos.length+' paciente'+(todos.length===1?'':'s')+' en el padrón de la asociación'+
+    '<p>'+todos.length+' paciente'+(todos.length===1?'':'s')+
+    (enPadron ? ' en el padrón de la asociación' : ' en los que interviniste')+
     (q ? ' · '+l.length+' coinciden con la búsqueda' : '')+'.</p></div>'+
     '<div class="acciones"><button class="btn pri" id="btnNuevoPac">'+ico('mas')+' Nuevo paciente</button></div></div>'+
+
+  (esCoordinador() ? '' :
+    '<div class="seg mb8" id="pacAlcance">'+
+      [['mios','Mis pacientes', propios.length],
+       ['padron','Padrón de la asociación', padron.length]].map(a =>
+        '<button type="button" data-v="'+a[0]+'"'+(alcancePac===a[0]?' class="on"':'')+'>'+
+        a[1]+'<span class="badge">'+a[2]+'</span></button>').join('')+
+    '</div>')+
 
   '<div class="campo"><div style="position:relative">'+
     '<input type="search" id="pacBuscar" placeholder="Buscar por apellido, nombre, DNI o HC…" value="'+esc(filtroPac)+'" style="padding-left:38px" autocomplete="off">'+
     '<span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--texto-3)">'+ico('buscar')+'</span>'+
   '</div></div>'+
 
-  (todos.length ? '<div class="aviso info">'+ico('pacientes')+'<div>'+
-    'El padrón es común a toda la asociación: antes de cargar un paciente, buscalo por DNI '+
-    'para no duplicarlo. Los antecedentes que cargues acá los hereda cada ficha nueva.</div></div>' : '')+
+  (enPadron
+    ? '<div class="aviso info">'+ico('candado')+'<div><b>Padrón completo de la asociación.</b> '+
+      'Está para que antes de cargar un paciente puedas averiguar si ya existe y no duplicarlo. '+
+      'De los pacientes en los que <b>no</b> interviniste ves sólo lo necesario para '+
+      'reconocerlos: la historia clínica se abre cuando hacés su valoración o su acto '+
+      'anestésico.</div></div>'
+    : (todos.length ? '<div class="aviso info">'+ico('pacientes')+'<div>'+
+      'Pacientes en los que interviniste, por la valoración prequirúrgica, por el acto '+
+      'anestésico o por los dos. Los antecedentes que cargues los hereda cada ficha '+
+      'nueva.</div></div>' : ''))+
 
   (l.length ? '<div class="lista">'+ l.map(p => {
-      const fichas = fichasVisibles().filter(f => f.pacienteId === p.id);
+      const mio = intervineEn(p);
+      const fichas = mio ? misFichas().filter(f => f.pacienteId === p.id) : [];
       const mias = fichas.filter(esAutorFicha).length;
       const ed = edadDe(p.fechaNac);
       const nAnt = (p.antecedentes || []).length;
       const alergias = (p.alergias || []).filter(a => a !== 'Sin alergias conocidas');
-      return '<div class="item" data-pac="'+p.id+'">'+
+      return '<div class="item'+(mio?'':' atenuado')+'" data-pac="'+p.id+'">'+
         '<div class="avatar">'+esc(iniciales(p.nombre,p.apellido))+'</div>'+
         '<div class="txt"><b>'+esc(p.apellido)+', '+esc(p.nombre)+'</b>'+
-          '<span>DNI '+esc(p.dni||'—')+(ed!==null?' · '+ed+' años':'')+' · '+esc(p.obraSocial||'Sin cobertura')+
-          (nAnt ? ' · '+nAnt+' antecedente'+(nAnt===1?'':'s') : '')+'</span></div>'+
+          '<span>DNI '+esc(p.dni||'—')+
+          /* Del paciente ajeno sale la identificación y nada más: la edad, la
+             cobertura, los antecedentes y las alergias son historia clínica. */
+          (mio ? (ed!==null?' · '+ed+' años':'')+' · '+esc(p.obraSocial||'Sin cobertura')+
+                 (nAnt ? ' · '+nAnt+' antecedente'+(nAnt===1?'':'s') : '')
+               : ' · no interviniste en este paciente')+'</span></div>'+
         '<div class="der">'+
-          (alergias.length ? '<span class="tag danger" title="'+esc(alergias.join(' · '))+'">Alergias</span> ' : '')+
-          '<span class="tag'+(fichas.length?' aqua':'')+'">'+fichas.length+' ficha'+(fichas.length===1?'':'s')+'</span>'+
-          (fichas.length && mias < fichas.length
-            ? '<div class="mini mt8">'+(mias||'ninguna')+' tuya'+(mias===1?'':'s')+'</div>' : '')+
+          (mio
+            ? (alergias.length ? '<span class="tag danger" title="'+esc(alergias.join(' · '))+'">Alergias</span> ' : '')+
+              '<span class="tag'+(fichas.length?' aqua':'')+'">'+fichas.length+' ficha'+(fichas.length===1?'':'s')+'</span>'+
+              (fichas.length && mias < fichas.length
+                ? '<div class="mini mt8">'+(mias||'ninguna')+' tuya'+(mias===1?'':'s')+'</div>' : '')
+            : '<span class="tag">'+ico('candado')+'</span>')+
         '</div></div>';
     }).join('') +'</div>'
-    : '<div class="vacio">'+ico('pacientes')+'<b>'+(q?'Sin resultados':'Todavía no cargaste pacientes')+'</b>'+
-      '<span>'+(q?'Probá con otro apellido o DNI.':'Tocá «Nuevo paciente» para empezar.')+'</span></div>');
+    : '<div class="vacio">'+ico('pacientes')+'<b>'+
+      (q ? 'Sin resultados' : enPadron ? 'El padrón está vacío' : 'Todavía no interviniste en ningún paciente')+'</b>'+
+      '<span>'+(q ? 'Probá con otro apellido o DNI'+(enPadron?'.':', o buscá en el padrón de la asociación.')
+                  : enPadron ? 'Tocá «Nuevo paciente» para empezar.'
+                  : 'Los pacientes aparecen acá cuando les hacés la valoración prequirúrgica o el acto anestésico.')+
+      '</span></div>');
 
   $('#btnNuevoPac').onclick = () => editarPaciente(null);
+  $$('#pacAlcance button').forEach(b => b.onclick = () => {
+    alcancePac = b.dataset.v; vistaPacientes(); });
   $('#pacBuscar').oninput = debounce(e => { filtroPac = e.target.value; vistaPacientes();
     const i = $('#pacBuscar'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }, 260);
   $$('#vPacientes .item').forEach(it => {
-    it.onclick = () => abrirPaciente(it.dataset.pac);
+    it.onclick = () => {
+      const p = DB.pacientes[it.dataset.pac];
+      if(!intervineEn(p))
+        return toast('No interviniste en este paciente: su historia clínica no se abre. '+
+                     'Aparece en el padrón para que no lo cargues dos veces.', 'warn');
+      abrirPaciente(it.dataset.pac);
+    };
   });
 }
 
@@ -643,7 +709,7 @@ function guardarPacienteEditado(){
 function abrirPaciente(id){
   const p = DB.pacientes[id]; if(!p) return;
   const fichas = fichasVisibles().filter(f => f.pacienteId === id)
-    .sort((a,b) => (b.fecha||'') < (a.fecha||'') ? -1 : 1);
+    .sort((a,b) => (fechaDeFicha(b)||'') < (fechaDeFicha(a)||'') ? -1 : 1);
   const ed = edadDe(p.fechaNac);
   const imc = calcIMC(p.peso, p.talla);
   const ant = p.antecedentes || [];
@@ -736,8 +802,15 @@ function abrirPaciente(id){
         '<div class="avatar" style="background:'+(f.caracter==='urgencia'?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
           ico('ficha')+'</div>'+
         '<div class="txt"><b>'+esc(f.cirugia||'Sin cirugía cargada')+'</b>'+
-          '<span>'+fFecha(f.fecha)+' · '+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+
-          ' · '+esc(autorFicha(f))+(esAutorFicha(f)?' (vos)':'')+'</span></div>'+
+          '<span>'+(fechaCirugiaDe(f)
+            ? 'cirugía '+fFecha(fechaCirugiaDe(f))
+            : 'valoración '+fFecha(fechaValoracionDe(f)))+
+          ' · '+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+'</span>'+
+          '<span class="quien">'+
+            (esAutorFicha(f) ? 'Valoración tuya' : 'Valoración de '+esc(autorFicha(f)))+
+            ' · '+(esActorFicha(f) ? 'acto tuyo'
+                 : actoLibre(f) ? 'acto sin tomar' : 'acto de '+esc(nombreActor(f)))+
+          '</span></div>'+
         '<div class="der">'+etiquetaEstadoFicha(f)+'</div>'+
       '</div>').join('') +'</div>'
     : '<p class="mini">Todavía no hay fichas para este paciente.</p>');
@@ -761,8 +834,17 @@ function fila(l, v){
     '<b style="min-width:135px;color:var(--texto-2);font-weight:650">'+esc(l)+'</b>'+
     '<span style="flex:1">'+esc(v)+'</span></div>';
 }
+/* Los tres estados de una ficha, con el matiz que hace falta para distinguir
+   la que ya se firmó de la que quedó a mitad de camino. «Realizada» es
+   ambigua: puede ser una valoración cerrada esperando la cirugía o un acto
+   registrado sin firmar. Se dice cuál de las dos es. */
 function etiquetaEstadoFicha(f){
-  if(f.estado === 'cerrada')   return '<span class="tag ok">Finalizada</span>';
-  if(f.estado === 'realizada') return '<span class="tag info">Realizada</span>';
+  if(f.estado === 'cerrada')   return '<span class="tag ok">'+ico('check')+'Finalizada</span>';
+  if(f.estado === 'realizada'){
+    if(!fechaCirugiaDe(f))     return '<span class="tag info">Valoración cerrada</span>';
+    return (f.acto||{}).finAnestesia
+      ? '<span class="tag warn">Falta firmar</span>'
+      : '<span class="tag info">Realizada</span>';
+  }
   return '<span class="tag warn">Borrador</span>';
 }

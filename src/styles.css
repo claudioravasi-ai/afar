@@ -1034,3 +1034,104 @@ html[data-tema="oscuro"] .firma-img{filter:invert(1) contrast(1.2)}
 /* La etiqueta de concepto dice el acto médico completo; en el teléfono tiene
    que poder partirse en dos renglones en vez de salirse de la celda. */
 .tag.concepto{white-space:normal;text-align:center;line-height:1.25;display:inline-block}
+
+/* =========================================================================
+   FLUJO DE TRABAJO — lo nuevo del rediseño de los cinco pasos
+   ========================================================================= */
+
+/* ---- Semáforo de la barra de pasos ---------------------------------------
+   Cuatro estados y cuatro colores, con el rótulo escrito debajo. El color
+   solo no alcanza: hay anestesiólogos que no distinguen verde de ámbar, y en
+   la pantalla de un teléfono al sol tampoco se distinguen. */
+.step .est{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  padding:1.5px 7px;border-radius:999px;line-height:1.5;white-space:nowrap;
+  background:var(--bg-2);color:var(--texto-3);border:1px solid var(--borde)}
+.step .est.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.step .est.medio{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.step .est.alerta{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+.step.alerta .dot{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+.step.alerta .lbl{color:var(--danger)}
+/* El paso donde estoy parado gana el punto azul, pero conserva el rótulo de
+   su estado: saber dónde estoy y saber cómo está son dos cosas distintas. */
+.step.on .est{box-shadow:0 0 0 2px var(--panel)}
+.stepper{padding:2px 2px 4px}
+
+/* ---- Aviso de autoguardado ---------------------------------------------- */
+.autoguarda{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--texto-3);
+  justify-content:center;margin-top:10px}
+.autoguarda svg{width:14px;height:14px;flex:none;opacity:.7}
+.autoguarda-acto{display:flex;align-items:center;justify-content:center;gap:7px;
+  font-size:12px;color:var(--ok);font-weight:600;margin-top:14px;min-height:18px}
+.autoguarda-acto svg{width:14px;height:14px;flex:none}
+
+/* ---- Caja de documentos al pie del paso ---------------------------------- */
+.doc-caja{margin-top:18px;padding:14px;border:1px dashed var(--borde-2);
+  border-radius:var(--radio);background:var(--panel-2)}
+.doc-caja-tit{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--azul-600);
+  margin-bottom:8px}
+.doc-caja-tit svg{width:17px;height:17px;flex:none}
+.doc-caja .btn[disabled]{opacity:.42;cursor:not-allowed;pointer-events:none}
+
+/* ---- Tomar el acto anestésico -------------------------------------------
+   Es lo primero que se ve al entrar al paso y tiene que gritar: sin dueño no
+   hay registro que valga. */
+.tomar-acto{display:flex;flex-direction:column;gap:12px;padding:16px;margin-bottom:14px;
+  border-radius:var(--radio);border:2px solid var(--azul-500);
+  background:linear-gradient(135deg,var(--azul-100),var(--panel));
+  box-shadow:var(--sombra)}
+.tomar-acto .ta-txt{display:flex;gap:11px;align-items:flex-start}
+.tomar-acto .ta-txt > svg{width:24px;height:24px;flex:none;color:var(--azul-600);margin-top:1px}
+.tomar-acto b{display:block;font-size:15px;color:var(--azul-700);margin-bottom:3px}
+.tomar-acto span{font-size:13px;color:var(--texto-2);line-height:1.5}
+.tomar-acto .btn{width:100%;letter-spacing:.03em}
+html[data-tema="oscuro"] .tomar-acto{background:linear-gradient(135deg,var(--azul-100),var(--panel))}
+
+/* ---- Cronómetro de los tiempos del acto ---------------------------------- */
+.crono{display:flex;flex-direction:column;gap:8px}
+.crono-fila{display:grid;grid-template-columns:1fr 118px auto;gap:9px;align-items:center}
+.crono-fila label{font-size:13px;color:var(--texto-2);font-weight:600}
+.crono-fila input{width:100%}
+.crono-fila input.sellado{border-color:var(--ok);background:var(--ok-bg);transition:.3s}
+@media (max-width:520px){
+  .crono-fila{grid-template-columns:1fr auto;grid-template-areas:"l l" "i b"}
+  .crono-fila label{grid-area:l}
+  .crono-fila input{grid-area:i}
+  .crono-fila button{grid-area:b}
+}
+
+/* ---- Texto del consentimiento dentro del punto 15 ------------------------ */
+.consent-texto{max-height:280px;overflow:auto;background:var(--bg-2);padding:14px;
+  border-radius:var(--radio-sm);border:1px solid var(--borde);
+  white-space:pre-line;line-height:1.62;font-size:12.5px;color:var(--texto);
+  text-align:justify;-webkit-overflow-scrolling:touch}
+
+/* ---- Las dos preguntas del cierre ---------------------------------------- */
+.opciones-cierre{display:flex;flex-direction:column;gap:9px}
+.op-cierre{display:flex;align-items:center;gap:12px;padding:14px;text-align:left;
+  border:1.5px solid var(--borde);border-radius:var(--radio);background:var(--panel);
+  cursor:pointer;transition:.15s;width:100%;font-family:inherit}
+.op-cierre:hover,.op-cierre:focus-visible{border-color:var(--azul-500);
+  background:var(--azul-100);transform:translateY(-1px)}
+.op-cierre > svg{width:22px;height:22px;flex:none;color:var(--azul-600)}
+.op-cierre b{display:block;font-size:14.5px;color:var(--texto);margin-bottom:2px}
+.op-cierre span{font-size:12.5px;color:var(--texto-2);line-height:1.45}
+
+/* ---- Recordatorio de honorarios pendientes ------------------------------- */
+.hon-pend-lista{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.hon-pend{display:flex;align-items:center;gap:11px;padding:11px 13px;width:100%;
+  border:1px solid var(--borde);border-radius:var(--radio-sm);background:var(--panel);
+  cursor:pointer;text-align:left;font-family:inherit;transition:.15s}
+.hon-pend:hover{border-color:var(--danger);background:var(--danger-bg)}
+.hon-pend > svg{width:19px;height:19px;flex:none;color:var(--danger)}
+.hon-pend .tx{flex:1;min-width:0}
+.hon-pend .tx b{display:block;font-size:13.5px;color:var(--texto)}
+.hon-pend .tx i{font-style:normal;font-size:12px;color:var(--texto-2)}
+
+/* ---- Quién hizo qué, en la lista de fichas -------------------------------- */
+.lista .item .txt .quien{display:block;font-size:11.5px;color:var(--texto-3);margin-top:2px}
+
+/* ---- Contador en las solapas de alcance ---------------------------------- */
+.seg button .badge{display:inline-flex;align-items:center;justify-content:center;
+  min-width:17px;height:17px;padding:0 5px;margin-left:6px;border-radius:999px;
+  background:var(--bg-2);color:var(--texto-2);font-size:10.5px;font-weight:800}
+.seg button.on .badge{background:rgba(255,255,255,.28);color:#fff}

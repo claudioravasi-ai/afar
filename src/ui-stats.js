@@ -23,9 +23,17 @@ function rangoPeriodo(){
   if(stPeriodo === 'anio') return [hoy.getFullYear()+'-01-01', hoy.getFullYear()+'-12-31'];
   return [stDesde || '2000-01-01', stHasta || '2100-12-31'];
 }
+/* Una ficha entra en el rango si cae dentro CUALQUIERA de sus dos fechas: la
+   de la valoración prequirúrgica o la del acto anestésico. Suelen estar en
+   meses distintos, y el que hizo la consulta en marzo tiene que ver ese
+   trabajo en marzo aunque la cirugía haya sido en abril. */
+function fichaEnRango(f, d, h){
+  const v = fechaValoracionDe(f), c = fechaCirugiaDe(f);
+  return (!!v && v >= d && v <= h) || (!!c && c >= d && c <= h);
+}
 function fichasEnRango(){
   const [d,h] = rangoPeriodo();
-  return misFichas().filter(f => f.fecha && f.fecha >= d && f.fecha <= h);
+  return misFichas().filter(f => fichaEnRango(f, d, h));
 }
 function agrupar(fichas, fn){
   const m = {};
@@ -106,7 +114,8 @@ function vistaStats(){
 
   /* serie temporal por dia dentro del rango */
   const serie = {};
-  mias.forEach(f => { serie[f.fecha] = (serie[f.fecha] || 0) + 1; });
+  mias.forEach(f => { const k = fechaDeFicha(f);
+    if(k) serie[k] = (serie[k] || 0) + 1; });
   const dias = Object.keys(serie).sort().map(k => ({ t: k.slice(8)+'/'+k.slice(5,7), v: serie[k] }));
 
   cont.innerHTML = ''+

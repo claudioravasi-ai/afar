@@ -52,15 +52,34 @@ matrícula y comprobante de socio y lo apruebe.
 
 | | Socio | Coordinador | Contable |
 |---|---|---|---|
-| Padrón de pacientes | Completo, compartido por la asociación | Completo | **Ninguno** |
+| Pacientes | Aquellos en los que intervino | Completo | **Ninguno** |
+| Padrón de la asociación | Sólo identificación, para no duplicar | Completo | **Ninguno** |
 | Fichas propias | Lectura y edición total | Todas | **Ninguna** |
-| Fichas de colegas | Lectura completa; sólo puede cargar el **acto anestésico** | Todas | **Ninguna** |
+| Fichas compartidas con un colega | Lectura completa; escribe sólo su sección | Todas | **Ninguna** |
+| Fichas ajenas ya tomadas | **No las ve** | Todas | **Ninguna** |
+| Valoraciones con el acto libre | Las ve y puede tomar el acto | Todas | **Ninguna** |
 | Estadísticas y facturación | Sólo su actividad | Toda la asociación | Toda, sin datos clínicos |
 | Comunicación interna | Sus hilos | Sus hilos | Sus hilos |
 
-El **padrón de pacientes es común**: cualquier socio busca por apellido, nombre
-o DNI y encuentra a un paciente ya cargado por otro, sin duplicarlo. Al escribir
-un DNI que ya existe, la app avisa y ofrece abrir la ficha existente.
+**Acceso por intervención.** Cada anestesiólogo ve lo que hizo. La historia
+clínica de un paciente en el que nunca intervino no es asunto suyo (Ley 26.529
+art. 2 inc. c y Ley 25.326). Las fichas se agrupan en tres solapas:
+
+- **Mías** — hice la valoración prequirúrgica, el acto anestésico, o los dos.
+- **De colegas** — intervinimos dos: uno valoró y el otro anestesió. Los dos la
+  ven entera, porque los dos la necesitan. El que anestesia tiene que poder leer
+  el prequirúrgico; el que valoró tiene derecho a saber cómo terminó su
+  paciente.
+- **Disponibles** — valoraciones de cualquier socio cuyo acto **todavía no tiene
+  anestesiólogo**. Se comparten con todos, porque cualquiera puede tener que
+  tomar ese acto: de eso se trata una guardia. En cuanto alguien lo toma, sale
+  de esta lista y pasa a ser suya y del que valoró.
+
+El **padrón de pacientes sigue siendo común**, porque sin él la app se llena de
+pacientes duplicados: antes de cargar a alguien hay que poder averiguar si ya
+está. Pero de los pacientes en los que no se intervino se ven **sólo apellido,
+nombre y documento**; los antecedentes, las alergias y las fichas se abren
+cuando se les hace la valoración o el acto.
 
 ### Dos actos médicos, dos honorarios
 
@@ -135,16 +154,38 @@ llenaría el `localStorage` de todos los equipos.
 ### Portal del socio
 - **Pacientes**: datos filiatorios, cobertura, antropometría con IMC y
   superficie corporal calculados.
-- **Ficha anestésica** en cinco solapas:
-  1. **Quirúrgico** — carácter (programada / urgencia / emergencia),
-     institución, financiador, cirugía y diagnóstico CIE-10, equipo quirúrgico.
-  2. **Valoración** — once secciones con cálculo automático de escalas.
-  3. **Plan** — técnica, vía aérea, monitoreo, profilaxis, analgesia, destino.
-  4. **Acto** — tiempos, técnica realizada, balance, checklist de la OMS,
-     eventos adversos y Aldrete al egreso.
-  5. **Honorarios** — modalidad de convenio, unidades, adicionales y estado
-     administrativo.
-- **Consentimiento informado** (Ley 26.529) con firma táctil del paciente y
+- **Ficha anestésica** en cinco pasos, en el orden en que ocurre el acto
+  médico. Cada paso se pinta solo con uno de cuatro colores —**completo**,
+  **a medias**, **falta** y **pendiente**—, con el rótulo escrito debajo del
+  punto, para saber de un vistazo si el registro está en condiciones de
+  firmarse:
+  1. **Paciente** — carácter (programada / urgencia / emergencia), institución,
+     financiador, diagnóstico y cirugía del nomenclador. **No pide fecha ni
+     hora**: cuando se hace la valoración, la cirugía todavía no está
+     programada.
+  2. **Preanestesia** — quince puntos con cálculo automático de escalas, plan
+     anestésico, designación del anestesiólogo que va a operar y, como
+     **punto 15, el consentimiento informado**, que se firma en la tablet, la
+     computadora o el teléfono y sin el cual la valoración no se puede
+     concluir.
+  3. **Anestesia** — botón **TOMAR ACTO ANESTÉSICO**, fecha real de la cirugía,
+     cronómetro de los seis tiempos, y cinco solapas que **se guardan solas** a
+     medida que se editan: Resumen, Drogas, Signos vitales, Balance y Eventos.
+  4. **Recuperación** — Aldrete modificado, dolor EVA, náuseas y destino.
+  5. **Firmar** — resumen, firma del anestesiólogo y cierre del registro.
+
+  Los pasos Paciente, Anestesia y Recuperación **no tienen botón Guardar**: se
+  graban solos al tocar «Siguiente». Guardan a mano únicamente los dos que
+  cierran un acto médico completo, Preanestesia y Firmar.
+- **Honorarios** — modalidad de convenio, unidades, adicionales y estado
+  administrativo. Al cerrar la ficha la app pregunta si se cargan en el momento
+  o se difieren; si se difieren, **lo recuerda cada tres horas** hasta que se
+  carguen.
+- **Consentimiento informado** anestésico (Leyes 26.529 y 26.742, decreto
+  1089/2012, art. 59 del CCyCN), con once apartados —naturaleza del acto,
+  técnicas, monitoreo, riesgos frecuentes, poco frecuentes y graves, ayuno y
+  medicación, situaciones imprevistas, transfusión, declaración jurada de
+  antecedentes, revocación y datos personales— y firma táctil del paciente y
   del anestesiólogo.
 - **Estadísticas** por día, semana, mes, año o rango, cruzadas por institución,
   financiador, cirugía, especialidad, patología, anestesiólogo, carácter,
@@ -266,6 +307,9 @@ propio buscador** y queda disponible para el resto de la asociación.
 | Resumen de facturación | **Excel (.xls)** | Facturación → Excel |
 | Resumen de facturación | **PDF** | Facturación → PDF |
 | Estadísticas del período | **Excel (.xls)** | Estadísticas → Exportar |
+| Valoración pre-anestésica para el paciente | **PDF** adjunto | Preanestesia → Enviar valoración al paciente |
+| Consentimiento informado firmado | **PDF** adjunto aparte | Preanestesia → Enviar valoración al paciente |
+| Indicaciones para el día de la cirugía | **PDF** adjunto aparte | Preanestesia → Enviar valoración al paciente |
 | Valoración pre-anestésica sola | **Word (.doc)** y **PDF** | Contaduría → envío → Documento |
 | Ficha anestésica del acto sola | **Word (.doc)** y **PDF** | Contaduría → envío → Documento |
 | Parte quirúrgico adjunto | El archivo original (PDF, JPG, …) | Contaduría → envío → Parte quirúrgico |
@@ -274,6 +318,13 @@ propio buscador** y queda disponible para el resto de la asociación.
 
 Todos llevan membrete de la AFAAR, de la institución y del anestesiólogo
 actuante, con su matrícula y su firma.
+
+Los **tres documentos que se le mandan al paciente** viajan como archivos PDF
+**separados**, no pegados uno abajo del otro en el cuerpo del correo, y **sin un
+solo dato de facturación**. Los arma el conversor de Google a partir del HTML
+que manda la app, de modo que no hace falta ninguna librería de PDF: ver
+[ENVIO-DE-MAILS.md](ENVIO-DE-MAILS.md), que explica cómo republicar el programa
+de Apps Script para habilitarlos.
 
 ---
 

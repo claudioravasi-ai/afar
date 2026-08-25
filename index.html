@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.23.1449";</script>
+<script>window.AFAR_BUILD = "2026.08.25.1224";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -1054,6 +1054,107 @@ html[data-tema="oscuro"] .firma-img{filter:invert(1) contrast(1.2)}
    que poder partirse en dos renglones en vez de salirse de la celda. */
 .tag.concepto{white-space:normal;text-align:center;line-height:1.25;display:inline-block}
 
+/* =========================================================================
+   FLUJO DE TRABAJO — lo nuevo del rediseño de los cinco pasos
+   ========================================================================= */
+
+/* ---- Semáforo de la barra de pasos ---------------------------------------
+   Cuatro estados y cuatro colores, con el rótulo escrito debajo. El color
+   solo no alcanza: hay anestesiólogos que no distinguen verde de ámbar, y en
+   la pantalla de un teléfono al sol tampoco se distinguen. */
+.step .est{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  padding:1.5px 7px;border-radius:999px;line-height:1.5;white-space:nowrap;
+  background:var(--bg-2);color:var(--texto-3);border:1px solid var(--borde)}
+.step .est.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.step .est.medio{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.step .est.alerta{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+.step.alerta .dot{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+.step.alerta .lbl{color:var(--danger)}
+/* El paso donde estoy parado gana el punto azul, pero conserva el rótulo de
+   su estado: saber dónde estoy y saber cómo está son dos cosas distintas. */
+.step.on .est{box-shadow:0 0 0 2px var(--panel)}
+.stepper{padding:2px 2px 4px}
+
+/* ---- Aviso de autoguardado ---------------------------------------------- */
+.autoguarda{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--texto-3);
+  justify-content:center;margin-top:10px}
+.autoguarda svg{width:14px;height:14px;flex:none;opacity:.7}
+.autoguarda-acto{display:flex;align-items:center;justify-content:center;gap:7px;
+  font-size:12px;color:var(--ok);font-weight:600;margin-top:14px;min-height:18px}
+.autoguarda-acto svg{width:14px;height:14px;flex:none}
+
+/* ---- Caja de documentos al pie del paso ---------------------------------- */
+.doc-caja{margin-top:18px;padding:14px;border:1px dashed var(--borde-2);
+  border-radius:var(--radio);background:var(--panel-2)}
+.doc-caja-tit{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--azul-600);
+  margin-bottom:8px}
+.doc-caja-tit svg{width:17px;height:17px;flex:none}
+.doc-caja .btn[disabled]{opacity:.42;cursor:not-allowed;pointer-events:none}
+
+/* ---- Tomar el acto anestésico -------------------------------------------
+   Es lo primero que se ve al entrar al paso y tiene que gritar: sin dueño no
+   hay registro que valga. */
+.tomar-acto{display:flex;flex-direction:column;gap:12px;padding:16px;margin-bottom:14px;
+  border-radius:var(--radio);border:2px solid var(--azul-500);
+  background:linear-gradient(135deg,var(--azul-100),var(--panel));
+  box-shadow:var(--sombra)}
+.tomar-acto .ta-txt{display:flex;gap:11px;align-items:flex-start}
+.tomar-acto .ta-txt > svg{width:24px;height:24px;flex:none;color:var(--azul-600);margin-top:1px}
+.tomar-acto b{display:block;font-size:15px;color:var(--azul-700);margin-bottom:3px}
+.tomar-acto span{font-size:13px;color:var(--texto-2);line-height:1.5}
+.tomar-acto .btn{width:100%;letter-spacing:.03em}
+html[data-tema="oscuro"] .tomar-acto{background:linear-gradient(135deg,var(--azul-100),var(--panel))}
+
+/* ---- Cronómetro de los tiempos del acto ---------------------------------- */
+.crono{display:flex;flex-direction:column;gap:8px}
+.crono-fila{display:grid;grid-template-columns:1fr 118px auto;gap:9px;align-items:center}
+.crono-fila label{font-size:13px;color:var(--texto-2);font-weight:600}
+.crono-fila input{width:100%}
+.crono-fila input.sellado{border-color:var(--ok);background:var(--ok-bg);transition:.3s}
+@media (max-width:520px){
+  .crono-fila{grid-template-columns:1fr auto;grid-template-areas:"l l" "i b"}
+  .crono-fila label{grid-area:l}
+  .crono-fila input{grid-area:i}
+  .crono-fila button{grid-area:b}
+}
+
+/* ---- Texto del consentimiento dentro del punto 15 ------------------------ */
+.consent-texto{max-height:280px;overflow:auto;background:var(--bg-2);padding:14px;
+  border-radius:var(--radio-sm);border:1px solid var(--borde);
+  white-space:pre-line;line-height:1.62;font-size:12.5px;color:var(--texto);
+  text-align:justify;-webkit-overflow-scrolling:touch}
+
+/* ---- Las dos preguntas del cierre ---------------------------------------- */
+.opciones-cierre{display:flex;flex-direction:column;gap:9px}
+.op-cierre{display:flex;align-items:center;gap:12px;padding:14px;text-align:left;
+  border:1.5px solid var(--borde);border-radius:var(--radio);background:var(--panel);
+  cursor:pointer;transition:.15s;width:100%;font-family:inherit}
+.op-cierre:hover,.op-cierre:focus-visible{border-color:var(--azul-500);
+  background:var(--azul-100);transform:translateY(-1px)}
+.op-cierre > svg{width:22px;height:22px;flex:none;color:var(--azul-600)}
+.op-cierre b{display:block;font-size:14.5px;color:var(--texto);margin-bottom:2px}
+.op-cierre span{font-size:12.5px;color:var(--texto-2);line-height:1.45}
+
+/* ---- Recordatorio de honorarios pendientes ------------------------------- */
+.hon-pend-lista{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.hon-pend{display:flex;align-items:center;gap:11px;padding:11px 13px;width:100%;
+  border:1px solid var(--borde);border-radius:var(--radio-sm);background:var(--panel);
+  cursor:pointer;text-align:left;font-family:inherit;transition:.15s}
+.hon-pend:hover{border-color:var(--danger);background:var(--danger-bg)}
+.hon-pend > svg{width:19px;height:19px;flex:none;color:var(--danger)}
+.hon-pend .tx{flex:1;min-width:0}
+.hon-pend .tx b{display:block;font-size:13.5px;color:var(--texto)}
+.hon-pend .tx i{font-style:normal;font-size:12px;color:var(--texto-2)}
+
+/* ---- Quién hizo qué, en la lista de fichas -------------------------------- */
+.lista .item .txt .quien{display:block;font-size:11.5px;color:var(--texto-3);margin-top:2px}
+
+/* ---- Contador en las solapas de alcance ---------------------------------- */
+.seg button .badge{display:inline-flex;align-items:center;justify-content:center;
+  min-width:17px;height:17px;padding:0 5px;margin-left:6px;border-radius:999px;
+  background:var(--bg-2);color:var(--texto-2);font-size:10.5px;font-weight:800}
+.seg button.on .badge{background:rgba(255,255,255,.28);color:#fff}
+
 </style>
 </head>
 <body>
@@ -1452,16 +1553,123 @@ const ANALGESIA_POP = [
   'Dexmedetomidina','Crioterapia / medidas no farmacológicas'
 ];
 
-/* ---------- Consentimiento informado - texto base ---------- */
-const TEXTO_CONSENTIMIENTO = `Declaro que el/la profesional anestesiólogo/a me ha explicado, en lenguaje claro y comprensible, el procedimiento anestésico propuesto para la intervención indicada, así como sus alternativas razonables.
+/* ---------- Consentimiento informado anestesico - texto base ----------
+   Redactado sobre el modelo de consentimiento informado anestesico de la
+   Asociacion de Anestesia, Analgesia y Reanimacion de Buenos Aires
+   (anestesia.org.ar) y los formularios de anestesia y analgesia
+   postoperatoria del Hospital Nacional Baldomero Sommer (Ministerio de
+   Salud de la Nacion), ajustado a la Ley 26.529 de Derechos del Paciente,
+   su modificatoria Ley 26.742, el Decreto reglamentario 1089/2012, el
+   articulo 59 del Codigo Civil y Comercial, la Ley 17.132 del Ejercicio de
+   la Medicina y la Ley 25.326 de Proteccion de Datos Personales.
 
-Comprendo que la anestesia es un acto médico que, aun realizado con la mayor diligencia, no está exento de riesgos. Se me han explicado los riesgos generales (náuseas y vómitos, dolor de garganta, lesión dentaria o labial, cefalea, dolor lumbar, retención urinaria, hipotensión, reacciones alérgicas) y los riesgos graves poco frecuentes (dificultad en el manejo de la vía aérea, aspiración de contenido gástrico, lesión nerviosa, despertar intraoperatorio, infarto, accidente cerebrovascular, hipertermia maligna, coma y muerte), cuya probabilidad aumenta en función de mi estado de salud previo y de la complejidad de la cirugía.
+   Se imprime completo en la valoracion pre-anestesica y viaja como PDF
+   aparte en el envio al paciente. */
+const TEXTO_CONSENTIMIENTO = `1. NATURALEZA DEL ACTO ANESTESICO
 
-Se me ha informado sobre mi riesgo anestésico particular, se me ha dado la oportunidad de realizar preguntas y todas ellas fueron respondidas satisfactoriamente. Entiendo que puedo revocar este consentimiento en cualquier momento antes del procedimiento sin que ello afecte la calidad de mi atención.
+Declaro que el/la profesional anestesiólogo/a me ha explicado, en lenguaje claro, sencillo y comprensible, el procedimiento anestésico propuesto para la intervención indicada, sus motivos, características, propósitos, beneficios esperados, riesgos, molestias, efectos adversos previsibles y las alternativas razonables, con sus propios riesgos y beneficios, incluida la de no realizar ningún procedimiento.
 
-Autorizo asimismo a que, si durante el acto anestésico surgieran situaciones imprevistas, el equipo adopte las medidas que resulten necesarias para preservar mi vida y mi salud, incluida la transfusión de hemoderivados cuando sea indispensable, salvo la objeción que se consigna expresamente en esta ficha.
+Comprendo que la anestesia es un acto médico autónomo, distinto de la cirugía, cuyo objeto es suprimir el dolor, mantener las funciones vitales y cuidar mi estado general durante todo el procedimiento y en el postoperatorio inmediato. Entiendo que es el/la médico/a anestesiólogo/a quien indica la técnica anestésica adecuada a mi caso, según la operación prevista y mis condiciones de salud, y que puede modificarla si las circunstancias lo exigen.
 
-Consentimiento otorgado conforme a la Ley Nacional 26.529 de Derechos del Paciente y su modificatoria Ley 26.742.`;
+2. TECNICAS ANESTESICAS Y EN QUE CONSISTEN
+
+Se me ha informado que, según el caso, la anestesia puede ser:
+
+· ANESTESIA GENERAL: administración de fármacos por vía intravenosa y/o gases inhalados que producen inconsciencia, amnesia, analgesia, relajación muscular y abolición de reflejos. Requiere canalizar una vena para administrar sueros y medicamentos y, habitualmente, colocar un tubo o dispositivo a través de la boca o la nariz hasta la vía aérea, conectado a un respirador que mantiene la respiración durante la intervención.
+
+· ANESTESIA NEUROAXIAL (raquídea o peridural): inyección de anestésico local en la región lumbar o dorsal, que bloquea la sensibilidad y el movimiento de la mitad inferior del cuerpo de manera transitoria, con o sin colocación de un catéter para analgesia posterior.
+
+· BLOQUEO DE NERVIOS O PLEXOS PERIFERICOS: inyección de anestésico local junto a un nervio o grupo de nervios, habitualmente guiada por ecografía y/o neuroestimulación, que anestesia únicamente la zona a operar.
+
+· SEDACION O CUIDADO ANESTESICO MONITORIZADO: administración de fármacos que producen somnolencia, ansiólisis y analgesia, conservando en distinto grado la respiración espontánea. Comprendo que una sedación puede requerir convertirse en anestesia general si el procedimiento o mi estado lo hacen necesario.
+
+· ANESTESIA LOCAL: infiltración de anestésico en la zona a intervenir, con o sin sedación complementaria.
+
+3. MONITOREO Y PROCEDIMIENTOS ASOCIADOS
+
+Se me ha explicado que durante todo el acto anestésico seré vigilado/a en forma continua con electrodos adhesivos en el pecho para el control del ritmo cardíaco, un manguito de presión arterial, un sensor en el dedo que mide el oxígeno en sangre (oximetría de pulso) y, cuando corresponda, medición del dióxido de carbono espirado, temperatura y profundidad anestésica. Autorizo asimismo la colocación de los accesos vasculares, sondas, catéteres y dispositivos que resulten necesarios para el procedimiento y para mi seguridad.
+
+4. RIESGOS DEL ACTO ANESTESICO
+
+Comprendo que todo acto anestésico, aun realizado con la mayor diligencia, con los medios adecuados y conforme a las reglas del arte, es un procedimiento capaz de originar lesiones agudas, secuelas crónicas, complicaciones graves e incluso la muerte, y que los riesgos NO pueden suprimirse por completo. Entiendo que su probabilidad guarda relación con mi estado de salud previo, mi edad, el tipo, la complejidad y la duración del acto quirúrgico, así como con reacciones alérgicas u otros factores de riesgo inevitables, y que cada técnica anestésica tiene sus riesgos propios.
+
+Se me han explicado, a título ejemplificativo y no taxativo:
+
+· Riesgos frecuentes y en general leves: náuseas y vómitos postoperatorios, dolor o irritación de garganta, ronquera, tos, escalofríos y temblores, somnolencia prolongada, dolores musculares, mareos, dolor o flebitis en el sitio de punción venosa, hematoma en el sitio de punción, retención urinaria, dolor lumbar, cefalea (incluida la cefalea pospunción dural en la anestesia neuroaxial), visión borrosa transitoria.
+
+· Riesgos poco frecuentes: lesión dentaria, labial o de la lengua durante el manejo instrumental de la vía aérea; dificultad imprevista para colocar el tubo en la tráquea; lesión de cuerdas vocales; laringoespasmo o broncoespasmo; reacciones alérgicas a los fármacos anestésicos; hipotensión o hipertensión arterial, bradicardia o arritmias que requieran tratamiento; bloqueo insuficiente o fallido que obligue a repetirlo o a convertir a anestesia general; lesión nerviosa periférica transitoria por el bloqueo o por la posición en la mesa quirúrgica; lesiones oculares por compresión o sequedad.
+
+· Riesgos graves e infrecuentes: imposibilidad de manejar la vía aérea; aspiración de contenido gástrico hacia el pulmón; despertar intraoperatorio; lesión nerviosa o medular permanente, hematoma o absceso peridural; convulsiones y toxicidad sistémica por anestésicos locales; anafilaxia; hipertermia maligna; infarto de miocardio; accidente cerebrovascular; insuficiencia renal o respiratoria; paro cardiorrespiratorio; daño cerebral, coma y muerte.
+
+Entiendo que la enumeración anterior no agota todas las complicaciones posibles y que la medicina no es una ciencia exacta: el/la profesional se compromete a poner todos los medios a su alcance, pero no puede garantizar un resultado.
+
+5. INSTRUCCIONES QUE ME FUERON DADAS Y ME COMPROMETO A CUMPLIR
+
+a) AYUNO. Debo cumplir el ayuno preoperatorio indicado (como regla, ocho horas para alimentos sólidos y leche no materna, seis horas para comidas livianas y fórmulas, cuatro horas para leche materna y dos horas para líquidos claros, conforme las guías de ayuno perioperatorio vigentes). Comprendo que incumplir esta indicación pone en riesgo mi vida por aspiración de contenido gástrico y obliga a suspender la cirugía.
+
+b) MEDICACION. Debo continuar la medicación habitual que se me indicó mantener —por ejemplo, la de la presión arterial—, tomándola el día de la cirugía con un sorbo de agua sin romper la norma anterior, y suspender únicamente aquella que se me indicó suspender y con la antelación señalada, en particular la que afecta la coagulación de la sangre. No debo suspender ni agregar medicamentos por mi cuenta.
+
+c) TABACO Y OTRAS SUSTANCIAS. Si soy fumador/a, debo intentar interrumpir el hábito al menos una semana antes de la cirugía. Debo informar el consumo de alcohol, cannabis, cocaína u otras sustancias, y el uso de suplementos, hierbas o medicamentos para adelgazar, porque interactúan con los fármacos anestésicos.
+
+d) PROTESIS Y ACCESORIOS. Debo informar y retirar prótesis dentales, lentes de contacto, audífonos, piercings y alhajas, y presentarme sin esmalte de uñas ni maquillaje.
+
+e) ACOMPAÑANTE. Si el procedimiento es ambulatorio, debo concurrir con un acompañante adulto responsable y comprendo que durante las veinticuatro horas siguientes no debo conducir vehículos, operar maquinarias, firmar documentos de importancia ni permanecer solo/a.
+
+6. SITUACIONES IMPREVISTAS
+
+Estoy en conocimiento de que durante el curso de la anestesia pueden presentarse condiciones especiales que requieran medidas extras o diferentes de las originariamente previstas. Por ello autorizo y requiero que el/la anestesiólogo/a interviniente, o quien él/ella designe, realice los procedimientos que a su juicio profesional resulten necesarios y deseables para preservar mi vida y mi salud, incluidos el cambio de técnica anestésica, el ingreso a una unidad de cuidados críticos y la ventilación mecánica prolongada.
+
+7. TRANSFUSION DE HEMODERIVADOS
+
+Autorizo la transfusión de sangre o hemoderivados cuando resulte indispensable para preservar mi vida o mi salud, con conocimiento de sus riesgos —reacciones transfusionales y transmisión de infecciones—, salvo que haya consignado expresamente mi negativa en esta misma ficha, en cuyo caso asumo las consecuencias de esa decisión y solicito que se apliquen las alternativas disponibles de ahorro de sangre.
+
+8. DECLARACION SOBRE MIS ANTECEDENTES
+
+Declaro bajo juramento no haber omitido ni alterado datos al exponer mis antecedentes clínicos, quirúrgicos, anestésicos, alérgicos y de medicación, ni al responder los distintos aspectos consultados en la evaluación preanestésica. Me comprometo a informar de inmediato al equipo tratante cualquier cambio en mi estado de salud, medicación nueva o síntoma que aparezca entre esta evaluación y el día de la cirugía.
+
+9. PREGUNTAS Y REVOCACION
+
+Se me ha dado la oportunidad de hacer preguntas y todas ellas me han sido contestadas satisfactoriamente. Entiendo que puedo retractar y anular este consentimiento en cualquier momento antes de que se administre el tratamiento anestésico, analgésico y/o la sedación, en forma libre y sin expresión de causa, sin que ello afecte la calidad de mi atención ni mi relación con el equipo tratante, haciéndome responsable de las consecuencias que puedan derivarse de esa decisión. La revocación se documentará por escrito en mi historia clínica.
+
+10. DATOS PERSONALES Y DOCENCIA
+
+Se me ha informado que mis datos de salud son datos sensibles, que reciben tratamiento confidencial, que se usan con fines asistenciales, administrativos y de facturación, y que puedo acceder a ellos, pedir su rectificación y conocer su destino. El uso de imágenes o registros con fines docentes o científicos requiere mi autorización expresa, que consta por separado en esta ficha, y en ningún caso permitirá mi identificación.
+
+11. MARCO LEGAL
+
+Consentimiento otorgado de manera libre, voluntaria e informada conforme a la Ley 26.529 de Derechos del Paciente en su Relación con los Profesionales e Instituciones de la Salud, su modificatoria Ley 26.742, el Decreto reglamentario 1089/2012, el artículo 59 del Código Civil y Comercial de la Nación, la Ley 17.132 del Ejercicio de la Medicina y la Ley 25.326 de Protección de los Datos Personales. Este documento integra mi historia clínica, me pertenece y se conserva por el plazo legal mínimo de diez años.
+
+Se me entrega copia del presente y de la valoración pre-anestésica.`;
+
+/* ---------- Declaraciones que el paciente marca junto al texto ---------- */
+const CONSENT_ITEMS = [
+  'Recibí y comprendí la información sobre la técnica anestésica propuesta',
+  'Se me explicaron los riesgos generales y los propios de mi estado de salud',
+  'Pude hacer preguntas y todas fueron respondidas satisfactoriamente',
+  'Recibí las indicaciones sobre el ayuno preoperatorio',
+  'Recibí las indicaciones sobre la medicación a suspender y a continuar',
+  'Acepta anestesia general',
+  'Acepta técnica regional (raquídea, peridural o bloqueo)',
+  'Acepta sedación / cuidado anestésico monitorizado',
+  'Acepta transfusión de hemoderivados si fuera indispensable',
+  'RECHAZA transfusión de hemoderivados',
+  'Autoriza el uso de imágenes con fines docentes o científicos',
+  'Concurrirá con acompañante adulto responsable (cirugía ambulatoria)'
+];
+
+/* Al paciente se le manda tambien una hoja de indicaciones en castellano
+   llano: ayuno, medicacion, horario y acompanante. Es el unico de los tres
+   documentos que realmente va a leer. */
+const INDICACIONES_AL_PACIENTE = true;
+
+/* ---------- Quien firma el consentimiento ---------- */
+const CONSENT_QUIEN = [
+  '', 'El paciente', 'Representante legal / familiar', 'Paciente y representante',
+  'Menor de 16 años: firma su representante legal',
+  'Paciente que rechaza transfusión',
+  'No firmado — urgencia vital (art. 9 Ley 26.529)',
+  'Consentimiento revocado por el paciente'
+];
 
 /* ---------- Escala de Aldrete modificada ---------- */
 const ALDRETE = [
@@ -6762,6 +6970,83 @@ function nombreActor(f){
   return u ? nombreUsuario(u) : '—';
 }
 
+/* =========================================================================
+   LAS DOS FECHAS DE UNA FICHA
+   -------------------------------------------------------------------------
+   Una ficha tiene dos fechas y casi nunca coinciden:
+
+     fechaValoracion  el dia de la consulta prequirurgica. Es cuando el
+                      anestesiologo vio al paciente, y es el mes en que se
+                      factura e informa esa consulta.
+
+     fechaCirugia     el dia del acto anestesico. Se carga en el paso
+                      Anestesia, que es cuando se sabe: al hacer la
+                      valoracion la cirugia todavia no esta programada. Es
+                      el mes en que se factura e informa el acto.
+
+   Mezclarlas rompe la facturacion: una valoracion de marzo con cirugia en
+   abril iba entera a marzo, y el honorario del acto aparecia en el mes
+   equivocado. Por eso cada prestacion lleva la suya.
+
+   `f.fecha` se conserva como espejo —la fecha del acto si la hay, si no la
+   de la valoracion— porque es lo que ordena listados y busquedas, y porque
+   las fichas viejas solo tienen eso.
+   ========================================================================= */
+function fechaValoracionDe(f){
+  if(!f) return '';
+  return f.fechaValoracion || ((f.v || {}).riesgo || {}).fecha ||
+         (f.creado || '').slice(0,10) || f.fecha || '';
+}
+function fechaCirugiaDe(f){
+  if(!f) return '';
+  const a = f.acto || {};
+  if(a.fechaCirugia) return a.fechaCirugia;
+  if(f.fechaCirugia) return f.fechaCirugia;
+  /* Ficha del modelo viejo, con una sola fecha. Alli `f.fecha` ERA la de la
+     cirugia: se cargaba en el paso 1 junto con la hora y el turno. Se la lee
+     como tal, pero solo si la cirugia efectivamente paso o quedo registrada;
+     una fecha futura sin acto es una programacion, no un acto realizado.
+     La misma cuenta la hace migrarFicha() cuando la ficha se abre, y ahi
+     queda escrita; esto es para las que todavia no se abrieron. */
+  if(f.__fechas2 || f.fechaValoracion || !f.fecha) return '';
+  const hubo = !!(a.finAnestesia || a.finCirugia || a.inicioAnestesia ||
+                  (a.tecnicas || []).length || (f.firma || {}).firmado);
+  return (hubo || f.fecha < hoyISO()) ? f.fecha : '';
+}
+/* La fecha con la que se muestra y se ordena la ficha */
+function fechaDeFicha(f){
+  return fechaCirugiaDe(f) || fechaValoracionDe(f) || (f ? f.fecha : '') || '';
+}
+/* Deja `f.fecha` al dia con las dos anteriores. Se llama en cada guardado. */
+function sincronizarFechas(f){
+  if(!f) return f;
+  f.fechaValoracion = fechaValoracionDe(f) || hoyISO();
+  const cx = fechaCirugiaDe(f);
+  if(cx) f.fechaCirugia = cx;
+  f.fecha = cx || f.fechaValoracion;
+  return f;
+}
+
+/* -------------------------------------------------------------------------
+   VIGENCIA DE LA VALORACION PREQUIRURGICA
+   Una valoracion no vale para siempre: entre que se hizo y la cirugia el
+   paciente pudo cambiar de medicacion, descompensarse o cursar una
+   infeccion respiratoria. El criterio corriente es reevaluar pasados 30
+   dias. La app no bloquea nada —el que anestesia decide— pero avisa.
+   ------------------------------------------------------------------------- */
+const DIAS_VIGENCIA_VALORACION = 30;
+
+function diasDeValoracion(f){
+  const v = fechaValoracionDe(f);
+  if(!v) return null;
+  const ref = fechaCirugiaDe(f) || hoyISO();
+  return Math.round((new Date(ref+'T12:00:00') - new Date(v+'T12:00:00')) / 86400000);
+}
+function valoracionVencida(f){
+  const d = diasDeValoracion(f);
+  return d !== null && d > DIAS_VIGENCIA_VALORACION;
+}
+
 /* Fichas en las que intervengo, por cualquiera de los dos conceptos.
    Son la base de las estadisticas, la facturacion y los avisos. */
 function misFichas(){
@@ -6769,9 +7054,74 @@ function misFichas(){
   return esCoordinador() ? t
     : t.filter(f => f.ownerUid === SESION.uid || actorFicha(f) === SESION.uid);
 }
-/* Fichas que se pueden abrir: todas. Un colega puede necesitar completar el
-   acto anestesico de una valoracion que hizo otro. */
-function fichasVisibles(){ return lista('fichas'); }
+/* =========================================================================
+   QUE FICHAS VE CADA ANESTESIOLOGO
+   -------------------------------------------------------------------------
+   Antes se veian todas, siempre. Eso es mas de lo que hace falta y mas de lo
+   que corresponde: la historia clinica de un paciente en el que no intervine
+   no es asunto mio (Ley 26.529, art. 2 inc. c y Ley 25.326).
+
+   La regla es de acceso por intervencion, con una excepcion necesaria:
+
+     MIAS         hice la valoracion, el acto, o los dos.
+     DE COLEGAS   intervine yo y tambien otro: uno valoro y el otro
+                  anestesio. Los dos comparten esa ficha, porque los dos
+                  necesitan verla entera —el que anestesia tiene que leer el
+                  prequirurgico, y el que valoro tiene derecho a saber como
+                  termino su paciente.
+     DISPONIBLES  valoraciones cuyo acto todavia no tiene dueno. Se comparten
+                  con TODOS los socios porque cualquiera puede tener que
+                  tomar ese acto —de eso se trata una guardia—. En cuanto
+                  alguien lo toma, sale de esta lista y pasa a ser suya y del
+                  que valoro.
+
+   Una ficha en la que nunca intervine y cuyo acto ya tiene dueno no se ve ni
+   se abre. El coordinador ve todo: es su funcion.
+   ========================================================================= */
+
+/* El acto todavia no tiene anestesiologo: cualquiera lo puede tomar */
+function actoLibre(f){
+  if(!f) return false;
+  if((f.firma || {}).firmado) return false;
+  if(f.actoPorUid) return false;
+  if(f.actorExterno) return false;
+  return !f.asignadoUid || f.asignadoUid === 'sinasignar';
+}
+/* El acto esta designado a alguien pero todavia no lo tomo */
+function actoDesignadoAMi(f){
+  return !!SESION && !!f && !f.actoPorUid && f.asignadoUid === SESION.uid;
+}
+/* Fichas que se pueden ABRIR: las mias, las que comparto y las libres */
+function fichasVisibles(){
+  if(esCoordinador()) return lista('fichas');
+  if(!SESION) return [];
+  return lista('fichas').filter(f =>
+    f.ownerUid === SESION.uid || actorFicha(f) === SESION.uid ||
+    actoDesignadoAMi(f) || actoLibre(f));
+}
+/* Valoraciones de cualquiera esperando quien las anestesie */
+function fichasDisponibles(){
+  if(!SESION) return [];
+  return lista('fichas').filter(f =>
+    (actoLibre(f) || actoDesignadoAMi(f)) && actorFicha(f) !== SESION.uid);
+}
+/* Fichas compartidas: intervine yo y tambien otro profesional */
+function fichasCompartidas(){
+  if(!SESION) return [];
+  return misFichas().filter(f => {
+    const act = actorFicha(f);
+    if(f.actorExterno && f.ownerUid === SESION.uid) return true;   /* acto de un externo */
+    return !!act && !!f.ownerUid && act !== f.ownerUid &&
+           (act === SESION.uid || f.ownerUid === SESION.uid);
+  });
+}
+/* Puerta de entrada: ¿puedo abrir esta ficha? */
+function puedeAbrirFicha(f){
+  if(esCoordinador()) return true;
+  if(!f || !SESION) return false;
+  return f.ownerUid === SESION.uid || actorFicha(f) === SESION.uid ||
+         actoDesignadoAMi(f) || actoLibre(f);
+}
 
 /* El padron de pacientes es de la asociacion: lo ven y lo editan todos. */
 function misPacientes(){ return lista('pacientes'); }
@@ -6789,20 +7139,24 @@ function autorFicha(f){
    Cada ficha genera hasta dos renglones, con distinto titular. */
 function prestacionesDeFicha(f){
   const l = [];
+  /* Cada renglon lleva SU fecha: la consulta se imputa al mes en que se vio
+     al paciente y el acto al mes en que se lo anestesio. */
   const hc = f.honConsulta || {};
   if(hc.modalidad && hc.modalidad !== 'incluida')
     l.push({ ficha:f, tipo:'consulta', uid:f.ownerUid,
       concepto:'Consulta prequirúrgica (valoración)',
       monto:Number(hc.total || 0), estado:hc.estado || 'Pendiente',
       comprobante:hc.comprobante || '', cobrado:Number(hc.cobrado || 0),
-      fechaPresentacion:hc.fechaPresentacion || '', fecha:f.fecha });
+      fechaPresentacion:hc.fechaPresentacion || '',
+      fecha: fechaValoracionDe(f) || f.fecha });
   const ha = f.hon || {};
   if(ha.modalidad)
     l.push({ ficha:f, tipo:'acto', uid:actorFicha(f),
       concepto:'Acto anestésico',
       monto:Number(ha.total || 0), estado:ha.estado || 'Pendiente',
       comprobante:ha.comprobante || '', cobrado:Number(ha.cobrado || 0),
-      fechaPresentacion:ha.fechaPresentacion || '', fecha:f.fecha });
+      fechaPresentacion:ha.fechaPresentacion || '',
+      fecha: fechaCirugiaDe(f) || f.fecha });
   return l;
 }
 /* Todas las prestaciones que me corresponden a mi (o todas, si coordino) */
@@ -6965,7 +7319,8 @@ function partesQuirurgicos(f){ return (f && f.acto && f.acto.parteQuirurgico) ||
 function hayValoracion(f){
   if(!f) return false;
   const v = f.v || {}, pl = f.plan || {}, sc = v.scores || {};
-  return !!(sc.asa || (v.antecedentes2 || []).length || (v.medicacion || []).length ||
+  return !!(f.valoracionGuardada || (f.consent || {}).quien ||
+            sc.asa || (v.antecedentes2 || []).length || (v.medicacion || []).length ||
             (v.riesgo || {}).aptitud || (v.riesgo || {}).fundamento ||
             (pl.tecnica || []).length || (pl.destino) ||
             (f.honConsulta || {}).modalidad);
@@ -6973,7 +7328,7 @@ function hayValoracion(f){
 function hayActo(f){
   if(!f) return false;
   const a = f.acto || {};
-  return !!(a.inicioCirugia || a.inicioAnestesia || a.finCirugia ||
+  return !!(a.fechaCirugia || a.inicioCirugia || a.inicioAnestesia || a.finCirugia ||
             (a.drogas || []).length || (a.controles || []).length ||
             (a.tecnicas || []).length || (f.hon || {}).modalidad ||
             (f.firma || {}).firmado);
@@ -8928,10 +9283,39 @@ function leerChks(id){ return $$('#'+id+' input:checked').map(i => i.value); }
 let filtroPac = '';
 let pacEdit = null;          /* borrador del paciente en edicion */
 let solapaPac = 'fil';
+let alcancePac = 'mios';     /* mios | padron */
+
+/* =========================================================================
+   QUE PACIENTES VE CADA ANESTESIOLOGO
+   -------------------------------------------------------------------------
+   El listado arranca en MIS PACIENTES: aquellos en los que intervine, por la
+   valoracion prequirurgica, por el acto anestesico o por los dos. La historia
+   clinica de un paciente en el que nunca intervine no es asunto mio.
+
+   El PADRON completo sigue existiendo y sigue siendo consultable, porque sin
+   el la app se llena de pacientes duplicados: antes de cargar a alguien hay
+   que poder averiguar si ya esta. Pero en esa solapa solo se ven los datos
+   que hacen falta para reconocerlo —apellido, nombre y documento—; los
+   antecedentes, las alergias y las fichas quedan fuera hasta que se
+   intervenga. El selector de paciente del paso 1 tambien ve el padron
+   entero, por la misma razon.
+   ========================================================================= */
+function pacientesMios(){
+  if(esCoordinador()) return misPacientes();
+  const ids = {};
+  misFichas().forEach(f => { if(f.pacienteId) ids[f.pacienteId] = true; });
+  return misPacientes().filter(p => ids[p.id]);
+}
+function intervineEn(p){
+  if(esCoordinador()) return true;
+  return misFichas().some(f => f.pacienteId === p.id);
+}
 
 function vistaPacientes(){
   const cont = $('#vPacientes');
-  const todos = misPacientes().sort((a,b) =>
+  const padron = misPacientes();
+  const propios = pacientesMios();
+  const todos = (alcancePac === 'padron' ? padron : propios).sort((a,b) =>
     (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre, 'es'));
   const q = norm(filtroPac).trim();
   /* cada palabra tipeada debe aparecer en algún dato del paciente, así
@@ -8946,47 +9330,84 @@ function vistaPacientes(){
       })
     : todos;
 
+  const enPadron = alcancePac === 'padron';
+
   cont.innerHTML = ''+
   '<div class="vista-head"><div><h1>Pacientes</h1>'+
-    '<p>'+todos.length+' paciente'+(todos.length===1?'':'s')+' en el padrón de la asociación'+
+    '<p>'+todos.length+' paciente'+(todos.length===1?'':'s')+
+    (enPadron ? ' en el padrón de la asociación' : ' en los que interviniste')+
     (q ? ' · '+l.length+' coinciden con la búsqueda' : '')+'.</p></div>'+
     '<div class="acciones"><button class="btn pri" id="btnNuevoPac">'+ico('mas')+' Nuevo paciente</button></div></div>'+
+
+  (esCoordinador() ? '' :
+    '<div class="seg mb8" id="pacAlcance">'+
+      [['mios','Mis pacientes', propios.length],
+       ['padron','Padrón de la asociación', padron.length]].map(a =>
+        '<button type="button" data-v="'+a[0]+'"'+(alcancePac===a[0]?' class="on"':'')+'>'+
+        a[1]+'<span class="badge">'+a[2]+'</span></button>').join('')+
+    '</div>')+
 
   '<div class="campo"><div style="position:relative">'+
     '<input type="search" id="pacBuscar" placeholder="Buscar por apellido, nombre, DNI o HC…" value="'+esc(filtroPac)+'" style="padding-left:38px" autocomplete="off">'+
     '<span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--texto-3)">'+ico('buscar')+'</span>'+
   '</div></div>'+
 
-  (todos.length ? '<div class="aviso info">'+ico('pacientes')+'<div>'+
-    'El padrón es común a toda la asociación: antes de cargar un paciente, buscalo por DNI '+
-    'para no duplicarlo. Los antecedentes que cargues acá los hereda cada ficha nueva.</div></div>' : '')+
+  (enPadron
+    ? '<div class="aviso info">'+ico('candado')+'<div><b>Padrón completo de la asociación.</b> '+
+      'Está para que antes de cargar un paciente puedas averiguar si ya existe y no duplicarlo. '+
+      'De los pacientes en los que <b>no</b> interviniste ves sólo lo necesario para '+
+      'reconocerlos: la historia clínica se abre cuando hacés su valoración o su acto '+
+      'anestésico.</div></div>'
+    : (todos.length ? '<div class="aviso info">'+ico('pacientes')+'<div>'+
+      'Pacientes en los que interviniste, por la valoración prequirúrgica, por el acto '+
+      'anestésico o por los dos. Los antecedentes que cargues los hereda cada ficha '+
+      'nueva.</div></div>' : ''))+
 
   (l.length ? '<div class="lista">'+ l.map(p => {
-      const fichas = fichasVisibles().filter(f => f.pacienteId === p.id);
+      const mio = intervineEn(p);
+      const fichas = mio ? misFichas().filter(f => f.pacienteId === p.id) : [];
       const mias = fichas.filter(esAutorFicha).length;
       const ed = edadDe(p.fechaNac);
       const nAnt = (p.antecedentes || []).length;
       const alergias = (p.alergias || []).filter(a => a !== 'Sin alergias conocidas');
-      return '<div class="item" data-pac="'+p.id+'">'+
+      return '<div class="item'+(mio?'':' atenuado')+'" data-pac="'+p.id+'">'+
         '<div class="avatar">'+esc(iniciales(p.nombre,p.apellido))+'</div>'+
         '<div class="txt"><b>'+esc(p.apellido)+', '+esc(p.nombre)+'</b>'+
-          '<span>DNI '+esc(p.dni||'—')+(ed!==null?' · '+ed+' años':'')+' · '+esc(p.obraSocial||'Sin cobertura')+
-          (nAnt ? ' · '+nAnt+' antecedente'+(nAnt===1?'':'s') : '')+'</span></div>'+
+          '<span>DNI '+esc(p.dni||'—')+
+          /* Del paciente ajeno sale la identificación y nada más: la edad, la
+             cobertura, los antecedentes y las alergias son historia clínica. */
+          (mio ? (ed!==null?' · '+ed+' años':'')+' · '+esc(p.obraSocial||'Sin cobertura')+
+                 (nAnt ? ' · '+nAnt+' antecedente'+(nAnt===1?'':'s') : '')
+               : ' · no interviniste en este paciente')+'</span></div>'+
         '<div class="der">'+
-          (alergias.length ? '<span class="tag danger" title="'+esc(alergias.join(' · '))+'">Alergias</span> ' : '')+
-          '<span class="tag'+(fichas.length?' aqua':'')+'">'+fichas.length+' ficha'+(fichas.length===1?'':'s')+'</span>'+
-          (fichas.length && mias < fichas.length
-            ? '<div class="mini mt8">'+(mias||'ninguna')+' tuya'+(mias===1?'':'s')+'</div>' : '')+
+          (mio
+            ? (alergias.length ? '<span class="tag danger" title="'+esc(alergias.join(' · '))+'">Alergias</span> ' : '')+
+              '<span class="tag'+(fichas.length?' aqua':'')+'">'+fichas.length+' ficha'+(fichas.length===1?'':'s')+'</span>'+
+              (fichas.length && mias < fichas.length
+                ? '<div class="mini mt8">'+(mias||'ninguna')+' tuya'+(mias===1?'':'s')+'</div>' : '')
+            : '<span class="tag">'+ico('candado')+'</span>')+
         '</div></div>';
     }).join('') +'</div>'
-    : '<div class="vacio">'+ico('pacientes')+'<b>'+(q?'Sin resultados':'Todavía no cargaste pacientes')+'</b>'+
-      '<span>'+(q?'Probá con otro apellido o DNI.':'Tocá «Nuevo paciente» para empezar.')+'</span></div>');
+    : '<div class="vacio">'+ico('pacientes')+'<b>'+
+      (q ? 'Sin resultados' : enPadron ? 'El padrón está vacío' : 'Todavía no interviniste en ningún paciente')+'</b>'+
+      '<span>'+(q ? 'Probá con otro apellido o DNI'+(enPadron?'.':', o buscá en el padrón de la asociación.')
+                  : enPadron ? 'Tocá «Nuevo paciente» para empezar.'
+                  : 'Los pacientes aparecen acá cuando les hacés la valoración prequirúrgica o el acto anestésico.')+
+      '</span></div>');
 
   $('#btnNuevoPac').onclick = () => editarPaciente(null);
+  $$('#pacAlcance button').forEach(b => b.onclick = () => {
+    alcancePac = b.dataset.v; vistaPacientes(); });
   $('#pacBuscar').oninput = debounce(e => { filtroPac = e.target.value; vistaPacientes();
     const i = $('#pacBuscar'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }, 260);
   $$('#vPacientes .item').forEach(it => {
-    it.onclick = () => abrirPaciente(it.dataset.pac);
+    it.onclick = () => {
+      const p = DB.pacientes[it.dataset.pac];
+      if(!intervineEn(p))
+        return toast('No interviniste en este paciente: su historia clínica no se abre. '+
+                     'Aparece en el padrón para que no lo cargues dos veces.', 'warn');
+      abrirPaciente(it.dataset.pac);
+    };
   });
 }
 
@@ -9562,7 +9983,7 @@ function guardarPacienteEditado(){
 function abrirPaciente(id){
   const p = DB.pacientes[id]; if(!p) return;
   const fichas = fichasVisibles().filter(f => f.pacienteId === id)
-    .sort((a,b) => (b.fecha||'') < (a.fecha||'') ? -1 : 1);
+    .sort((a,b) => (fechaDeFicha(b)||'') < (fechaDeFicha(a)||'') ? -1 : 1);
   const ed = edadDe(p.fechaNac);
   const imc = calcIMC(p.peso, p.talla);
   const ant = p.antecedentes || [];
@@ -9655,8 +10076,15 @@ function abrirPaciente(id){
         '<div class="avatar" style="background:'+(f.caracter==='urgencia'?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
           ico('ficha')+'</div>'+
         '<div class="txt"><b>'+esc(f.cirugia||'Sin cirugía cargada')+'</b>'+
-          '<span>'+fFecha(f.fecha)+' · '+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+
-          ' · '+esc(autorFicha(f))+(esAutorFicha(f)?' (vos)':'')+'</span></div>'+
+          '<span>'+(fechaCirugiaDe(f)
+            ? 'cirugía '+fFecha(fechaCirugiaDe(f))
+            : 'valoración '+fFecha(fechaValoracionDe(f)))+
+          ' · '+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+'</span>'+
+          '<span class="quien">'+
+            (esAutorFicha(f) ? 'Valoración tuya' : 'Valoración de '+esc(autorFicha(f)))+
+            ' · '+(esActorFicha(f) ? 'acto tuyo'
+                 : actoLibre(f) ? 'acto sin tomar' : 'acto de '+esc(nombreActor(f)))+
+          '</span></div>'+
         '<div class="der">'+etiquetaEstadoFicha(f)+'</div>'+
       '</div>').join('') +'</div>'
     : '<p class="mini">Todavía no hay fichas para este paciente.</p>');
@@ -9680,9 +10108,18 @@ function fila(l, v){
     '<b style="min-width:135px;color:var(--texto-2);font-weight:650">'+esc(l)+'</b>'+
     '<span style="flex:1">'+esc(v)+'</span></div>';
 }
+/* Los tres estados de una ficha, con el matiz que hace falta para distinguir
+   la que ya se firmó de la que quedó a mitad de camino. «Realizada» es
+   ambigua: puede ser una valoración cerrada esperando la cirugía o un acto
+   registrado sin firmar. Se dice cuál de las dos es. */
 function etiquetaEstadoFicha(f){
-  if(f.estado === 'cerrada')   return '<span class="tag ok">Finalizada</span>';
-  if(f.estado === 'realizada') return '<span class="tag info">Realizada</span>';
+  if(f.estado === 'cerrada')   return '<span class="tag ok">'+ico('check')+'Finalizada</span>';
+  if(f.estado === 'realizada'){
+    if(!fechaCirugiaDe(f))     return '<span class="tag info">Valoración cerrada</span>';
+    return (f.acto||{}).finAnestesia
+      ? '<span class="tag warn">Falta firmar</span>'
+      : '<span class="tag info">Realizada</span>';
+  }
   return '<span class="tag warn">Borrador</span>';
 }
 
@@ -9739,7 +10176,7 @@ function htmlValoracion(f){
       '<div class="buscador"><input type="search" id="dxBuscar" placeholder="Ej.: hipertensión, diabetes, asma…" autocomplete="off">'+
       '<div class="res" id="dxRes"></div></div>'+
       '<div class="ayuda">Escribí al menos 2 letras. Si el antecedente no figura, podés agregarlo '+
-      'manualmente desde el propio buscador. La app ya no usa codificación CIE-10.</div>'+
+      'manualmente desde el propio buscador.</div>'+
       '<div class="seleccionados" id="dxSel"></div></div>'+
     '<div id="dxMeds"></div>'+
     '<hr class="sep">'+
@@ -10074,7 +10511,185 @@ function htmlPlan(f){
       '<div class="ayuda">Queda registrado en el documento. Como no tiene usuario en la app, '+
         'el honorario del acto no entra en la facturación de nadie.</div></div>'+
 
-    '<div id="qxAsignadoAviso"></div>', true);
+    '<div id="qxAsignadoAviso"></div>', true)+
+
+  htmlConsentimiento(f);
+}
+
+/* =========================================================================
+   15. CONSENTIMIENTO INFORMADO ANESTESICO
+   -------------------------------------------------------------------------
+   Estaba en una ventana aparte, a la que se llegaba por un boton perdido al
+   pie de la ficha. Ahi se olvidaba: quedaban valoraciones completas y bien
+   hechas sin el papel que la ley exige. Ahora es el punto 15 de la propia
+   valoracion y es CONDICION para darla por concluida (ver
+   consentimientoCompleto() en ui-ficha.js): la Ley 26.529 lo pide por
+   escrito para todo procedimiento con riesgo relevante, y la anestesia lo
+   es. Las dos unicas salidas legitimas —urgencia vital del art. 9 y
+   revocacion del paciente— se eligen en el mismo desplegable y quedan
+   asentadas, que es exactamente lo que la ley manda hacer con ellas.
+
+   Se firma con el dedo en la tablet, con el mouse en la computadora o con el
+   dedo en el telefono, sobre el mismo lienzo. El anestesiologo, ademas,
+   puede traer la firma que tiene guardada en su perfil o subir una imagen.
+   ========================================================================= */
+function htmlConsentimiento(f){
+  const c = f.consent || {};
+  const p = DB.pacientes[f.pacienteId] || {};
+  const completo = consentimientoCompleto(f);
+  const sinFirma = consentSinFirma(c.quien);
+
+  return acc('acConsent','firma','15 · Consentimiento informado anestésico',
+    (completo
+      ? '<div class="aviso ok">'+ico('check')+'<div><b>Consentimiento otorgado.</b> '+
+        (sinFirma
+          ? esc(c.quien)+'. Queda documentado en la historia clínica, como exige la ley.'
+          : 'Firmado por '+esc(c.firmante || 'el paciente')+
+            (c.fecha ? ' el '+fFechaLarga(c.fecha)+(c.hora ? ' a las '+esc(c.hora)+' h' : '') : '')+'.')+
+        '</div></div>'
+      : '<div class="aviso warn">'+ico('alerta')+'<div><b>Sin el consentimiento no se puede '+
+        'concluir la valoración.</b> Es un requisito de la Ley 26.529 para todo procedimiento '+
+        'con riesgo relevante. Si el paciente no puede firmarlo, dejá asentado el motivo en '+
+        '«Quién firma».</div></div>')+
+
+    '<label class="mini strong mt14" style="display:block">Texto que se le lee y se le entrega al paciente</label>'+
+    '<div class="consent-texto">'+esc(TEXTO_CONSENTIMIENTO)+'</div>'+
+    '<div class="ayuda">Redactado sobre el modelo de consentimiento anestésico de la Asociación '+
+      'de Anestesia, Analgesia y Reanimación de Buenos Aires y los formularios del Ministerio de '+
+      'Salud de la Nación, conforme a las leyes 26.529, 26.742, 17.132 y 25.326, el decreto '+
+      '1089/2012 y el art. 59 del Código Civil y Comercial. Se imprime completo en el documento '+
+      'y viaja como PDF aparte en el envío al paciente.</div>'+
+
+    '<div class="grid c2 mt14">'+
+      '<div class="campo"><label>Quién firma <span class="req">*</span></label>'+
+        '<select id="coQuien">'+ CONSENT_QUIEN.map(o =>
+          '<option value="'+esc(o)+'"'+(c.quien===o?' selected':'')+'>'+
+          esc(o || '— Seleccionar —')+'</option>').join('') +'</select></div>'+
+      campoTxt('coFirmante','Nombre y DNI del firmante',
+        c.firmante || (p.apellido ? p.apellido+', '+p.nombre+' — DNI '+(p.dni||'') : ''))+
+    '</div>'+
+    '<div id="coAvisoQuien"></div>'+
+
+    '<label class="mini strong mt14" style="display:block">Declaraciones del paciente</label>'+
+    chksHTML('coItems', CONSENT_ITEMS, c.items)+
+    '<div id="coAvisoTransf"></div>'+
+
+    '<div id="coFirmas"'+(sinFirma ? ' class="oculto"' : '')+'>'+
+      '<label class="mini strong mt14" style="display:block">Firma del paciente o representante</label>'+
+      '<div class="firma-box"><canvas id="coFirmaPac"></canvas><div class="hint">Firmar aquí con el dedo o el mouse</div></div>'+
+      '<div class="btn-row mt8"><button type="button" class="btn ghost chico" id="coLimpiarPac">'+
+        ico('borrar')+' Borrar</button></div>'+
+
+      '<label class="mini strong mt14" style="display:block">Firma del anestesiólogo</label>'+
+      '<div class="firma-box"><canvas id="coFirmaAnest"></canvas><div class="hint">Firmar aquí</div></div>'+
+      '<div class="btn-row mt8">'+
+        '<button type="button" class="btn ghost chico" id="coLimpiarAnest">'+ico('borrar')+' Borrar</button>'+
+        '<button type="button" class="btn ghost chico" id="coUsarPerfil">'+ico('firma')+' Usar mi firma guardada</button>'+
+        '<button type="button" class="btn ghost chico" id="coSubirFirma">'+ico('adjunto')+' Subir imagen de firma</button>'+
+      '</div>'+
+      '<div class="ayuda">La firma guardada es la que cargaste en <b>Mi perfil</b>. Si subís una '+
+        'imagen, se guarda también en tu perfil para las próximas fichas.</div>'+
+    '</div>'+
+
+    campoArea('coObs','Aclaraciones', c.observaciones,
+      'Lo que se conversó, quién estuvo presente, objeciones del paciente'),
+    !completo);
+}
+
+/* ---- Lo que el punto 15 escribe en f.consent (no dentro de f.v) ---- */
+let coFirmaPac = '', coFirmaAnest = '';
+
+function leerConsentimiento(f){
+  if(!$('#coQuien')) return f.consent || {};      /* el paso no está en pantalla */
+  const previo = f.consent || {};
+  const quien = val('coQuien');
+  const hayAlgo = quien || coFirmaPac || coFirmaAnest || val('coObs');
+  return {
+    quien, firmante: val('coFirmante'), items: leerChks('coItems'),
+    observaciones: val('coObs'),
+    firmaPaciente: coFirmaPac, firmaAnestesiologo: coFirmaAnest,
+    /* la fecha del consentimiento es la del dia en que se firmo, no la de
+       cada vez que se vuelve a abrir la ficha */
+    fecha: previo.fecha || (hayAlgo ? hoyISO() : ''),
+    hora:  previo.hora  || (hayAlgo ? ahoraHora() : '')
+  };
+}
+
+function cablearConsentimiento(f){
+  if(!$('#coQuien')) return;
+  const c = f.consent || {};
+  coFirmaPac   = c.firmaPaciente || '';
+  coFirmaAnest = c.firmaAnestesiologo || (USUARIO ? USUARIO.firmaDataUrl : '') || '';
+
+  cablearChks('coItems');
+
+  /* Aceptar y rechazar la transfusión a la vez es una contradicción que no
+     puede quedar en un documento que se firma. */
+  const revisarTransf = () => {
+    const l = leerChks('coItems');
+    const si = l.indexOf('Acepta transfusión de hemoderivados si fuera indispensable') >= 0;
+    const no = l.indexOf('RECHAZA transfusión de hemoderivados') >= 0;
+    $('#coAvisoTransf').innerHTML = (si && no)
+      ? '<div class="aviso danger mt8">'+ico('alerta')+'<div><b>Se marcó aceptar y rechazar la '+
+        'transfusión al mismo tiempo.</b> Dejá una sola: el documento no puede decir las dos cosas.</div></div>'
+      : (no ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>El paciente rechaza la '+
+        'transfusión de hemoderivados.</b> Queda asentado en el consentimiento y se imprime '+
+        'destacado en la ficha. Preveé las alternativas de ahorro de sangre en el punto 13.</div></div>' : '');
+  };
+  $$('#coItems input').forEach(i => i.addEventListener('change', revisarTransf));
+  revisarTransf();
+
+  const revisarQuien = () => {
+    const q = $('#coQuien').value;
+    const sin = consentSinFirma(q);
+    $('#coFirmas').classList.toggle('oculto', sin);
+    $('#coAvisoQuien').innerHTML = !q
+      ? ''
+      : q === 'No firmado — urgencia vital (art. 9 Ley 26.529)'
+        ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Excepción del art. 9 de la Ley '+
+          '26.529.</b> Se prescinde del consentimiento por grave peligro para la vida del '+
+          'paciente. Dejá constancia del motivo en «Aclaraciones»: es lo que respalda la '+
+          'excepción ante una auditoría.</div></div>'
+      : q === 'Consentimiento revocado por el paciente'
+        ? '<div class="aviso danger mt8">'+ico('alerta')+'<div><b>Consentimiento revocado.</b> '+
+          'El paciente puede revocarlo en cualquier momento y sin expresar causa. Queda '+
+          'documentado por escrito, como exige la ley, y <b>no se debe realizar el acto '+
+          'anestésico</b>.</div></div>'
+      : q.indexOf('Representante') >= 0 || q.indexOf('Menor') >= 0
+        ? '<div class="aviso info mt8">'+ico('info')+'<div>Cargá en «Nombre y DNI del firmante» '+
+          'los datos del representante y su vínculo con el paciente.</div></div>'
+        : '';
+  };
+  $('#coQuien').onchange = revisarQuien;
+  revisarQuien();
+
+  const cp = montarFirma($('#coFirmaPac'),   d => coFirmaPac = d);
+  const ca = montarFirma($('#coFirmaAnest'), d => coFirmaAnest = d);
+  setTimeout(() => { if(coFirmaPac) cp.cargar(coFirmaPac); if(coFirmaAnest) ca.cargar(coFirmaAnest); }, 150);
+
+  $('#coLimpiarPac').onclick   = () => { cp.limpiar(); coFirmaPac = ''; };
+  $('#coLimpiarAnest').onclick = () => { ca.limpiar(); coFirmaAnest = ''; };
+  $('#coUsarPerfil').onclick = () => {
+    if(!USUARIO || !USUARIO.firmaDataUrl)
+      return toast('No tenés firma guardada. Cargala en Mi perfil o subí una imagen.', 'err');
+    ca.limpiar(); ca.cargar(USUARIO.firmaDataUrl); coFirmaAnest = USUARIO.firmaDataUrl;
+  };
+  $('#coSubirFirma').onclick = () => pedirArchivos('image/*', false, fs => {
+    if(!fs || !fs.length) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      ca.limpiar(); ca.cargar(fr.result); coFirmaAnest = fr.result;
+      /* Se guarda en el perfil: la próxima vez alcanza con «Usar mi firma guardada» */
+      if(USUARIO && SESION){
+        const u = JSON.parse(JSON.stringify(USUARIO));
+        u.firmaDataUrl = fr.result;
+        escribir('usuarios', SESION.uid, u);
+        USUARIO = u;
+        toast('Firma cargada y guardada en tu perfil.', 'ok');
+      }
+    };
+    fr.readAsDataURL(fs[0]);
+  });
 }
 
 /* Lo que el punto 14 escribe en la raíz de la ficha (no dentro de f.plan) */
@@ -10344,6 +10959,7 @@ function cablearValoracion(f){
     $('#scAsaEL').classList.toggle('sel', $('#scAsaE').checked), 0);
 
   cablearAsignacionActo();      /* punto 14 */
+  cablearConsentimiento(f);     /* punto 15 */
   cablearEnvioValoracion(f);    /* envío de la valoración a contaduría */
 
   recalcular();
@@ -10560,11 +11176,15 @@ let filtroFichas = { texto:'', caracter:'', institucion:'', estado:'', alcance:'
 
 function vistaFichas(){
   const cont = $('#vFichas');
-  const universo = esCoordinador() ? fichasVisibles()
-    : (filtroFichas.alcance === 'mias'    ? misFichas()
-     : filtroFichas.alcance === 'colegas' ? fichasVisibles().filter(f => !esAutorFicha(f))
-     :                                      fichasVisibles());
-  let l = universo.sort((a,b) => (b.fecha||'') + (b.hora||'') < (a.fecha||'') + (a.hora||'') ? -1 : 1);
+  /* Tres alcances y ninguno mas: lo mio, lo que comparto con un colega y lo
+     que esta libre para tomar. Ver la ficha de un paciente en el que nunca
+     intervine ya no es una opcion. */
+  const universo = esCoordinador() ? lista('fichas')
+    : (filtroFichas.alcance === 'colegas'     ? fichasCompartidas()
+     : filtroFichas.alcance === 'disponibles' ? fichasDisponibles()
+     :                                          misFichas());
+  let l = universo.sort((a,b) =>
+    (fechaDeFicha(b)||'') + (b.hora||'') < (fechaDeFicha(a)||'') + (a.hora||'') ? -1 : 1);
   const q = norm(filtroFichas.texto);
   if(q) l = l.filter(f => {
     const p = DB.pacientes[f.pacienteId] || {};
@@ -10581,9 +11201,18 @@ function vistaFichas(){
 
   (esCoordinador() ? '' :
     '<div class="seg mb8" id="fAlcance">'+
-      [['mias','Mías'],['colegas','De colegas'],['todas','Todas']].map(a =>
+      [['mias','Mías', misFichas().length],
+       ['colegas','De colegas', fichasCompartidas().length],
+       ['disponibles','Disponibles', fichasDisponibles().length]].map(a =>
         '<button type="button" data-v="'+a[0]+'"'+(filtroFichas.alcance===a[0]?' class="on"':'')+'>'+
-        a[1]+'</button>').join('')+
+        a[1]+(a[2] ? '<span class="badge">'+a[2]+'</span>' : '')+'</button>').join('')+
+    '</div>'+
+    '<div class="ayuda mb8">'+
+      (filtroFichas.alcance === 'colegas'
+        ? 'Fichas que compartís con otro anestesiólogo: uno hizo la valoración prequirúrgica y el otro el acto. Los dos las ven completas.'
+       : filtroFichas.alcance === 'disponibles'
+        ? 'Valoraciones prequirúrgicas de la asociación cuyo acto anestésico todavía no tiene anestesiólogo. Cualquiera puede tomarlas. Al tomar una, pasa a «Mías».'
+        : 'Pacientes en los que interviniste, por la valoración prequirúrgica, por el acto anestésico o por los dos.')+
     '</div>')+
 
   '<div class="filtros">'+
@@ -10608,20 +11237,44 @@ function vistaFichas(){
 
   (l.length ? '<div class="lista">'+ l.map(f => {
     const p = DB.pacientes[f.pacienteId] || {};
+    const cx  = fechaCirugiaDe(f);
+    const mio = esAutorFicha(f), actor = esActorFicha(f);
     return '<div class="item" data-f="'+f.id+'">'+
       '<div class="avatar" style="'+(f.caracter==='programada'
         ? 'background:var(--azul-100);color:var(--azul-700)'
         : 'background:var(--danger-bg);color:var(--danger)')+'">'+
         (f.caracter==='programada'?ico('calendario'):ico('alerta'))+'</div>'+
       '<div class="txt"><b>'+esc(p.apellido||'—')+', '+esc(p.nombre||'')+'</b>'+
-        '<span>'+esc(f.cirugia||'Sin cirugía')+' · '+fFecha(f.fecha)+' · '+
-        esc(nombreInstitucion(f.institucion).split('"')[0].trim())+
-        (esAutorFicha(f) ? '' : ' · '+esc(autorFicha(f)))+'</span></div>'+
-      '<div class="der">'+(esAutorFicha(f)?'':'<span class="tag info">de colega</span> ')+etiquetaEstadoFicha(f)+
-        (f.hon && f.hon.total ? '<div class="mini mt8">'+fMoneda(f.hon.total)+'</div>' : '')+
+        '<span>'+esc(f.cirugia||'Sin cirugía')+' · '+
+        /* Se muestra la fecha que corresponde y se dice cuál es: una ficha
+           que dice «12/03» sin aclarar si es la consulta o la cirugía no
+           informa, confunde. */
+        (cx ? 'cirugía '+fFecha(cx) : 'valoración '+fFecha(fechaValoracionDe(f)))+' · '+
+        esc(nombreInstitucion(f.institucion).split('"')[0].trim())+'</span>'+
+        '<span class="quien">'+
+          (mio ? 'Valoración tuya' : 'Valoración de '+esc(autorFicha(f)))+
+          ' · '+(actor ? 'acto tuyo'
+               : actoLibre(f) ? 'acto sin tomar'
+               : 'acto de '+esc(nombreActor(f)))+
+        '</span></div>'+
+      '<div class="der">'+
+        (mio || actor ? '' : '<span class="tag info">de colega</span> ')+
+        (actoLibre(f) && !mio ? '<span class="tag warn">libre</span> ' : '')+
+        (valoracionVencida(f) ? '<span class="tag danger" title="Más de '+
+          DIAS_VIGENCIA_VALORACION+' días entre la valoración y la cirugía">valoración vencida</span> ' : '')+
+        etiquetaEstadoFicha(f)+
+        (f.hon && f.hon.total && actor ? '<div class="mini mt8">'+fMoneda(f.hon.total)+'</div>' : '')+
       '</div></div>';
   }).join('') +'</div>'
-  : '<div class="vacio">'+ico('ficha')+'<b>Sin fichas</b><span>Creá la primera desde «Nueva ficha».</span></div>');
+  : '<div class="vacio">'+ico('ficha')+'<b>'+
+      (filtroFichas.alcance === 'colegas'     ? 'Sin fichas compartidas'
+     : filtroFichas.alcance === 'disponibles' ? 'No hay actos libres'
+     :                                          'Sin fichas')+'</b><span>'+
+      (filtroFichas.alcance === 'colegas'
+        ? 'Acá van a aparecer las fichas en las que trabajaste junto a otro anestesiólogo.'
+     : filtroFichas.alcance === 'disponibles'
+        ? 'Todas las valoraciones de la asociación ya tienen anestesiólogo asignado para el acto.'
+        : 'Creá la primera desde «Nueva ficha».')+'</span></div>');
 
   $('#btnNuevaFicha').onclick = () => abrirFicha(null);
   $('#fBuscar').oninput = debounce(e => { filtroFichas.texto = e.target.value; vistaFichas();
@@ -10642,6 +11295,35 @@ function vistaFichas(){
    sin tocar la base: si el anestesiologo guarda, se graba ya migrada. */
 function migrarFicha(f){
   const a = f.acto = f.acto || {};
+
+  /* --------------------------------------------------------------------
+     LAS DOS FECHAS. Hasta ahora la ficha tenía una sola, `f.fecha`, que en
+     el modelo viejo era la fecha de la CIRUGÍA: se cargaba en el paso 1
+     junto con la hora y el turno. Ahora hay dos, y hay que repartir esa
+     única fecha entre las dos sin inventar nada:
+
+       · la fecha de la cirugía es la que estaba en f.fecha, siempre que
+         haya un acto registrado o que la fecha ya haya pasado;
+       · la de la valoración es la que quedó asentada en el punto 11, y si
+         no hay, la de creación de la ficha.
+
+     Una ficha vieja que nunca llegó al quirófano y con fecha futura no
+     recibe fecha de cirugía: es una programación, no un acto realizado, y
+     el anestesiólogo la va a cargar el día que opere.
+     -------------------------------------------------------------------- */
+  if(!f.__fechas2){
+    f.__fechas2 = true;
+    if(!a.fechaCirugia && !f.fechaCirugia && f.fecha){
+      const hubo = !!(a.finAnestesia || a.finCirugia || a.inicioAnestesia ||
+                      (a.tecnicas || []).length || (f.firma || {}).firmado);
+      if(hubo || f.fecha < hoyISO()) a.fechaCirugia = f.fecha;
+    }
+    if(!f.fechaValoracion)
+      f.fechaValoracion = ((f.v || {}).riesgo || {}).fecha ||
+                          (f.creado || '').slice(0,10) || f.fecha || '';
+    if(f.turno && !a.turno) a.turno = f.turno;
+  }
+
   if(!a.__v2){
     a.__v2 = true;
     a.drogas   = a.drogas   || [];
@@ -10728,9 +11410,15 @@ function migrarFicha(f){
 function abrirFicha(id, pacienteId){
   const nueva = !id;
   if(id && !DB.fichas[id]) return toast('No se encontró la ficha.', 'err');
+  /* Una ficha de un paciente en el que nunca intervine y cuyo acto ya tiene
+     dueño no se abre: no es mi historia clínica para leer. */
+  if(id && !puedeAbrirFicha(DB.fichas[id]))
+    return toast('Esa ficha es de otro anestesiólogo y su acto ya tiene responsable.', 'err');
   fichaActual = migrarFicha(id ? JSON.parse(JSON.stringify(DB.fichas[id])) : {
     id: uid('fic'), ownerUid: SESION.uid, pacienteId: pacienteId || '',
-    fecha: hoyISO(), hora: ahoraHora(), caracter:'programada',
+    /* La fecha que nace con la ficha es la de la VALORACIÓN. La de la
+       cirugía se carga en el paso Anestesia, el día del acto. */
+    fechaValoracion: hoyISO(), fecha: hoyISO(), caracter:'programada',
     institucion:'', obraSocial:'', estado:'borrador',
     v:{}, plan:{}, acto:{}, recup:{}, hon:{}, consent:{}, firma:{},
     creado:new Date().toISOString()
@@ -10746,7 +11434,10 @@ function abrirFicha(id, pacienteId){
      identificacion del paciente, que no puede tocar. */
   const g = id ? DB.fichas[id] : null;
   modoFicha = modoDeFicha(g);
-  pasoFicha = modoFicha === 'acto' ? 'anestesia' : 'paciente';
+  /* Al que viene a anestesiar la ficha de un colega no le sirve arrancar en
+     la identificación del paciente, que no puede tocar: entra por el acto. */
+  pasoFicha = (g && !esAutorFicha(g) && !esCoordinador()) ? 'anestesia'
+            : modoFicha === 'acto' ? 'anestesia' : 'paciente';
   irA('ficha');
   pintarFicha();
   if(nueva) toast('Nueva ficha creada. Recordá guardarla.', 'ok');
@@ -10766,16 +11457,117 @@ function pasoVecino(delta){
   return (j >= 0 && j < PASOS_FICHA.length) ? PASOS_FICHA[j].k : null;
 }
 
-/* Cuánto tiene completo cada paso: el punto del stepper se pinta con esto */
+/* =========================================================================
+   SEMAFORO DE LOS CINCO PASOS
+   -------------------------------------------------------------------------
+   Cada paso se pinta solo con uno de cuatro colores, y el color se lee de un
+   golpe de vista sin abrir el paso:
+
+     ok     verde  - completo, no falta nada de lo esencial
+     medio  ambar  - empezado, falta algo para darlo por cerrado
+     alerta rojo   - empezado y falta algo que NO se puede omitir
+     pend   gris   - todavia sin tocar
+
+   Es lo que le dice al anestesiologo, desde cualquier paso, si el registro
+   esta en condiciones de firmarse.
+   ========================================================================= */
+const ROTULO_ESTADO = { ok:'Completo', medio:'A medias', alerta:'Falta', pend:'Pendiente' };
+
 function estadoPaso(f, k){
-  const v = f.v || {}, a = f.acto || {}, r = f.recup || {};
-  if(k === 'paciente')     return f.pacienteId && f.cirugia && f.institucion ? 'ok' : 'pend';
-  if(k === 'preanestesia') return (v.scores||{}).asa ? ((v.riesgo||{}).fundamento ? 'ok' : 'medio') : 'pend';
-  if(k === 'anestesia')    return (a.tecnicas||[]).length ? (a.finCirugia ? 'ok' : 'medio') : 'pend';
-  if(k === 'recuperacion') return r.aldreteTotal ? 'ok' : 'pend';
-  if(k === 'firma')        return (f.firma||{}).firmado ? 'ok' : 'pend';
+  const v = f.v || {}, a = f.acto || {}, r = f.recup || {}, co = f.consent || {};
+
+  if(k === 'paciente'){
+    if(!f.pacienteId) return 'pend';
+    /* Las fichas viejas guardaban el diagnóstico codificado en dxQuirurgico.
+       Sigue valiendo: es el mismo dato con otro nombre. */
+    const dx = f.diagnostico || (f.dxQuirurgico || {}).d || f.dxQuirurgico;
+    return (f.cirugia && f.institucion && dx) ? 'ok'
+         : (f.cirugia || f.institucion) ? 'alerta' : 'medio';
+  }
+  if(k === 'preanestesia'){
+    const sc = v.scores || {}, pl = f.plan || {};
+    /* Una valoración que ya se guardó nunca vuelve a leerse «Pendiente»:
+       está empezada por definición, y si le falta algo hay que decirlo. */
+    const arranco = !!(f.valoracionGuardada || sc.asa || co.quien ||
+                       (v.antecedentes2||[]).length || v.sinAntecedentes);
+    if(!arranco) return 'pend';
+    /* el consentimiento es el punto 15 y es condicion para cerrar */
+    const cerrada = sc.asa && (v.riesgo||{}).fundamento && (pl.tecnica||[]).length &&
+                    consentimientoCompleto(f);
+    if(cerrada) return 'ok';
+    return (sc.asa && (v.riesgo||{}).fundamento) ? 'alerta' : 'medio';
+  }
+  if(k === 'anestesia'){
+    const arranco = (a.tecnicas||[]).length || (a.drogas||[]).length ||
+                    (a.controles||[]).length || a.ingreso || a.fechaCirugia;
+    if(!arranco) return 'pend';
+    return (a.fechaCirugia && (a.tecnicas||[]).length && a.finAnestesia) ? 'ok'
+         : (a.tecnicas||[]).length ? 'alerta' : 'medio';
+  }
+  if(k === 'recuperacion'){
+    if(!r.hora && !r.aldreteTotal && !r.destino) return 'pend';
+    return r.aldreteCompleto && r.destino ? 'ok' : 'alerta';
+  }
+  if(k === 'firma'){
+    if((f.firma||{}).firmado) return 'ok';
+    const listo = estadoPaso(f,'anestesia') === 'ok' && estadoPaso(f,'recuperacion') === 'ok';
+    return listo ? 'alerta' : 'pend';
+  }
   return 'pend';
 }
+
+/* =========================================================================
+   PUNTO 15 - CONSENTIMIENTO INFORMADO ANESTESICO
+   Sin el consentimiento no hay valoracion prequirurgica que se pueda dar por
+   concluida: la Ley 26.529 lo exige por escrito para todo procedimiento con
+   riesgo relevante, y la anestesia lo es. Las dos unicas salidas legitimas
+   son la urgencia vital del art. 9 y la revocacion del paciente, y las dos
+   quedan asentadas en el propio consentimiento.
+   ========================================================================= */
+function consentSinFirma(q){
+  return q === 'No firmado — urgencia vital (art. 9 Ley 26.529)' ||
+         q === 'Consentimiento revocado por el paciente';
+}
+function consentimientoCompleto(f){
+  const c = f.consent || {};
+  if(!c.quien) return false;
+  if(consentSinFirma(c.quien)) return true;      /* documentado, sin firma */
+  return !!(c.firmante && c.firmaPaciente && c.firmaAnestesiologo);
+}
+/* Que le falta al punto 15, en palabras, para poder decirselo al usuario */
+function faltaDelConsentimiento(f){
+  const c = f.consent || {};
+  if(!c.quien) return 'elegí quién firma el consentimiento';
+  if(consentSinFirma(c.quien)) return '';
+  const l = [];
+  if(!c.firmante)            l.push('el nombre y DNI del firmante');
+  if(!c.firmaPaciente)       l.push('la firma del paciente');
+  if(!c.firmaAnestesiologo)  l.push('tu firma');
+  return l.join(', ');
+}
+
+/* =========================================================================
+   QUE BOTONES LLEVA CADA PASO
+   -------------------------------------------------------------------------
+   Antes los cinco pasos mostraban los mismos seis botones abajo: Guardar,
+   Siguiente, Honorarios, Consentimiento, Word, PDF y Enviar. Eso es ruido:
+   el anestesiologo tenia que leer siete botones para elegir el unico que
+   necesitaba, y varios no tenian sentido en el paso donde estaban.
+
+   Ahora cada paso muestra lo suyo:
+
+     Paciente      Siguiente.                        Autoguarda al pasar.
+     Preanestesia  Guardar + Siguiente + documentos de la VALORACION.
+     Anestesia     Siguiente.                        Autoguarda al editar.
+     Recuperacion  Siguiente.                        Autoguarda al pasar.
+     Firmar        Guardar + documentos del ACTO.
+
+   El consentimiento ya no es un boton en ningun paso: es el punto 15 de la
+   Preanestesia. Y en Firmar no vuelve a aparecer porque ya se le entrego al
+   paciente con la valoracion: repetirlo ahi no agrega nada.
+   ========================================================================= */
+const PASO_GUARDA  = { preanestesia:true, firma:true };
+const PASO_EXTRAS  = { preanestesia:'valoracion', firma:'acto' };
 
 /* =========================================================================
    PANTALLA
@@ -10806,9 +11598,10 @@ function pintarFicha(){
     const est = estadoPaso(f, s.k);
     return '<button type="button" class="step'+(s.k===pasoFicha?' on':'')+' '+est+
       (pasoEnFoco(s.k) ? '' : ' atenuado')+
-      '" data-paso="'+s.k+'">'+
-      '<span class="dot">'+(est==='ok' ? ico('check') : ico(s.ico))+'</span>'+
+      '" data-paso="'+s.k+'" title="'+esc(s.t+' — '+ROTULO_ESTADO[est])+'">'+
+      '<span class="dot">'+(est==='ok' ? ico('check') : est==='alerta' ? ico('alerta') : ico(s.ico))+'</span>'+
       '<span class="lbl">'+esc(s.t)+'</span>'+
+      '<span class="est '+est+'">'+esc(ROTULO_ESTADO[est])+'</span>'+
       (i < PASOS_FICHA.length-1 ? '<span class="linea"></span>' : '')+
       '</button>';
   }).join('') +'</div>'+
@@ -10826,47 +11619,51 @@ function pintarFicha(){
      sección: repetirlo con bannerSeccion() sería decir dos veces lo mismo. */
   (soloActo ? bannerFichaAjena(f) : bannerFaltantes(f) + bannerSeccion(guardada || f))+
 
+  /* «Tomar acto anestésico» vive FUERA del cuerpo del paso, a propósito.
+     El cuerpo se atenúa y se bloquea entero cuando la sección es de un
+     colega —que es exactamente la situación en la que hay que poder tomar el
+     acto—. Adentro, el botón nacía gris y muerto: no se podía tomar
+     justamente el acto que había que tomar. */
+  (pasoFicha === 'anestesia' ? htmlTomarActo(f) : '')+
+
   '<div id="fiCuerpo"></div>'+
 
   /* ---------------------- navegación entre pasos ---------------------- */
   '<div class="paso-nav no-print">'+
     (pasoVecino(-1) ? '<button class="btn ghost" id="fiAtras">'+ico('atras')+' Anterior</button>' : '<span></span>')+
-    '<button class="btn pri grande" id="fiGuardar">'+ico('check')+' Guardar</button>'+
-    (pasoVecino(1) ? '<button class="btn pri" id="fiSiguiente">Siguiente '+
-      ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg)"')+'</button>' : '<span></span>')+
+    (PASO_GUARDA[pasoFicha]
+      ? '<button class="btn pri grande" id="fiGuardar">'+ico('check')+' Guardar '+
+        (pasoFicha === 'preanestesia' ? 'valoración' : 'y cerrar')+'</button>'
+      : '<span></span>')+
+    (pasoVecino(1)
+      ? '<button class="btn '+(PASO_GUARDA[pasoFicha] ? 'ghost' : 'pri grande')+'" id="fiSiguiente">'+
+        'Siguiente '+ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg)"')+'</button>'
+      : '<span></span>')+
   '</div>'+
 
-  '<div class="btn-row mt14 no-print fi-extras">'+
-    '<button class="btn ghost chico" id="fiHon">'+ico('dinero')+' Honorarios</button>'+
-    (soloActo ? '' : '<button class="btn ghost chico" id="fiConsent">'+ico('firma')+' Consentimiento</button>')+
-    '<button class="btn ghost chico" id="fiWord">'+ico('word')+' Word</button>'+
-    '<button class="btn ghost chico" id="fiPdf">'+ico('imprimir')+' PDF</button>'+
-    /* Al paciente se le manda SOLO la valoración pre-anestésica con su
-       consentimiento: es la documentación que él necesita llevar el día de la
-       cirugía. El registro intraoperatorio, la recuperación y el cierre
-       firmado son historia clínica para el equipo tratante y para la
-       auditoría, no para entregarle por correo. Por eso el botón sólo existe
-       en los dos pasos que componen la valoración. */
-    ((soloActo || ['paciente','preanestesia'].indexOf(pasoFicha) < 0)
-      ? '' : '<button class="btn ghost chico" id="fiMail">'+ico('adjunto')+
-        ' Enviar valoración al paciente</button>')+
-    (DB.fichas[f.id] && !soloActo ? '<button class="btn danger chico" id="fiBorrar">'+ico('borrar')+'</button>' : '')+
-  '</div>';
+  /* Los pasos que no guardan a mano lo dicen, para que nadie salga de la
+     pantalla con la duda de si lo que cargó quedó grabado. */
+  (PASO_GUARDA[pasoFicha] ? '' :
+    '<div class="autoguarda no-print">'+ico('nube')+'Lo que cargás en este paso se guarda solo '+
+    'al tocar «Siguiente».</div>')+
+
+  htmlExtrasDePaso(f, soloActo)+
+
+  (DB.fichas[f.id] && !soloActo && pasoFicha === 'firma'
+    ? '<div class="btn-row mt14 no-print"><button class="btn danger chico" id="fiBorrar">'+
+      ico('borrar')+' Eliminar ficha</button></div>' : '');
 
   $('#fiVolver').onclick = () => { guardarPasoActual(); irA('fichas'); vistaFichas(); };
   /* El banner de ficha ajena vive fuera del cuerpo del paso: su botón se
      cablea acá para que funcione en los cinco pasos, no sólo en el primero. */
   if($('#fiTomar')) $('#fiTomar').onclick = () => tomarActo(f);
+  if($('#acTomar')) $('#acTomar').onclick = () => tomarActo(f);
   $$('#vFicha [data-paso]').forEach(b => b.onclick = () => irAPaso(b.dataset.paso));
   $$('#vFicha [data-modo]').forEach(b => b.onclick = () => cambiarModoFicha(b.dataset.modo));
   if($('#fiAtras'))     $('#fiAtras').onclick = () => irAPaso(pasoVecino(-1));
-  if($('#fiSiguiente')) $('#fiSiguiente').onclick = () => irAPaso(pasoVecino(1));
-  $('#fiGuardar').onclick = () => { guardarPasoActual(); guardarFicha(); };
-  $('#fiHon').onclick = () => { guardarPasoActual(); abrirHonorarios(fichaActual); };
-  $('#fiWord').onclick = () => { guardarPasoActual(); exportarFichaWord(fichaActual); };
-  $('#fiPdf').onclick  = () => { guardarPasoActual(); imprimirFicha(fichaActual); };
-  if($('#fiConsent')) $('#fiConsent').onclick = () => { guardarPasoActual(); abrirConsentimiento(fichaActual); };
-  if($('#fiMail')) $('#fiMail').onclick = () => { guardarPasoActual(); enviarDocumentacionPaciente(fichaActual); };
+  if($('#fiSiguiente')) $('#fiSiguiente').onclick = () => avanzarPaso();
+  if($('#fiGuardar'))   $('#fiGuardar').onclick = () => guardarPasoConCierre();
+  cablearExtrasDePaso();
   if($('#fiBorrar')) $('#fiBorrar').onclick = () => confirmar('Eliminar ficha',
     'Se elimina de forma permanente en todos los dispositivos. Esta acción no se puede deshacer.',
     () => { eliminar('fichas', f.id); auditar('ficha-borrar', f.id);
@@ -10889,6 +11686,226 @@ function pintarFicha(){
      —el que anestesia necesita leer el prequirúrgico— pero se distingue de
      un golpe de vista lo que es propio de lo que es del colega. */
   if(!miSeccion || !enFoco) cuerpo.classList.add('atenuado');
+}
+
+/* =========================================================================
+   LOS DOCUMENTOS DE CADA PASO
+   -------------------------------------------------------------------------
+   Se habilitan recien cuando lo que documentan esta guardado. Un PDF de una
+   valoracion a medio cargar no le sirve a nadie, y mandarsela asi al
+   paciente es peor todavia: lleva su nombre, su historia clinica y la firma
+   del profesional. Por eso los botones existen siempre —para que se vea que
+   estan— pero nacen apagados y se encienden al guardar.
+   ========================================================================= */
+function htmlExtrasDePaso(f, soloActo){
+  const tipo = PASO_EXTRAS[pasoFicha];
+  if(!tipo) return '';
+  const guardada = DB.fichas[f.id];
+
+  /* ---------------- Documentos de la VALORACION prequirurgica ------------- */
+  if(tipo === 'valoracion'){
+    if(soloActo) return '';                    /* la valoracion es de un colega */
+    const lista  = !!(guardada && guardada.valoracionGuardada);
+    const p      = DB.pacientes[f.pacienteId] || {};
+    const sinMail = !p.email;
+    const off = lista ? '' : ' disabled';
+    return '<div class="doc-caja no-print">'+
+      '<div class="doc-caja-tit">'+ico('valoracion')+
+        '<b>Documentación de la valoración prequirúrgica</b></div>'+
+      (lista
+        ? '<div class="mini">Valoración guardada el '+
+          fFechaLarga(String(guardada.valoracionGuardada).slice(0,10))+' a las '+
+          esc(String(guardada.valoracionGuardada).slice(11,16))+' h.</div>'
+        : '<div class="aviso warn mt8">'+ico('candado')+'<div><b>Todavía no se puede documentar.</b> '+
+          'Completá la valoración —incluido el punto 15, el consentimiento informado— y tocá '+
+          '<b>«Guardar valoración»</b>. Recién ahí se habilitan estos cuatro botones.</div></div>')+
+      '<div class="btn-row mt8 fi-extras">'+
+        '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+' Honorarios</button>'+
+        '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+' Word</button>'+
+        '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+' PDF</button>'+
+        '<button class="btn pri chico" id="fiMail"'+(lista && !sinMail ? '' : ' disabled')+'>'+
+          ico('adjunto')+' Enviar valoración al paciente</button>'+
+      '</div>'+
+      (lista && sinMail
+        ? '<div class="ayuda">El paciente no tiene correo cargado: agregalo en su historia '+
+          'para poder enviarle la documentación.</div>' : '')+
+      (lista
+        ? '<div class="ayuda">Al paciente le llegan <b>dos PDF por separado</b>: la valoración '+
+          'pre-anestésica y el consentimiento informado firmado'+
+          (INDICACIONES_AL_PACIENTE ? ', más la hoja de indicaciones' : '')+
+          '. Sin ningún dato de facturación.</div>' : '')+
+    '</div>';
+  }
+
+  /* ------------------- Documentos del ACTO anestesico -------------------- */
+  const enBase = !!guardada;
+  const off = enBase ? '' : ' disabled';
+  return '<div class="doc-caja no-print">'+
+    '<div class="doc-caja-tit">'+ico('ficha')+'<b>Documentación del acto anestésico</b></div>'+
+    (enBase ? '' : '<div class="aviso warn mt8">'+ico('candado')+
+      '<div>Guardá el registro para poder exportarlo.</div></div>')+
+    '<div class="btn-row mt8 fi-extras">'+
+      '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+' Honorarios</button>'+
+      '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+' Word</button>'+
+      '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+' PDF</button>'+
+    '</div>'+
+    /* El consentimiento NO vuelve a aparecer acá: se firmó en el punto 15 de
+       la Preanestesia y ya se le entregó al paciente con su valoración.
+       Repetirlo en el cierre no agrega nada y confunde sobre cuál es el que
+       vale. */
+    '<div class="ayuda">El consentimiento informado ya se firmó y se entregó con la valoración '+
+      'prequirúrgica (punto 15). Sale impreso dentro de estos documentos.</div>'+
+  '</div>';
+}
+
+function cablearExtrasDePaso(){
+  if($('#fiHon'))  $('#fiHon').onclick  = () => { guardarPasoActual(); abrirHonorarios(fichaActual); };
+  if($('#fiWord')) $('#fiWord').onclick = () => { guardarPasoActual(); exportarFichaWord(fichaActual); };
+  if($('#fiPdf'))  $('#fiPdf').onclick  = () => { guardarPasoActual(); imprimirFicha(fichaActual); };
+  if($('#fiMail')) $('#fiMail').onclick = () => { guardarPasoActual(); enviarDocumentacionPaciente(fichaActual); };
+}
+
+/* =========================================================================
+   AVANZAR DE PASO: guarda solo y sigue
+   -------------------------------------------------------------------------
+   «Siguiente» no es nada mas moverse de pantalla: graba en la base lo que se
+   cargo en el paso. Es como trabaja el anestesiologo —termina una cosa y
+   pasa a la otra— y evita el error mas caro de todos, que es perder un
+   registro por haber salido sin apretar Guardar.
+   ========================================================================= */
+function avanzarPaso(){
+  const k = pasoVecino(1);
+  if(!k) return;
+  guardarPasoActual();
+  const f = fichaActual;
+
+  /* Sin paciente no hay nada que guardar: la ficha no existe todavia */
+  if(!f.pacienteId){
+    pasoFicha = 'paciente'; pintarFicha();
+    return toast('Elegí un paciente para poder continuar.', 'err');
+  }
+
+  const mio = puedeEditarSeccion(DB.fichas[f.id] || f, seccionDePaso(pasoFicha));
+  if(mio && !(f.firma || {}).firmado){
+    guardarFicha(true, true);                        /* silencioso, sin repintar */
+    toast(({ paciente:     'Datos del paciente y del procedimiento guardados.',
+             preanestesia: 'Valoración guardada.',
+             anestesia:    'Acto anestésico guardado.',
+             recuperacion: 'Recuperación guardada.' })[pasoFicha] || 'Guardado.', 'ok');
+  }
+  irAPaso(k);
+}
+
+/* =========================================================================
+   GUARDAR EL PASO QUE CIERRA UNA SECCION
+   Preanestesia y Firmar no son un paso mas: cada uno cierra un acto medico
+   completo y habilita su documentacion. Por eso tienen boton propio y
+   validacion propia.
+   ========================================================================= */
+function guardarPasoConCierre(){
+  guardarPasoActual();
+  const f = fichaActual;
+
+  if(pasoFicha === 'preanestesia'){
+    if(!f.pacienteId){ pasoFicha = 'paciente'; pintarFicha();
+      return toast('Elegí un paciente para poder continuar.', 'err'); }
+
+    /* --- El punto 15 es condicion para dar la valoracion por concluida --- */
+    if(!consentimientoCompleto(f)){
+      const falta = faltaDelConsentimiento(f);
+      pintarFicha();
+      const acc = $('#acConsent');
+      if(acc){ acc.open = true; acc.scrollIntoView({ behavior:'smooth', block:'center' }); }
+      return toast('Falta el punto 15, consentimiento informado: ' + falta + '.', 'err');
+    }
+
+    f.fechaValoracion = f.fechaValoracion || (f.v && f.v.riesgo && f.v.riesgo.fecha) || hoyISO();
+    f.valoracionGuardada = new Date().toISOString();
+    f.valoracionPorUid   = SESION.uid;
+    if((f.estado || 'borrador') === 'borrador') f.estado = 'realizada';
+    guardarFicha(true);
+    auditar('valoracion-cerrar', 'Valoración prequirúrgica concluida y firmada');
+    toast('Valoración prequirúrgica guardada. Ya podés generar y enviar la documentación.', 'ok');
+    pintarFicha();
+    const caja = $('.doc-caja');
+    if(caja) caja.scrollIntoView({ behavior:'smooth', block:'center' });
+    return;
+  }
+
+  /* ------------------------------- Firmar ------------------------------- */
+  guardarFicha(true);
+  cierreDeFicha(fichaActual);
+}
+
+/* =========================================================================
+   CIERRE DE LA FICHA - las dos preguntas del final
+   -------------------------------------------------------------------------
+   1. ¿Se lleva el registro en un archivo o queda solamente guardado?
+      El acto, la recuperacion y la firma son historia clinica: muchas
+      instituciones piden la copia en papel o en PDF para el legajo del
+      paciente, y el anestesiologo suele querer la suya.
+
+   2. ¿Carga los honorarios ahora o los difiere?
+      Cargarlos en caliente es lo que evita el agujero de facturacion de fin
+      de mes. Si los difiere, la app se lo recuerda cada tres horas hasta que
+      los cargue: no se pierde, insiste.
+   ========================================================================= */
+function cierreDeFicha(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const quien = (p.apellido || '') + ', ' + (p.nombre || '');
+
+  abrirModal('Registro guardado',
+    '<div class="aviso ok">'+ico('check')+'<div><b>El acto anestésico, la recuperación y la '+
+      'firma quedaron guardados</b>'+(nubeOK ? ' y sincronizados' : ' en este dispositivo')+
+      '.<br>'+esc(quien)+' · '+esc(f.cirugia || 'sin cirugía')+'</div></div>'+
+    '<p class="mini strong mt14">¿Querés llevarte el registro en un archivo?</p>'+
+    '<div class="opciones-cierre">'+
+      '<button type="button" class="op-cierre" id="ciPdf">'+ico('imprimir')+
+        '<b>PDF</b><span>Acto, recuperación y firma listos para imprimir o guardar</span></button>'+
+      '<button type="button" class="op-cierre" id="ciWord">'+ico('word')+
+        '<b>Word</b><span>El mismo documento, editable</span></button>'+
+      '<button type="button" class="op-cierre" id="ciNada">'+ico('nube')+
+        '<b>Sólo guardado</b><span>Queda en tu archivo personal de fichas, sin descargar nada</span></button>'+
+    '</div>', '');
+  $('#ciPdf').onclick  = () => { imprimirFicha(f);      cerrarModal(); setTimeout(() => preguntarHonorarios(f), 700); };
+  $('#ciWord').onclick = () => { exportarFichaWord(f);  cerrarModal(); setTimeout(() => preguntarHonorarios(f), 400); };
+  $('#ciNada').onclick = () => { cerrarModal();         setTimeout(() => preguntarHonorarios(f), 180); };
+}
+
+function preguntarHonorarios(f){
+  const g = DB.fichas[f.id] || f;
+  /* Los honorarios del acto son de quien anestesió. Al que sólo hizo la
+     valoración no se le pregunta por un honorario que no es suyo. */
+  if(!puedeEditarSeccion(g, 'acto') || (g.hon || {}).modalidad){
+    return irAPaso('firma');
+  }
+  abrirModal('Honorarios del acto',
+    '<p style="margin:0 0 12px;line-height:1.6">Todavía no cargaste los honorarios de este acto '+
+      'anestésico. Mientras no lo hagas, la prestación no aparece en tu facturación del mes ni '+
+      'en tus estadísticas de ingresos.</p>'+
+    '<div class="opciones-cierre">'+
+      '<button type="button" class="op-cierre" id="hoAhora">'+ico('dinero')+
+        '<b>Cargarlos ahora</b><span>Se abre la ventana de honorarios, son dos minutos</span></button>'+
+      '<button type="button" class="op-cierre" id="hoDespues">'+ico('reloj')+
+        '<b>Dejarlo para después</b><span>Te lo recuerdo cada 3 horas hasta que lo cargues</span></button>'+
+    '</div>', '');
+  $('#hoAhora').onclick = () => { cerrarModal(); abrirHonorarios(fichaActual); };
+  $('#hoDespues').onclick = () => {
+    cerrarModal();
+    diferirHonorarios(fichaActual);
+  };
+}
+
+/* Deja marcado que el honorario quedó pendiente a proposito. El recordatorio
+   lo dispara ui-avisos.js: campana en rojo y cartel cada tres horas. */
+function diferirHonorarios(f){
+  const base = JSON.parse(JSON.stringify(DB.fichas[f.id] || f));
+  base.honDiferido = { desde: new Date().toISOString(), uid: SESION.uid, avisado: '' };
+  escribir('fichas', base.id, base);
+  if(fichaActual && fichaActual.id === base.id) fichaActual.honDiferido = base.honDiferido;
+  auditar('honorarios-diferir', 'Honorarios del acto diferidos');
+  toast('Anotado. Te lo voy a recordar cada 3 horas hasta que los cargues.', 'warn');
+  irA('panel');
 }
 
 /* Cambia la tarea en foco. NO cambia permisos: si el acto es de un colega,
@@ -10970,6 +11987,7 @@ function guardarPasoActual(){
   if(!puedeEditarSeccion(guardada || f, seccionDePaso(pasoFicha))) return;
   if(pasoFicha === 'paciente')          Object.assign(f, leerPasoPaciente());
   else if(pasoFicha === 'preanestesia'){ f.v = leerValoracion(); f.plan = leerPlan();
+                                        f.consent = leerConsentimiento(f);   /* punto 15 */
                                         Object.assign(f, leerAsignacionActo()); }
   else if(pasoFicha === 'anestesia')     f.acto = leerPasoAnestesia();
   else if(pasoFicha === 'recuperacion')  f.recup = leerPasoRecuperacion();
@@ -10998,6 +12016,7 @@ function guardarFicha(silencioso, sinRepintar){
     if(esActorFicha(guardada) && f.hon) base.hon = f.hon;   /* su propio honorario */
     base.actoPorUid = SESION.uid;
     base.actoPorNombre = USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '';
+    sincronizarFechas(base);
     base.modificado = new Date().toISOString();
     base.modificadoPor = SESION.uid;
     base.modificadoPorNombre = base.actoPorNombre;
@@ -11014,6 +12033,7 @@ function guardarFicha(silencioso, sinRepintar){
     if(!sinRepintar){ pasoFicha = 'paciente'; pintarFicha(); }
     return toast('Seleccioná un paciente en el paso 1.', 'err');
   }
+  sincronizarFechas(f);
   f.modificado = new Date().toISOString();
   f.modificadoPor = SESION.uid;
   f.modificadoPorNombre = USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '';
@@ -11071,11 +12091,14 @@ function htmlPasoPaciente(f){
           '<button type="button" data-v="'+c[0]+'"'+(f.caracter===c[0]?' class="on"':'')+'>'+c[1]+'</button>').join('')+
       '</div>'+
       '<div class="ayuda">Urgencia: debe resolverse en horas. Emergencia: riesgo vital inmediato, sin demora posible.</div></div>'+
-    '<div class="grid c3">'+
-      campoFecha('qxFecha','Fecha', f.fecha)+
-      '<div class="campo"><label>Hora prevista</label><input type="time" id="qxHora" value="'+esc(f.hora||'')+'"></div>'+
-      campoSel('qxTurno','Turno', ['','Mañana','Tarde','Noche','Fin de semana / feriado'], f.turno)+
-    '</div>'+
+    /* Fecha, hora y turno NO se piden acá: cuando el anestesiólogo hace la
+       valoración prequirúrgica todavía no los sabe —la cirugía se programa
+       después—. La fecha real del acto se carga en el paso Anestesia, y la
+       de esta consulta queda registrada sola en el punto 11 de la
+       Preanestesia. Son dos fechas distintas y casi nunca coinciden. */
+    '<div class="aviso info">'+ico('calendario')+'<div><b>La fecha de la cirugía se carga en el '+
+      'paso Anestesia</b>, el día del acto. Esta valoración queda fechada '+
+      (f.fechaValoracion ? 'el <b>'+fFecha(f.fechaValoracion)+'</b>' : 'hoy')+'.</div></div>'+
     '<div class="campo"><label>Institución <span class="req">*</span></label>'+
       '<select id="qxInst"><option value="">— Seleccionar —</option>'+
       instituciones().map(i => '<option value="'+esc(i.id)+'"'+(f.institucion===i.id?' selected':'')+'>'+
@@ -11097,7 +12120,7 @@ function htmlPasoPaciente(f){
     '<div class="campo"><label>Diagnóstico <span class="req">*</span></label>'+
       '<input type="text" id="qxDx" value="'+esc(f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : ''))+'" '+
         'placeholder="Ej.: Colelitiasis" autocomplete="off">'+
-      '<div class="ayuda">Diagnóstico quirúrgico en texto claro. La app ya no usa codificación CIE-10.</div></div>'+
+      '<div class="ayuda">Diagnóstico quirúrgico en texto claro.</div></div>'+
     '<div class="campo"><label>Cirugía / procedimiento <span class="req">*</span></label>'+
       '<div class="buscador"><input type="search" id="cxBuscar" placeholder="Buscar en el nomenclador anestésico… ej.: colecistectomía, cesárea, cadera" autocomplete="off">'+
       '<div class="res" id="cxRes"></div></div>'+
@@ -11280,7 +12303,6 @@ function leerPasoPaciente(){
   }
   return {
     pacienteId: pid, caracter: b ? b.dataset.v : 'programada',
-    fecha: val('qxFecha'), hora: val('qxHora'), turno: val('qxTurno'),
     institucion: val('qxInst'), obraSocial: val('qxOS'), nroAfiliado: val('qxAfiliado'),
     especialidad: val('qxEsp'),
     diagnostico: val('qxDx'),
@@ -11297,23 +12319,51 @@ function leerPasoPaciente(){
   };
 }
 
-/* Un colega toma el acto operatorio a su nombre */
+/* =========================================================================
+   TOMAR EL ACTO ANESTESICO
+   Deja al que toca asentado como el anestesiologo que realiza el acto: es el
+   que va a firmarlo, el que responde por el y a cuyo nombre se factura. La
+   consulta prequirurgica sigue siendo de quien la hizo: son dos actos
+   medicos distintos y se facturan por separado.
+   ========================================================================= */
 function tomarActo(f){
-  confirmar('Voy a realizar este acto',
-    'Vas a quedar registrado como el anestesiólogo que realiza este acto. '+
-    'El honorario del acto pasa a tu nombre; la consulta prequirúrgica sigue siendo de '+
-    esc(autorFicha(f))+'.',
+  const g = DB.fichas[f.id];
+  const deColega = g && !esAutorFicha(g);
+  const otro = actorFicha(g || f);
+  const pisando = otro && SESION && otro !== SESION.uid;
+
+  confirmar('Tomar el acto anestésico',
+    '<b>'+esc((USUARIO ? USUARIO.apellido+', '+USUARIO.nombre : 'Vos'))+'</b> queda registrado como '+
+    'el anestesiólogo que realiza este acto.<br><br>'+
+    (pisando
+      ? '<b>Ojo:</b> en el punto 14 estaba designado <b>'+esc(nombreActor(g || f))+'</b>. '+
+        'Al tomarlo, el acto y su honorario pasan a tu nombre y queda asentado en la auditoría.<br><br>'
+      : '')+
+    'El honorario del acto pasa a ser tuyo; la consulta prequirúrgica sigue siendo de '+
+    esc(autorFicha(g || f))+'.',
     () => {
-      const base = migrarFicha(JSON.parse(JSON.stringify(DB.fichas[f.id])));
-      base.asignadoUid = SESION.uid;
-      base.actorExterno = '';
-      base.modificado = new Date().toISOString();
+      /* Una ficha que todavía no está en la base no se puede tomar: primero
+         se graba, si no se estaría tomando algo que no existe. */
+      if(!g){
+        if(!f.pacienteId) return toast('La ficha no tiene paciente todavía.', 'err');
+        guardarFicha(true, true);
+      }
+      const base = migrarFicha(JSON.parse(JSON.stringify(DB.fichas[f.id] || f)));
+      base.asignadoUid   = SESION.uid;
+      base.actoPorUid    = SESION.uid;
+      base.actoPorNombre = USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '';
+      base.actoTomado    = new Date().toISOString();
+      base.actorExterno  = '';
+      base.modificado    = new Date().toISOString();
       escribir('fichas', base.id, base);
-      auditar('ficha-tomar-acto', 'Acto de la ficha de ' + autorFicha(base));
+      auditar('ficha-tomar-acto',
+        (deColega ? 'Acto de la ficha de ' + autorFicha(base) : 'Acto propio') +
+        (pisando ? ' (estaba designado ' + nombreUsuario(otro) + ')' : ''));
       fichaActual = base;
       pasoFicha = 'anestesia';
+      modoFicha = pasoEnFoco('anestesia') ? modoFicha : 'acto';
       pintarFicha();
-      toast('El acto quedó a tu nombre.', 'ok');
+      toast('El acto quedó a tu nombre. Ya podés registrarlo.', 'ok');
     }, 'Tomar el acto');
 }
 
@@ -11643,8 +12693,13 @@ function cablearPasoFirma(f){
         };
         fichaActual.estado = 'cerrada';
         auditar('ficha-firmar', fichaActual.id);
-        guardarFicha();
+        guardarFicha(true);
         toast('Ficha anestésica completa.', 'ok');
+        /* Firmar es el final del acto médico, pero no el final del trámite:
+           quedan la copia del registro y el honorario. Se preguntan las dos
+           cosas acá, en caliente, que es cuando el anestesiólogo todavía
+           tiene la ficha en la cabeza. */
+        cierreDeFicha(fichaActual);
       }, 'Finalizar y firmar');
   };
 }
@@ -11660,6 +12715,9 @@ function abrirHonorarios(f){
   $('#honGuardar').onclick = () => {
     fichaActual.hon = leerHonorarios();
     fichaActual.honConsulta = leerHonorariosConsulta();
+    /* Cargado el honorario, se apaga el recordatorio de cada tres horas: la
+       razón por la que existía dejó de estar. */
+    if(fichaActual.hon && fichaActual.hon.modalidad) fichaActual.honDiferido = null;
     cerrarModal();
     guardarFicha();
   };
@@ -11843,55 +12901,20 @@ function leerHonorarios(){
 }
 
 /* ------------------------------------------------------ Consentimiento */
+/* =========================================================================
+   ATAJO AL PUNTO 15
+   El consentimiento dejo de ser una ventana aparte: vive dentro de la
+   valoracion, como punto 15, porque es parte de ella y no un tramite suelto.
+   Esta funcion queda porque los avisos y los enlaces viejos apuntan al
+   consentimiento: en vez de abrir un modal, lleva al punto donde ahora esta.
+   ========================================================================= */
 function abrirConsentimiento(f){
-  const p = DB.pacientes[f.pacienteId] || {};
-  const c = f.consent || {};
-  abrirModal('Consentimiento informado anestésico',
-    '<div class="aviso info">'+ico('info')+'<div>Ley 26.529 de Derechos del Paciente. '+
-      'El texto se imprime completo en el documento final.</div></div>'+
-    '<div class="mini" style="max-height:190px;overflow:auto;background:var(--bg-2);padding:12px;'+
-      'border-radius:10px;white-space:pre-line;line-height:1.6">'+esc(TEXTO_CONSENTIMIENTO)+'</div>'+
-    '<div class="grid c2 mt14">'+
-      campoSel('coQuien','Firma el consentimiento',
-        ['El paciente','Representante legal / familiar','Paciente y representante',
-         'No firmado — urgencia vital','Paciente que rechaza transfusión'], c.quien)+
-      campoTxt('coFirmante','Nombre y DNI del firmante', c.firmante || (p.apellido?p.apellido+', '+p.nombre+' — '+(p.dni||''):''))+
-    '</div>'+
-    chksHTML('coItems', ['Acepta transfusión de hemoderivados si fuera necesaria',
-      'RECHAZA transfusión de hemoderivados','Acepta técnica regional','Acepta anestesia general',
-      'Acepta sedación','Autoriza el uso de imágenes con fines docentes',
-      'Recibió información sobre el ayuno','Recibió información sobre la medicación a suspender'], c.items)+
-    '<label class="mini strong" style="display:block;margin:14px 0 6px">Firma del paciente o representante</label>'+
-    '<div class="firma-box"><canvas id="coFirmaPac"></canvas><div class="hint">Firmar aquí</div></div>'+
-    '<div class="btn-row mt8"><button class="btn ghost chico" id="coLimpiarPac">Borrar</button></div>'+
-    '<label class="mini strong" style="display:block;margin:14px 0 6px">Firma del anestesiólogo</label>'+
-    '<div class="firma-box"><canvas id="coFirmaAnest"></canvas><div class="hint">Firmar aquí</div></div>'+
-    '<div class="btn-row mt8"><button class="btn ghost chico" id="coLimpiarAnest">Borrar</button>'+
-    '<button class="btn ghost chico" id="coUsarPerfil">Usar mi firma guardada</button></div>'+
-    campoArea('coObs','Aclaraciones', c.observaciones),
-    '<button class="btn ghost" data-cerrar>Cerrar</button>'+
-    '<button class="btn pri" id="coGuardar">'+ico('check')+' Guardar consentimiento</button>');
-
-  cablearGenerico();
-  let fp = c.firmaPaciente || '', fa = c.firmaAnestesiologo || (USUARIO ? USUARIO.firmaDataUrl : '') || '';
-  const cp = montarFirma($('#coFirmaPac'), d => fp = d);
-  const ca = montarFirma($('#coFirmaAnest'), d => fa = d);
-  setTimeout(() => { if(fp) cp.cargar(fp); if(fa) ca.cargar(fa); }, 150);
-  $('#coLimpiarPac').onclick = () => { cp.limpiar(); fp = ''; };
-  $('#coLimpiarAnest').onclick = () => { ca.limpiar(); fa = ''; };
-  $('#coUsarPerfil').onclick = () => {
-    if(!USUARIO || !USUARIO.firmaDataUrl) return toast('No tenés firma guardada en Mi perfil.', 'err');
-    ca.limpiar(); ca.cargar(USUARIO.firmaDataUrl); fa = USUARIO.firmaDataUrl;
-  };
-  $('#coGuardar').onclick = () => {
-    fichaActual.consent = {
-      quien: val('coQuien'), firmante: val('coFirmante'), items: leerChks('coItems'),
-      observaciones: val('coObs'), firmaPaciente: fp, firmaAnestesiologo: fa,
-      fecha: hoyISO(), hora: ahoraHora()
-    };
-    guardarFicha();
-    cerrarModal();
-  };
+  modoFicha = pasoEnFoco('preanestesia') ? modoFicha : 'valoracion';
+  irAPaso('preanestesia');
+  setTimeout(() => {
+    const acc = $('#acConsent');
+    if(acc){ acc.open = true; acc.scrollIntoView({ behavior:'smooth', block:'center' }); }
+  }, 120);
 }
 
 /* ================ ui-intra.js ================ */
@@ -11914,20 +12937,78 @@ const SOLAPAS_ACTO = [
   ['eventos','alerta','Eventos']
 ];
 
+/* =========================================================================
+   QUIEN ANESTESIA - el boton que abre el acto
+   -------------------------------------------------------------------------
+   Un acto anestesico tiene que tener un dueno con nombre y apellido antes de
+   que se escriba una sola linea: es el que firma, el que responde y el que
+   factura. En el punto 14 de la valoracion se DESIGNA a alguien, pero una
+   designacion no es una toma: el que designaron puede no estar, y en una
+   urgencia anestesia el que esta. Por eso al entrar al paso el primer
+   elemento de la pantalla, imposible de pasar por alto, es este.
+   ========================================================================= */
+function htmlTomarActo(f){
+  const g = DB.fichas[f.id] || f;
+  const mio      = esActorFicha(g);
+  const designado = g.asignadoUid && g.asignadoUid !== 'sinasignar' ? g.asignadoUid : '';
+  const tomado   = !!g.actoPorUid;
+  const firmada  = !!(g.firma || {}).firmado;
+
+  if(firmada) return '';
+
+  /* Ya es mio: no hay nada que tomar */
+  if(mio && tomado)
+    return '<div class="aviso ok no-print">'+ico('jeringa')+'<div><b>El acto anestésico está a tu '+
+      'nombre.</b> Lo que registres acá lo firmás vos y el honorario del acto es tuyo.</div></div>';
+
+  const quien = g.actorExterno ? g.actorExterno + ' (externo, sin usuario en la app)'
+              : designado      ? nombreUsuario(designado)
+              :                  '';
+
+  const yoSoyElDesignado = designado && SESION && designado === SESION.uid;
+
+  return '<div class="tomar-acto no-print">'+
+    '<div class="ta-txt">'+ico('jeringa')+
+      '<div><b>'+(yoSoyElDesignado
+        ? 'Te designaron para este acto anestésico'
+        : quien
+          ? 'Acto designado a '+esc(quien)
+          : 'Este acto anestésico todavía no tiene anestesiólogo')+'</b>'+
+      '<span>'+(yoSoyElDesignado
+        ? 'En el punto 14 de la valoración de '+esc(autorFicha(g))+' figurás vos. '+
+          'Confirmalo para empezar el registro: a partir de ahí el acto es tuyo.'
+        : quien
+          ? 'Si finalmente lo vas a anestesiar vos, tomalo: la designación del punto 14 es una '+
+            'previsión y en el quirófano manda quien está.'
+          : 'En el punto 14 quedó como «todavía no se sabe quién opera». Tomalo para poder '+
+            'registrar el acto y facturarlo.')+'</span></div>'+
+    '</div>'+
+    '<button class="btn pri grande" id="acTomar">'+ico('firma')+' TOMAR ACTO ANESTÉSICO</button>'+
+  '</div>'+
+  '<div class="aviso warn no-print">'+ico('candado')+'<div>Hasta que no lo tomes, lo que cargues '+
+    'no se guarda: un registro anestésico sin anestesiólogo responsable no tiene valor '+
+    'médico-legal.</div></div>';
+}
+
 function pintarPasoAnestesia(f){
   const a = f.acto || {};
   const cuenta = { drogas:(a.drogas||[]).length, vitales:(a.controles||[]).length,
                    eventos:(a.eventos2||[]).length };
+  const g = DB.fichas[f.id] || f;
+  const sinDueno = !(g.firma||{}).firmado && !esActorFicha(g);
+
   $('#fiCuerpo').innerHTML =
     '<div class="acto-solapas no-print">'+ SOLAPAS_ACTO.map(s =>
       '<button type="button" class="'+(solapaActo===s[0]?'on':'')+'" data-asolapa="'+s[0]+'">'+
         ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
         esc(s[2])+(cuenta[s[0]] ? '<span class="badge">'+cuenta[s[0]]+'</span>' : '')+
       '</button>').join('') +'</div>'+
-    '<div id="actoCuerpo"></div>';
+    '<div id="actoCuerpo"></div>'+
+    '<div class="autoguarda-acto no-print" id="acAviso"></div>';
 
   $$('#fiCuerpo [data-asolapa]').forEach(b => b.onclick = () => {
     fichaActual.acto = leerPasoAnestesia();
+    autoguardarActo(true);                 /* cambiar de solapa también guarda */
     solapaActo = b.dataset.asolapa;
     pintarPasoAnestesia(fichaActual);
   });
@@ -11938,6 +13019,53 @@ function pintarPasoAnestesia(f){
   else if(solapaActo === 'vitales'){ c.innerHTML = htmlActoVitales(f); cablearActoVitales(f); }
   else if(solapaActo === 'balance'){ c.innerHTML = htmlActoBalance(f); cablearActoBalance(f); }
   else { c.innerHTML = htmlActoEventos(f); cablearActoEventos(f); }
+
+  if(!sinDueno) cablearAutoguardadoActo();
+}
+
+/* =========================================================================
+   AUTOGUARDADO DE LAS CINCO SOLAPAS
+   -------------------------------------------------------------------------
+   El acto anestesico se registra mientras se anestesia: con una mano, entre
+   dos drogas, mirando el monitor. Pedirle a esa persona que se acuerde de
+   apretar «Guardar» es pedirle lo unico que seguro se va a olvidar, y lo que
+   se pierde es el registro de un acto medico. Asi que se guarda solo: cada
+   vez que se toca un campo, se cambia de solapa o se sale del paso.
+   El cartelito de abajo dice cuando fue la ultima vez, para que no haya que
+   confiar a ciegas.
+   ========================================================================= */
+let __actoUltimo = '';
+
+function autoguardarActo(silencioso){
+  const f = fichaActual;
+  if(!f || pasoFicha !== 'anestesia') return;
+  const g = DB.fichas[f.id] || f;
+  if((g.firma || {}).firmado) return;                 /* firmada: no se toca */
+  if(!puedeEditarSeccion(g, 'acto')) return;          /* el acto es de un colega */
+  if(!f.pacienteId) return;                           /* ficha sin paciente: nada que guardar */
+  f.acto = leerPasoAnestesia();
+  guardarFicha(true, true);                           /* silencioso y sin repintar */
+  __actoUltimo = ahoraHora();
+  const av = $('#acAviso');
+  if(av) av.innerHTML = ico('check')+'Guardado automáticamente a las '+esc(__actoUltimo)+' h';
+  if(!silencioso) return;
+}
+
+function cablearAutoguardadoActo(){
+  const cuerpo = $('#actoCuerpo');
+  if(!cuerpo) return;
+  const guardar = debounce(() => autoguardarActo(true), 900);
+  cuerpo.addEventListener('input',  guardar);
+  cuerpo.addEventListener('change', guardar);
+  /* Los botones de técnica, de sí/no y las casillas no disparan «change»:
+     se pintan por clase. Se los escucha aparte. */
+  cuerpo.addEventListener('click', e => {
+    if(e.target.closest('.tec, .seg button, .chk, [data-ahora], [data-crono]')) guardar();
+  });
+  const av = $('#acAviso');
+  if(av) av.innerHTML = __actoUltimo
+    ? ico('check')+'Guardado automáticamente a las '+esc(__actoUltimo)+' h'
+    : ico('nube')+'Este paso se guarda solo a medida que lo completás.';
 }
 
 /* El peso del paciente manda en todo el modulo de drogas */
@@ -11957,22 +13085,44 @@ function htmlActoResumen(f){
   const a = f.acto || {};
   const eq = a.equipo || {};
   const disp = DISPOSITIVOS_FLUJO.find(d => d.k === (a.dispositivo || 'ninguno')) || DISPOSITIVOS_FLUJO[0];
+  /* Los seis sellos de tiempo del acto, en el orden en que ocurren. El
+     cronometro pone la hora del reloj de un toque: en el quirofano nadie
+     tipea 07:42 con guantes puestos. */
+  const CRONO = [
+    ['acIngreso',  'Ingreso a quirófano',    a.ingreso],
+    ['acIniAnest', 'Inicio de anestesia',    a.inicioAnestesia],
+    ['acIniCx',    'Inicio de cirugía',      a.inicioCirugia],
+    ['acFinCx',    'Fin de cirugía',         a.finCirugia],
+    ['acFinAnest', 'Fin de anestesia',       a.finAnestesia],
+    ['acSalida',   'Salida a recuperación',  a.salida]
+  ];
+
   return ''+
-  '<div class="card"><h3>'+ico('reloj')+'Datos del procedimiento</h3>'+
+  '<div class="card"><h3>'+ico('calendario')+'Fecha de la cirugía</h3>'+
+    /* La fecha del acto NO es la de la valoración. Entre una y otra suelen
+       pasar días o semanas, y de cuál se use dependen la facturación del mes,
+       las estadísticas y el aviso de cirugía próxima. Se carga acá, el día
+       del acto, que es cuando se sabe de verdad. */
     '<div class="grid c2">'+
-      '<div class="campo"><label>Inicio de cirugía</label>'+
-        '<div class="hora-campo"><input type="time" id="acIniCx" value="'+esc(a.inicioCirugia||'')+'">'+
-        '<button type="button" class="btn ghost chico" data-ahora="acIniCx">'+ico('reloj')+' Ahora</button></div></div>'+
-      '<div class="campo"><label>Fin de cirugía</label>'+
-        '<div class="hora-campo"><input type="time" id="acFinCx" value="'+esc(a.finCirugia||'')+'">'+
-        '<button type="button" class="btn ghost chico" data-ahora="acFinCx">'+ico('reloj')+' Ahora</button></div></div>'+
+      campoFecha('acFechaCx','Fecha en que se realizó la cirugía', a.fechaCirugia || hoyISO())+
+      campoSel('acTurnoCx','Turno', ['','Mañana','Tarde','Noche','Fin de semana / feriado'], a.turno)+
     '</div>'+
-    '<div class="grid c4">'+
-      '<div class="campo"><label>Ingreso a quirófano</label><input type="time" id="acIngreso" value="'+esc(a.ingreso||'')+'"></div>'+
-      '<div class="campo"><label>Inicio de anestesia</label><input type="time" id="acIniAnest" value="'+esc(a.inicioAnestesia||'')+'"></div>'+
-      '<div class="campo"><label>Fin de anestesia</label><input type="time" id="acFinAnest" value="'+esc(a.finAnestesia||'')+'"></div>'+
-      '<div class="campo"><label>Salida a recuperación</label><input type="time" id="acSalida" value="'+esc(a.salida||'')+'"></div>'+
-    '</div>'+
+    '<div class="ayuda">La <b>valoración prequirúrgica</b> quedó fechada '+
+      (f.fechaValoracion ? 'el <b>'+fFecha(f.fechaValoracion)+'</b>' : 'aparte')+
+      '. Son dos fechas distintas: la consulta se factura e informa en su mes, y el acto en el '+
+      'suyo.</div>'+
+  '</div>'+
+
+  '<div class="card"><h3>'+ico('reloj')+'Tiempos del procedimiento</h3>'+
+    '<div class="crono">'+ CRONO.map(c =>
+      '<div class="crono-fila">'+
+        '<label for="'+c[0]+'">'+esc(c[1])+'</label>'+
+        '<input type="time" id="'+c[0]+'" value="'+esc(c[2]||'')+'">'+
+        '<button type="button" class="btn '+(c[2] ? 'ghost' : 'pri')+' chico" data-crono="'+c[0]+'" '+
+          'title="Sellar con la hora actual">'+ico('reloj')+' Ahora</button>'+
+      '</div>').join('') +'</div>'+
+    '<div class="ayuda">Tocá <b>Ahora</b> a medida que ocurren y quedan sellados con la hora del '+
+      'reloj. También se pueden escribir a mano si estás completando la ficha después.</div>'+
     '<div id="acDuracion"></div>'+
   '</div>'+
 
@@ -12058,8 +13208,13 @@ function htmlActoResumen(f){
 }
 
 function cablearActoResumen(f){
-  $$('#actoCuerpo [data-ahora]').forEach(b => b.onclick = () => {
-    $('#'+b.dataset.ahora).value = ahoraHora(); recalcTiempos();
+  $$('#actoCuerpo [data-crono]').forEach(b => b.onclick = () => {
+    const e = $('#'+b.dataset.crono);
+    e.value = ahoraHora();
+    b.classList.remove('pri'); b.classList.add('ghost');
+    e.classList.add('sellado');
+    setTimeout(() => e.classList.remove('sellado'), 900);
+    recalcTiempos();
   });
   $$('#acTecnicas .tec').forEach(b => b.onclick = () => b.classList.toggle('on'));
   $$('#acVaDificil button').forEach(b => b.onclick = () => {
@@ -12895,6 +14050,7 @@ function leerPasoAnestesia(){
   a.balance   = a.balance   || {};
 
   if(solapaActo === 'resumen' && $('#acIniCx')){
+    a.fechaCirugia = val('acFechaCx');      a.turno = val('acTurnoCx');
     a.inicioCirugia = val('acIniCx');       a.finCirugia = val('acFinCx');
     a.ingreso = val('acIngreso');           a.inicioAnestesia = val('acIniAnest');
     a.finAnestesia = val('acFinAnest');     a.salida = val('acSalida');
@@ -12962,9 +14118,17 @@ function rangoPeriodo(){
   if(stPeriodo === 'anio') return [hoy.getFullYear()+'-01-01', hoy.getFullYear()+'-12-31'];
   return [stDesde || '2000-01-01', stHasta || '2100-12-31'];
 }
+/* Una ficha entra en el rango si cae dentro CUALQUIERA de sus dos fechas: la
+   de la valoración prequirúrgica o la del acto anestésico. Suelen estar en
+   meses distintos, y el que hizo la consulta en marzo tiene que ver ese
+   trabajo en marzo aunque la cirugía haya sido en abril. */
+function fichaEnRango(f, d, h){
+  const v = fechaValoracionDe(f), c = fechaCirugiaDe(f);
+  return (!!v && v >= d && v <= h) || (!!c && c >= d && c <= h);
+}
 function fichasEnRango(){
   const [d,h] = rangoPeriodo();
-  return misFichas().filter(f => f.fecha && f.fecha >= d && f.fecha <= h);
+  return misFichas().filter(f => fichaEnRango(f, d, h));
 }
 function agrupar(fichas, fn){
   const m = {};
@@ -13045,7 +14209,8 @@ function vistaStats(){
 
   /* serie temporal por dia dentro del rango */
   const serie = {};
-  mias.forEach(f => { serie[f.fecha] = (serie[f.fecha] || 0) + 1; });
+  mias.forEach(f => { const k = fechaDeFicha(f);
+    if(k) serie[k] = (serie[k] || 0) + 1; });
   const dias = Object.keys(serie).sort().map(k => ({ t: k.slice(8)+'/'+k.slice(5,7), v: serie[k] }));
 
   cont.innerHTML = ''+
@@ -15552,11 +16717,103 @@ function tarjetaParesIgnorados(){
    Se muestran en la campana del encabezado y resumidos en el panel.
    ========================================================================= */
 
+/* =========================================================================
+   HONORARIOS DIFERIDOS - el recordatorio de cada tres horas
+   -------------------------------------------------------------------------
+   Al cerrar una ficha, la app pregunta si carga el honorario o lo deja para
+   despues. Si lo difiere queda marcado, y a partir de ahi insiste: campana
+   en rojo, permanente, y un cartel cada tres horas mientras la app este
+   abierta. No es molestar por molestar: el honorario que no se carga en el
+   momento es el que aparece de menos a fin de mes, y despues es imposible
+   reconstruirlo.
+
+   El recordatorio se apaga solo en cuanto se carga la modalidad del acto
+   (ver abrirHonorarios en ui-ficha.js).
+   ========================================================================= */
+const HORAS_RECORDATORIO_HON = 3;
+
+function honorariosDiferidos(){
+  if(!SESION || !verDatosClinicos()) return [];
+  return lista('fichas').filter(f =>
+    (f.honDiferido || {}).desde &&
+    f.honDiferido.uid === SESION.uid &&
+    !(f.hon || {}).modalidad &&
+    esActorFicha(f));
+}
+
+/* Momento del ultimo cartel, por usuario y por dispositivo. Se guarda fuera
+   de la base: es una preferencia de este equipo, no un dato de la ficha. */
+function ultimoCartelHon(){
+  try{ return localStorage.getItem('afar_hon_cartel_' + (SESION ? SESION.uid : '')) || ''; }
+  catch(e){ return ''; }
+}
+function marcarCartelHon(){
+  try{ localStorage.setItem('afar_hon_cartel_' + (SESION ? SESION.uid : ''),
+                            new Date().toISOString()); }catch(e){}
+}
+
+/* Borra el sello del ultimo cartel: se usa cuando el propio anestesiologo
+   pide ver la lista desde el inicio, para que el cartel salga en el acto. */
+function marcarCartelHon0(){
+  try{ localStorage.removeItem('afar_hon_cartel_' + (SESION ? SESION.uid : '')); }catch(e){}
+}
+
+function revisarRecordatorioHonorarios(){
+  const l = honorariosDiferidos();
+  if(!l.length) return;
+  const ultimo = ultimoCartelHon();
+  if(ultimo && horasDesde(ultimo) < HORAS_RECORDATORIO_HON) return;
+  if($('#modal') && $('#modal').classList.contains('on')) return;   /* no pisar otro modal */
+  marcarCartelHon();
+
+  const filas = l.map(f => {
+    const p = DB.pacientes[f.pacienteId] || {};
+    const hs = Math.floor(horasDesde(f.honDiferido.desde));
+    return '<button type="button" class="hon-pend" data-honf="'+esc(f.id)+'">'+
+      ico('dinero')+'<span class="tx"><b>'+esc((p.apellido||'—')+', '+(p.nombre||''))+'</b>'+
+      '<i>'+esc(f.cirugia || 'sin cirugía')+' · '+fFecha(fechaCirugiaDe(f) || f.fecha)+
+      ' · pendiente hace '+hs+' h</i></span>'+
+      ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg);width:15px;height:15px;opacity:.5"')+
+      '</button>';
+  }).join('');
+
+  abrirModal('Honorarios pendientes',
+    '<div class="aviso warn">'+ico('reloj')+'<div><b>Dejaste '+l.length+' honorario'+
+      (l.length===1?'':'s')+' para después.</b><br>Mientras no cargues la modalidad del acto, '+
+      'la prestación no entra en tu facturación del mes ni en tus estadísticas.</div></div>'+
+    '<div class="hon-pend-lista">'+filas+'</div>',
+    '<button class="btn ghost" data-cerrar>Ahora no</button>');
+  $$('#modal [data-honf]').forEach(b => b.onclick = () => {
+    const id = b.dataset.honf;
+    cerrarModal();
+    abrirFicha(id);
+    if(fichaActual && fichaActual.id === id) setTimeout(() => abrirHonorarios(fichaActual), 200);
+  });
+}
+
+/* Arranca el reloj del recordatorio. Se llama al iniciar sesion. */
+let __relojHon = null;
+function iniciarRecordatorioHonorarios(){
+  if(__relojHon) clearInterval(__relojHon);
+  /* Un rato despues de entrar, para no recibir el cartel encima del login */
+  setTimeout(revisarRecordatorioHonorarios, 45000);
+  /* Se revisa cada diez minutos, pero el cartel sale cada tres horas: asi la
+     cuenta sigue bien aunque la app quede abierta toda la guardia. */
+  __relojHon = setInterval(revisarRecordatorioHonorarios, 10 * 60 * 1000);
+}
+function detenerRecordatorioHonorarios(){
+  if(__relojHon){ clearInterval(__relojHon); __relojHon = null; }
+}
+
 /* ------------------------------------------- Qué le falta a una ficha -- */
 function faltantesFicha(f){
   const m = [];
   const hoy = hoyISO();
-  const pasada = (f.fecha || '') < hoy;
+  /* Lo del acto se reclama recién cuando la cirugía ya ocurrió. Mientras no
+     haya fecha de cirugía cargada, la cirugía no ocurrió: la ficha está en
+     la etapa de valoración y pedirle el Aldrete no tiene sentido. */
+  const cx = fechaCirugiaDe(f);
+  const pasada = !!cx && cx < hoy;
   const v = f.v || {}, sc = v.scores || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {};
 
   const r = f.recup || {};
@@ -15577,7 +16834,10 @@ function faltantesFicha(f){
   if(!(v.ayuno || {}).tipo)                m.push({ t:'control de ayuno', s:'preanestesia' });
   if(!(v.riesgo || {}).fundamento)         m.push({ t:'conclusión de aptitud', s:'preanestesia', critico:true });
   if(!(pl.tecnica || []).length)           m.push({ t:'plan anestésico', s:'preanestesia', critico:true });
-  if(!(f.consent || {}).quien)             m.push({ t:'consentimiento informado', s:'consent', critico:true });
+  if(!consentimientoCompleto(f))           m.push({ t:'consentimiento informado (punto 15)',
+                                                    s:'preanestesia', critico:true });
+  if(!cx && (f.valoracionGuardada || (f.v||{}).scores))
+                                           m.push({ t:'fecha de la cirugía', s:'anestesia' });
   if(pasada){
     if(!(a.tecnicas || []).length)         m.push({ t:'técnica anestésica realizada', s:'anestesia', critico:true });
     if(!a.finCirugia && !a.finAnestesia)   m.push({ t:'tiempos del procedimiento', s:'anestesia', critico:true });
@@ -15656,10 +16916,11 @@ function calcularAvisos(){
   }
 
   /* --- 2. Cirugías de los próximos 7 días --- */
-  fichas.filter(f => f.fecha && f.fecha >= hoy && diasHasta(f.fecha) <= 7)
-    .sort((a,b) => (a.fecha + (a.hora||'')) < (b.fecha + (b.hora||'')) ? -1 : 1)
+  fichas.filter(f => { const cx = fechaCirugiaDe(f);
+      return cx && cx >= hoy && diasHasta(cx) <= 7; })
+    .sort((a,b) => fechaCirugiaDe(a) < fechaCirugiaDe(b) ? -1 : 1)
     .forEach(f => {
-      const d = diasHasta(f.fecha);
+      const d = diasHasta(fechaCirugiaDe(f));
       const p = DB.pacientes[f.pacienteId] || {};
       const falt = faltantesFicha(f);
       const criticos = falt.filter(x => x.critico);
@@ -15683,27 +16944,60 @@ function calcularAvisos(){
     });
 
   /* --- 3. Cirugías ya realizadas sin registro del acto --- */
-  fichas.filter(f => f.fecha && f.fecha < hoy && !(f.acto || {}).finAnestesia)
-    .sort((a,b) => a.fecha < b.fecha ? 1 : -1).slice(0, 12)
+  fichas.filter(f => { const cx = fechaCirugiaDe(f);
+      return cx && cx < hoy && !(f.acto || {}).finAnestesia; })
+    .sort((a,b) => fechaCirugiaDe(a) < fechaCirugiaDe(b) ? 1 : -1).slice(0, 12)
     .forEach(f => {
       const p = DB.pacientes[f.pacienteId] || {};
+      const cx = fechaCirugiaDe(f);
       av.push({ nivel:'warn', icono:'monitor', orden:30,
         titulo:'Sin registro del acto anestésico — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
-        detalle:(f.cirugia||'') + ' del ' + fFecha(f.fecha) + ' (' + cuandoTexto(diasHasta(f.fecha)) + ').' +
+        detalle:(f.cirugia||'') + ' del ' + fFecha(cx) + ' (' + cuandoTexto(diasHasta(cx)) + ').' +
                 '\nCompletá tiempos, técnica realizada, eventos y Aldrete.',
-        fichaId:f.id, solapa:'acto' });
+        fichaId:f.id, solapa:'anestesia' });
     });
 
   /* --- 4. Cirugías realizadas sin honorarios cargados --- */
-  fichas.filter(f => f.fecha && f.fecha < hoy && esActorFicha(f) && !(f.hon || {}).modalidad)
-    .sort((a,b) => a.fecha < b.fecha ? 1 : -1).slice(0, 12)
+  /* Los que el anestesiólogo DIFIRIO a proposito, al cerrar la ficha, van
+     primero y en rojo: los pidio el recordatorio y el recordatorio insiste
+     hasta que se cargan. Los demas quedan en ambar, como aviso normal. */
+  honorariosDiferidos().forEach(f => {
+    const p = DB.pacientes[f.pacienteId] || {};
+    const hs = Math.floor(horasDesde(f.honDiferido.desde));
+    av.push({ nivel:'danger', icono:'dinero', orden:4,
+      titulo:'Honorarios pendientes hace ' + hs + ' h — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
+      detalle:(f.cirugia||'') + ' del ' + fFecha(fechaCirugiaDe(f) || f.fecha) +
+              '.\nLos dejaste para después al cerrar la ficha. Te lo recuerdo cada 3 horas ' +
+              'hasta que los cargues: sin la modalidad del acto la prestación no entra en tu ' +
+              'facturación del mes.',
+      fichaId:f.id, solapa:'hon' });
+  });
+
+  fichas.filter(f => { const cx = fechaCirugiaDe(f);
+      return cx && cx < hoy && esActorFicha(f) && !(f.hon || {}).modalidad && !(f.honDiferido||{}).desde; })
+    .sort((a,b) => fechaCirugiaDe(a) < fechaCirugiaDe(b) ? 1 : -1).slice(0, 12)
     .forEach(f => {
       const p = DB.pacientes[f.pacienteId] || {};
       av.push({ nivel:'warn', icono:'dinero', orden:35,
         titulo:'Sin honorarios cargados — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
-        detalle:(f.cirugia||'') + ' del ' + fFecha(f.fecha) +
+        detalle:(f.cirugia||'') + ' del ' + fFecha(fechaCirugiaDe(f)) +
                 '.\nMientras no cargues la modalidad del acto no aparece en tu facturación del mes.',
         fichaId:f.id, solapa:'hon' });
+    });
+
+  /* --- 4 bis. Valoraciones vencidas --- */
+  fichas.filter(f => valoracionVencida(f) && !(f.firma||{}).firmado)
+    .slice(0, 8)
+    .forEach(f => {
+      const p = DB.pacientes[f.pacienteId] || {};
+      const d = diasDeValoracion(f);
+      av.push({ nivel:'warn', icono:'reloj', orden:33,
+        titulo:'Valoración vencida (' + d + ' días) — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
+        detalle:'La valoración prequirúrgica se hizo el ' + fFecha(fechaValoracionDe(f)) +
+                ', hace ' + d + ' días.\nPasados ' + DIAS_VIGENCIA_VALORACION + ' días conviene ' +
+                'reevaluar: pudo cambiar la medicación, aparecer una infección respiratoria o ' +
+                'descompensarse una patología de base.',
+        fichaId:f.id, solapa:'preanestesia' });
     });
 
   /* --- 5. Facturación del mes anterior sin presentar --- */
@@ -15735,7 +17029,7 @@ function calcularAvisos(){
 
   /* --- 7. Borradores olvidados --- */
   const viejos = fichas.filter(f => (f.estado || 'borrador') === 'borrador' &&
-    f.fecha && diasHasta(f.fecha) < -14);
+    fechaDeFicha(f) && diasHasta(fechaDeFicha(f)) < -14);
   if(viejos.length){
     av.push({ nivel:'info', icono:'editar', orden:50,
       titulo: viejos.length + ' ficha' + (viejos.length===1?'':'s') + ' en borrador hace más de dos semanas',
@@ -15810,8 +17104,9 @@ function abrirAvisos(){
     setTimeout(() => {
       if(a.fichaId){
         abrirFicha(a.fichaId);
-        if(a.solapa === 'consent'){ abrirConsentimiento(fichaActual); }
-        else if(a.solapa){ solapaFicha = a.solapa; pintarFicha(); }
+        if(!fichaActual || fichaActual.id !== a.fichaId) return;   /* no se pudo abrir */
+        if(a.solapa === 'hon') abrirHonorarios(fichaActual);
+        else if(a.solapa && PASOS_FICHA.some(p => p.k === a.solapa)) irAPaso(a.solapa);
       } else if(a.accion) a.accion();
     }, 180);
   });
@@ -15876,8 +17171,9 @@ function cablearAvisosPanel(){
     const a = av[Number(el.dataset.pav)];
     if(a.fichaId){
       abrirFicha(a.fichaId);
-      if(a.solapa === 'consent') abrirConsentimiento(fichaActual);
-      else if(a.solapa){ solapaFicha = a.solapa; pintarFicha(); }
+      if(!fichaActual || fichaActual.id !== a.fichaId) return;   /* no se pudo abrir */
+      if(a.solapa === 'hon') abrirHonorarios(fichaActual);
+      else if(a.solapa && PASOS_FICHA.some(p => p.k === a.solapa)) irAPaso(a.solapa);
     } else if(a.accion) a.accion();
   });
   if($('#avVerTodos')) $('#avVerTodos').onclick = abrirAvisos;
@@ -15889,7 +17185,12 @@ function bannerFaltantes(f){
   if(!m.length) return '<div class="aviso ok no-print">'+ico('check')+
     '<div><b>Ficha completa.</b> No falta ningún dato.</div></div>';
   const criticos = m.filter(x => x.critico), otros = m.filter(x => !x.critico);
-  const d = diasHasta(f.fecha);
+  /* La urgencia se mide contra la fecha de la CIRUGÍA. Mientras no haya
+     cirugía cargada no hay nada inminente: la ficha está en la etapa de
+     valoración, y avisar «la cirugía es hoy» porque la consulta es hoy es
+     decir una cosa por otra. */
+  const cx = fechaCirugiaDe(f);
+  const d = cx ? diasHasta(cx) : null;
   const inminente = d !== null && d >= 0 && d <= 1;
   return '<div class="aviso '+(criticos.length ? (inminente ? 'danger' : 'warn') : 'info')+' no-print">'+
     ico(criticos.length ? 'alerta' : 'info')+
@@ -16317,7 +17618,7 @@ function documentoFicha(f, opts){
 
   /* En la ficha del acto va la constancia de que se firmo, no el texto
      entero: ese ya viaja completo en la valoracion del mismo envio. */
-  (co.quien ? seccion('Consentimiento informado anestésico',
+  ((co.quien && !(opts && opts.sinConsentimiento)) ? seccion('Consentimiento informado anestésico',
     (soloActo ? '' :
       '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
       'border:1px solid #c9d6e3;padding:9px;background:#fbfdff">'+esc(TEXTO_CONSENTIMIENTO)+'</div>')+
@@ -16508,6 +17809,195 @@ const CSS_DOC = 'body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:
   '.par{margin-bottom:2px;font-size:10pt}.par b{color:#0b2545}'+
   '.firmas{margin-top:34px}.firmas div{display:inline-block;width:45%;text-align:center;'+
     'border-top:.5pt solid #444;padding-top:3px;font-size:8.5pt;margin:0 2%}';
+
+/* =========================================================================
+   LOS TRES DOCUMENTOS QUE SE LE MANDAN AL PACIENTE
+   -------------------------------------------------------------------------
+   Van como TRES ARCHIVOS PDF SEPARADOS, no pegados uno abajo del otro en el
+   cuerpo del mail:
+
+     1. Valoracion pre-anestesica.  Lo clinico: filiacion, antecedentes,
+        medicacion, alergias, examen, laboratorio, escalas y plan.
+     2. Consentimiento informado anestesico.  Documento aparte porque es un
+        instrumento juridico autonomo: se firma, se guarda y eventualmente se
+        presenta solo. Mezclado adentro de otro papel pierde esa condicion.
+     3. Hoja de indicaciones.  En castellano llano: ayuno, medicacion,
+        horario, acompanante. Es la unica de las tres que el paciente
+        realmente va a leer, y por eso va suelta.
+
+   NINGUNO lleva un solo dato de facturacion: honorarios, modalidades e
+   importes son cosa entre el anestesiologo y el financiador.
+
+   Los tres se arman aca como HTML completo y el conversor de Google los pasa
+   a PDF antes de adjuntarlos (ver apps-script/Codigo.gs). La app no necesita
+   ninguna libreria de PDF y el paciente recibe archivos de verdad.
+   ========================================================================= */
+
+/* Envoltorio comun: hoja A4 con los estilos del documento */
+function hojaHTML(titulo, cuerpo){
+  return '<!DOCTYPE html><html lang="es-AR"><head><meta charset="utf-8">'+
+    '<title>'+esc(titulo)+'</title>'+
+    '<style>@page{size:A4;margin:1.5cm}'+CSS_DOC+
+    '.consentimiento{font-size:10pt;white-space:pre-line;text-align:justify;line-height:1.5}'+
+    '.declaraciones{font-size:10pt;margin:8px 0}'+
+    '.declaraciones div{margin-bottom:3px}'+
+    '.indic{font-size:11.5pt;line-height:1.7}'+
+    '.indic h2{margin-top:14px}'+
+    '.indic li{margin-bottom:6px}'+
+    '.caja-legal{border:1pt solid #c9d6e3;background:#fbfdff;padding:8pt;font-size:8.5pt;'+
+      'color:#456;line-height:1.5;margin-top:16px}'+
+    '</style></head><body>'+cuerpo+'</body></html>';
+}
+
+/* Pie legal comun a los tres documentos */
+function pieLegalPaciente(f){
+  const u = DB.usuarios[f.ownerUid] || USUARIO || {};
+  return '<div class="caja-legal">'+
+    '<b>AFAAR — Asociación Fueguina de Anestesia, Analgesia y Reanimación.</b> '+
+    'Tierra del Fuego, Antártida e Islas del Atlántico Sur, República Argentina.<br>'+
+    'Profesional actuante: '+esc((u.apellido||'')+', '+(u.nombre||''))+' — '+
+    esc(u.titulo || 'Médico/a Especialista en Anestesiología')+' — '+
+    'M.N. '+esc(matriculaTxt(u.matriculaNacional,'M.N.'))+' · '+
+    'M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+
+    (u.email ? ' — '+esc(u.email) : '')+'.<br><br>'+
+    'Este documento contiene datos de salud, que la ley considera datos sensibles, y se entrega '+
+    'a su titular. <b>Ley 26.529</b> de Derechos del Paciente y su modificatoria <b>Ley 26.742</b>: '+
+    'integra su historia clínica, le pertenece y se conserva por un plazo mínimo de diez años. '+
+    '<b>Ley 17.132</b> del Ejercicio de la Medicina: el profesional firmante está obligado a guardar '+
+    'secreto profesional. <b>Ley 25.326</b> de Protección de los Datos Personales: usted puede '+
+    'acceder a sus datos, pedir su rectificación y conocer su destino. Si usted no es el '+
+    'destinatario de este documento, destrúyalo y avise al remitente.'+
+  '</div>';
+}
+
+/* ---- 1. Valoracion pre-anestesica, sin una linea de facturacion ---- */
+function docPacienteValoracion(f){
+  return hojaHTML('Valoración pre-anestésica',
+    documentoFicha(f, { paraPaciente:true, parte:'valoracion', sinConsentimiento:true })+
+    pieLegalPaciente(f));
+}
+
+/* ---- 2. Consentimiento informado anestesico, como instrumento aparte ---- */
+function docPacienteConsentimiento(f){
+  const p  = DB.pacientes[f.pacienteId] || {};
+  const co = f.consent || {};
+  const u  = DB.usuarios[f.ownerUid] || USUARIO || {};
+  const ed = edadDe(p.fechaNac, fechaValoracionDe(f));
+  __secN = 0;
+
+  return hojaHTML('Consentimiento informado anestésico',
+    membrete(f, 'CONSENTIMIENTO INFORMADO ANESTÉSICO')+
+
+    seccion('Datos del paciente',
+      par('Apellido y nombre', (p.apellido||'')+', '+(p.nombre||''))+
+      par('DNI', p.dni) + par('Historia clínica', p.hc)+
+      par('Edad', ed !== null ? ed+' años' : '')+
+      par('Cirugía propuesta', f.cirugia)+
+      par('Diagnóstico', f.diagnostico)+
+      par('Lateralidad', f.lateralidad && f.lateralidad !== 'No aplica' ? f.lateralidad : '')+
+      par('Institución', nombreInstitucion(f.institucion))+
+      par('Técnica anestésica propuesta', (f.plan||{}).tecnica))+
+
+    seccion('Declaración de consentimiento',
+      '<div class="consentimiento">'+esc(TEXTO_CONSENTIMIENTO)+'</div>')+
+
+    ((co.items||[]).length ? seccion('Declaraciones del paciente',
+      '<div class="declaraciones">'+ (co.items||[]).map(i =>
+        '<div>'+(i.indexOf('RECHAZA') === 0 ? '<b style="color:#a11">☒ '+esc(i)+'</b>'
+                                            : '☒ '+esc(i))+'</div>').join('') +'</div>') : '')+
+
+    seccion('Otorgamiento',
+      par('Firma el consentimiento', co.quien)+
+      par('Nombre y documento del firmante', co.firmante)+
+      par('Aclaraciones', co.observaciones)+
+      par('Lugar y fecha', (nombreInstitucion(f.institucion)||'')+', '+
+        fFechaLarga(co.fecha || fechaValoracionDe(f))+(co.hora ? ' — '+co.hora+' h' : ''))+
+      ((co.quien||'').indexOf('revocado') >= 0
+        ? '<div style="border:2px solid #a11;color:#a11;padding:8px;text-align:center;'+
+          'font-weight:bold;margin-top:8px">CONSENTIMIENTO REVOCADO POR EL PACIENTE — '+
+          'NO SE DEBE REALIZAR EL ACTO ANESTÉSICO</div>' : ''))+
+
+    '<div class="firmas">'+
+      '<div>'+(co.firmaPaciente
+        ? '<img src="'+co.firmaPaciente+'" style="height:52px;display:block;margin:0 auto -6px">'
+        : '<div style="height:46px"></div>')+
+        esc(co.firmante || 'Paciente o representante legal')+'<br>Firma y aclaración</div>'+
+      '<div>'+((co.firmaAnestesiologo || u.firmaDataUrl)
+        ? '<img src="'+(co.firmaAnestesiologo || u.firmaDataUrl)+'" style="height:52px;display:block;margin:0 auto -6px">'
+        : '<div style="height:46px"></div>')+
+        esc((u.apellido||'')+', '+(u.nombre||''))+'<br>M.P. '+
+        esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+' — Anestesiología</div>'+
+    '</div>'+
+
+    '<div style="margin-top:18px;font-size:9px;color:#678;text-align:center">'+
+      'El paciente puede revocar este consentimiento en cualquier momento anterior al acto '+
+      'anestésico, en forma libre y sin expresar causa (Ley 26.529, art. 10).</div>'+
+
+    pieLegalPaciente(f));
+}
+
+/* ---- 3. Hoja de indicaciones, en castellano llano ---- */
+function docPacienteIndicaciones(f){
+  const p  = DB.pacientes[f.pacienteId] || {};
+  const pl = f.plan || {};
+  const v  = f.v || {};
+  const ay = v.ayuno || {};
+  const meds = (v.medicacion2 || v.medicacion || []).map(m => typeof m === 'string' ? m : (m.n || m.d || ''))
+    .filter(Boolean);
+
+  const li = (t, d) => d ? '<li><b>'+esc(t)+'</b> '+esc(d)+'</li>' : '';
+
+  return hojaHTML('Indicaciones para el día de la cirugía',
+    membrete(f, 'INDICACIONES PARA EL DÍA DE LA CIRUGÍA')+
+    '<div class="indic">'+
+      '<p>Estimado/a <b>'+esc(p.nombre || p.apellido || 'paciente')+'</b>: estas son las '+
+      'indicaciones que tiene que cumplir antes de su '+
+      (f.cirugia ? '<b>'+esc(f.cirugia)+'</b>' : 'intervención')+'. '+
+      'Léalas con atención y guarde esta hoja.</p>'+
+
+      '<h2>Ayuno</h2>'+
+      '<ul>'+
+        '<li><b>Ocho horas</b> sin comidas sólidas ni leche de vaca.</li>'+
+        '<li><b>Seis horas</b> sin comidas livianas.</li>'+
+        '<li><b>Dos horas</b> sin líquidos claros (agua, té o jugo colado sin pulpa).</li>'+
+        (ay.tipo ? '<li><b>Indicación particular:</b> '+esc(ay.tipo)+
+          (ay.desde ? ' — desde las '+esc(ay.desde)+' h' : '')+'</li>' : '')+
+      '</ul>'+
+      '<p><b>Importante:</b> si no cumple el ayuno, la cirugía se suspende. No es un capricho: '+
+      'con el estómago lleno el contenido puede pasar al pulmón durante la anestesia.</p>'+
+
+      '<h2>Medicación</h2>'+
+      '<ul>'+
+        li('Medicación que debe seguir tomando:', pl.indicaciones)+
+        (meds.length ? '<li><b>Su medicación habitual registrada:</b> '+esc(meds.join(' · '))+
+          '. Consulte con su anestesiólogo/a cuál suspender.</li>' : '')+
+        '<li>El día de la cirugía tome la medicación indicada <b>con un sorbo de agua</b>.</li>'+
+        '<li><b>No suspenda ni agregue ningún medicamento por su cuenta.</b></li>'+
+      '</ul>'+
+
+      '<h2>El día de la cirugía</h2>'+
+      '<ul>'+
+        '<li>Preséntese en <b>'+esc(nombreInstitucion(f.institucion) || 'la institución indicada')+'</b>'+
+          (fechaCirugiaDe(f) ? ' el <b>'+fFechaLarga(fechaCirugiaDe(f))+'</b>' : ' el día y horario que le indiquen')+
+          '.</li>'+
+        '<li>Venga <b>con un acompañante adulto responsable</b>.</li>'+
+        '<li>Sin maquillaje ni esmalte de uñas. Retire alhajas, piercings, lentes de contacto, '+
+          'audífonos y prótesis dentales.</li>'+
+        '<li>Traiga esta hoja, su documento, el carnet de la obra social y los estudios que tenga.</li>'+
+        (pl.destino ? '<li><b>Destino previsto después de la cirugía:</b> '+esc(pl.destino)+'</li>' : '')+
+      '</ul>'+
+
+      '<h2>Avísenos antes si…</h2>'+
+      '<ul>'+
+        '<li>Tiene fiebre, tos, catarro o cualquier síntoma nuevo.</li>'+
+        '<li>Empezó a tomar una medicación nueva.</li>'+
+        '<li>Cambió algo en su salud desde la consulta.</li>'+
+        '<li>Está o podría estar embarazada.</li>'+
+      '</ul>'+
+      '<p>Puede avisarnos respondiendo al correo con el que recibió esta documentación.</p>'+
+    '</div>'+
+    pieLegalPaciente(f));
+}
 
 function exportarFichaWord(f){
   const p = DB.pacientes[f.pacienteId] || {};
@@ -16700,24 +18190,37 @@ function imprimirFacturacion(l, mes, tot, porOS, porInst){
 
 /* ================ email-paciente.js ================ */
 /* =========================================================================
-   ENVIO AL PACIENTE DE LA VALORACION PREQUIRURGICA Y EL CONSENTIMIENTO
+   ENVIO AL PACIENTE DE SU VALORACION Y SU CONSENTIMIENTO
    -------------------------------------------------------------------------
    QUE SE LE MANDA Y QUE NO
-   Al paciente se le manda SOLO su valoracion pre-anestesica —datos de
-   filiacion, antecedentes, medicacion, alergias, examen, escalas y plan— con
-   su consentimiento informado. Es lo que tiene que leer, firmar y llevar el
-   dia de la cirugia.
+   Al paciente se le manda SOLO su valoracion pre-anestesica —filiacion,
+   antecedentes, medicacion, alergias, examen, escalas y plan—, su
+   consentimiento informado y la hoja de indicaciones.
 
-   NO se le manda el registro del acto anestesico, la recuperacion ni la ficha
-   firmada: son el registro del equipo tratante, con valor medico-legal y
-   destino de auditoria, y no se entregan por correo. El boton para enviar
-   existe unicamente en los pasos Paciente y Preanestesia (ver ui-ficha.js);
-   tampoco salen los honorarios.
-   -------------------------------------------------------------------------
-   Arma el mail y se lo pasa al Apps Script configurado en email-config.js.
-   Los documentos van en el CUERPO del mail, no como adjuntos: la app no
-   genera PDF de verdad (el "PDF" es la impresion del navegador), asi que un
-   adjunto seria un .doc que en el telefono se ve mal o no abre.
+   NO se le manda el registro del acto anestesico, la recuperacion ni la
+   ficha firmada: son el registro del equipo tratante, con valor
+   medico-legal y destino de auditoria, y no se entregan por correo. Tampoco
+   sale un solo dato de facturacion: honorarios, modalidades e importes son
+   cosa entre el anestesiologo y el financiador.
+
+   COMO VIAJAN
+   En TRES ARCHIVOS PDF SEPARADOS, no pegados uno abajo del otro en el cuerpo
+   del mail:
+
+     1. Valoracion pre-anestesica
+     2. Consentimiento informado anestesico
+     3. Indicaciones para el dia de la cirugia
+
+   Van separados porque son tres cosas distintas: una es historia clinica,
+   otra es un instrumento juridico que se firma y se presenta solo, y la
+   tercera es la que el paciente lleva en el bolsillo. Cada una con su
+   membrete de la institucion, los datos del anestesiologo y de la AFAAR y el
+   pie legal que corresponde.
+
+   La app no genera el PDF: manda el HTML de cada documento y el conversor de
+   Google lo pasa a PDF antes de adjuntarlo (ver apps-script/Codigo.gs). Asi
+   no hace falta cargar ninguna libreria de PDF en la app y el paciente
+   recibe archivos de verdad, no un .doc que en el telefono no abre.
 
    El remitente es la cuenta de Google de la asociacion, no el mail personal
    del anestesiologo: ningun servicio puede enviar en nombre de una casilla
@@ -16729,6 +18232,26 @@ function imprimirFacturacion(l, mes, tot, porOS, porInst){
 function envioConfigurado(){
   return typeof ENVIO_URL === 'string' && ENVIO_URL.trim().length > 0 &&
          typeof ENVIO_CLAVE === 'string' && ENVIO_CLAVE.trim().length > 0;
+}
+
+/* Los documentos que se adjuntan, en el orden en que los va a ver */
+function documentosParaPaciente(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const ape = (p.apellido || 'paciente').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g,'');
+  const fch = fechaValoracionDe(f) || hoyISO();
+  const l = [
+    { nombre:'Valoracion-preanestesica-'+ape+'-'+fch+'.pdf',
+      titulo:'Valoración pre-anestésica',
+      html: docPacienteValoracion(f) },
+    { nombre:'Consentimiento-informado-anestesico-'+ape+'-'+fch+'.pdf',
+      titulo:'Consentimiento informado anestésico',
+      html: docPacienteConsentimiento(f) }
+  ];
+  if(INDICACIONES_AL_PACIENTE) l.push({
+    nombre:'Indicaciones-'+ape+'-'+fch+'.pdf',
+    titulo:'Indicaciones para el día de la cirugía',
+    html: docPacienteIndicaciones(f) });
+  return l;
 }
 
 /* ------------------------------------------------- Cuerpo del mail (HTML) */
@@ -16746,16 +18269,21 @@ function htmlMailPaciente(f, prof){
     '<p>Le escribo en mi carácter de médico/a anestesiólogo/a que realizó su '+
     'valoración prequirúrgica.</p>'+
 
-    '<p>Más abajo encontrará la documentación correspondiente a su evaluación '+
-    'anestesiológica:</p>'+
+    '<p>Adjunto a este correo va la documentación de su evaluación '+
+    'anestesiológica, en <b>archivos PDF separados</b>:</p>'+
 
     '<div style="border-left:4px solid #0b2545;padding:2px 0 2px 14px;margin:18px 0">'+
-      '<p style="margin:6px 0"><b>Valoración prequirúrgica.</b> Resumen de su historia '+
+      '<p style="margin:6px 0"><b>1. Valoración pre-anestésica.</b> Resumen de su historia '+
       'clínica, antecedentes, medicación, alergias y la evaluación realizada. '+
       'Es la información que necesita el equipo quirúrgico.</p>'+
-      '<p style="margin:6px 0"><b>Consentimiento informado en anestesia.</b> Deja constancia '+
+      '<p style="margin:6px 0"><b>2. Consentimiento informado anestésico.</b> Deja constancia '+
       'de que se le explicaron los riesgos, los beneficios y las alternativas del '+
-      'procedimiento anestésico, y de que usted lo autoriza.</p>'+
+      'procedimiento anestésico, y de que usted lo autoriza. Puede revocarlo en cualquier '+
+      'momento antes de la anestesia.</p>'+
+      (INDICACIONES_AL_PACIENTE
+        ? '<p style="margin:6px 0"><b>3. Indicaciones para el día de la cirugía.</b> Ayuno, '+
+          'medicación que debe seguir tomando y cuál suspender, qué llevar y con quién venir. '+
+          'Es la hoja que conviene tener a mano.</p>' : '')+
     '</div>'+
 
     '<div style="background:#fff8e6;border:1px solid #e6d08a;border-radius:8px;padding:12px 14px;margin:18px 0">'+
@@ -16777,18 +18305,6 @@ function htmlMailPaciente(f, prof){
     '</table>'+
 
     '<p>Saludos cordiales,<br><b>'+esc(firma)+'</b></p>'+
-
-    '<hr style="border:0;border-top:1px solid #ccd;margin:26px 0 14px">'+
-
-    /* ---- Los documentos, con el mismo formato que la version impresa ---- */
-    '<div style="font-family:Calibri,Arial,sans-serif;font-size:12px">'+
-      '<style>'+CSS_DOC+'</style>'+
-      /* Doble llave sobre lo que sale: `paraPaciente` ya deja afuera el
-         registro intraoperatorio, la recuperación y los honorarios, y
-         `parte:'valoracion'` lo vuelve a recortar. Al paciente se le manda su
-         valoración pre-anestésica y su consentimiento, nada más. */
-      documentoFicha(f, { paraPaciente:true, parte:'valoracion' })+
-    '</div>'+
 
     '<hr style="border:0;border-top:1px solid #ccd;margin:26px 0 14px">'+
 
@@ -16819,23 +18335,38 @@ function enviarDocumentacionPaciente(f){
     return toast('El envío por mail todavía no está configurado. Ver ENVIO-DE-MAILS.md', 'err');
   if(!f.pacienteId) return toast('La ficha no tiene paciente.', 'err');
   if(!p.email)      return toast('El paciente no tiene correo cargado. Agregalo en su ficha.', 'err');
-  if(!(f.consent && f.consent.quien))
-    return toast('Todavía no está firmado el consentimiento informado.', 'warn');
+  if(!consentimientoCompleto(f))
+    return toast('Falta completar el punto 15: el consentimiento informado.', 'warn');
+  if(!f.valoracionGuardada)
+    return toast('Guardá primero la valoración con el botón «Guardar valoración».', 'warn');
 
   const asunto = 'Documentación de valoración prequirúrgica — ' +
     (p.apellido || '') + ', ' + (p.nombre || '');
 
+  const docs = documentosParaPaciente(f);
+
   confirmar('Enviar documentación al paciente',
-    'Se envía a <b>'+esc(p.email)+'</b> la valoración prequirúrgica y el '+
-    'consentimiento informado de <b>'+esc((p.apellido||'')+', '+(p.nombre||''))+'</b>.<br><br>'+
+    'Se envía a <b>'+esc(p.email)+'</b> la documentación de <b>'+
+    esc((p.apellido||'')+', '+(p.nombre||''))+'</b> en '+docs.length+
+    ' archivos PDF <b>separados</b>:<br><br>'+
+    '<ol style="margin:0 0 12px 18px;padding:0;line-height:1.7">'+
+      docs.map(d => '<li>'+esc(d.titulo)+'</li>').join('')+
+    '</ol>'+
+    'Cada uno con el membrete de <b>'+esc(nombreInstitucion(f.institucion) || 'la institución')+
+    '</b>, tus datos de matrícula y el pie legal de la AFAAR.<br><br>'+
     'El mail sale a nombre de la AFAAR y las respuestas del paciente te llegan a '+
     '<b>'+esc(prof.email||'—')+'</b>.<br><br>'+
-    'Va únicamente la <b>valoración pre-anestésica</b> —filiación, antecedentes, '+
-    'medicación, alergias, examen y plan— con el consentimiento informado. '+
-    'No se incluyen el registro del acto anestésico, la recuperación ni ningún '+
-    'dato económico.',
+    'No se incluyen el registro del acto anestésico, la recuperación ni <b>ningún '+
+    'dato de facturación</b>.',
     async () => {
-      toast('Enviando…');
+      /* El conversor a PDF lo pone la versión 3 del programa de Apps Script.
+         Si el coordinador todavía no la republicó, el pedido saldría igual y
+         el paciente recibiría un correo SIN un solo documento adjunto: peor
+         que fallar. Se comprueba antes y no se manda nada. */
+      if(!(await soportaDocumentosPdf()))
+        return toast('El servicio de correo está en una versión vieja y no puede armar los PDF. '+
+                     'El coordinador tiene que volver a publicar el programa: ver ENVIO-DE-MAILS.md.', 'err');
+      toast('Generando los PDF y enviando…');
       try{
         /* Sin encabezados propios a proposito: agregar Content-Type dispara una
            consulta previa de permisos que Apps Script no responde y el envio
@@ -16850,6 +18381,9 @@ function enviarDocumentacionPaciente(f){
             nombre:     typeof ENVIO_NOMBRE !== 'undefined' ? ENVIO_NOMBRE : 'AFAAR',
             asunto:     asunto,
             html:       htmlMailPaciente(f, prof),
+            /* Cada documento va como HTML; el conversor de Google lo pasa a
+               PDF y lo adjunta con este nombre de archivo. */
+            documentos: docs.map(d => ({ nombre:d.nombre, html:d.html })),
             fichaId:    f.id,
             profesional: (prof.apellido||'')+', '+(prof.nombre||'')
           })
@@ -16861,12 +18395,14 @@ function enviarDocumentacionPaciente(f){
         const base = JSON.parse(JSON.stringify(DB.fichas[f.id] || f));
         base.envios = (base.envios || []).concat([{
           fecha: new Date().toISOString(), a: p.email,
+          documentos: docs.map(d => d.titulo),
           porUid: SESION ? SESION.uid : '', por: (prof.apellido||'')+', '+(prof.nombre||'')
         }]);
         escribir('fichas', base.id, base);
         if(fichaActual && fichaActual.id === base.id) fichaActual.envios = base.envios;
-        auditar('email-paciente', 'Documentación enviada a ' + p.email);
-        toast('Documentación enviada a ' + p.email, 'ok');
+        auditar('email-paciente',
+          docs.length + ' documentos enviados en PDF a ' + p.email);
+        toast(docs.length + ' PDF enviados a ' + p.email, 'ok');
         pintarFicha();
       }catch(err){
         toast('No se pudo enviar: ' + err.message, 'err');
@@ -17724,14 +19260,28 @@ function bajarTodoElEnvio(e){
    no —o si no contesta—, el mail sale igual con el documento en el cuerpo y
    se le avisa al contador que los adjuntos los tiene que agregar a mano.
    Sin esto, la app mandaría megabytes de fotos que el script viejo tira. */
-let __adjuntosSoportados = null;
 function soportaAdjuntos(){
-  if(__adjuntosSoportados !== null) return Promise.resolve(__adjuntosSoportados);
-  if(!envioConfigurado()){ __adjuntosSoportados = false; return Promise.resolve(false); }
-  return fetch(ENVIO_URL, { method:'GET', mode:'cors' })
+  return versionDelServicio().then(j => !!(j && j.adjuntos));
+}
+
+/* Los PDF del paciente los arma el conversor de Google, no la app. Eso lo
+   agrego la version 3 del programa de Apps Script: si el coordinador todavia
+   no lo republico, el pedido saldria igual y el paciente recibiria un correo
+   SIN un solo documento. Peor que fallar. Se pregunta antes. */
+function soportaDocumentosPdf(){
+  return versionDelServicio().then(j => !!(j && j.documentosPdf));
+}
+
+/* Una sola consulta al servicio, cacheada: dice que sabe hacer la version
+   publicada. No revela la clave ni ningun dato. */
+let __versionServicio = null;
+function versionDelServicio(){
+  if(__versionServicio) return __versionServicio;
+  if(!envioConfigurado()) return Promise.resolve(null);
+  __versionServicio = fetch(ENVIO_URL, { method:'GET', mode:'cors' })
     .then(r => r.json())
-    .then(j => { __adjuntosSoportados = !!(j && j.adjuntos); return __adjuntosSoportados; })
-    .catch(() => { __adjuntosSoportados = false; return false; });
+    .catch(() => null);
+  return __versionServicio;
 }
 
 /* Las tres piezas que pide una auditoria medica -----------------------------
@@ -18136,17 +19686,21 @@ function vistaPanel(){
   const hoy = hoyISO();
   const mes = mesDe(hoy);
   const todas = misFichas();
-  const dia = todas.filter(f => f.fecha === hoy);
-  const delMes = todas.filter(f => mesDe(f.fecha) === mes);
-  const semana = todas.filter(f => f.fecha && semanaISO(f.fecha) === semanaISO(hoy));
+  /* La actividad del día son las dos cosas que puede haber hecho hoy: ver
+     pacientes en el consultorio y anestesiar en el quirófano. */
+  const dia = todas.filter(f => fechaCirugiaDe(f) === hoy || fechaValoracionDe(f) === hoy);
+  const delMes = todas.filter(f => mesDe(fechaDeFicha(f)) === mes);
+  const semana = todas.filter(f => fechaDeFicha(f) && semanaISO(fechaDeFicha(f)) === semanaISO(hoy));
   const borradores = todas.filter(f => (f.estado || 'borrador') === 'borrador');
   const finalizadas = todas.filter(f => f.estado === 'cerrada');
-  const sinFirmar = todas.filter(f => f.fecha && f.fecha < hoy &&
-    f.estado !== 'cerrada' && (f.acto || {}).finCirugia);
+  const sinFirmar = todas.filter(f => { const cx = fechaCirugiaDe(f);
+    return cx && cx < hoy && f.estado !== 'cerrada' && (f.acto || {}).finCirugia; });
+  const honPend = honorariosDiferidos();
   /* Los importes del mes y lo pendiente de cobro se consultan en Facturación,
      no en el inicio. */
-  const proximas = todas.filter(f => f.fecha && f.fecha >= hoy && diasHasta(f.fecha) <= 7)
-    .sort((a,b) => (a.fecha + (a.hora||'')) < (b.fecha + (b.hora||'')) ? -1 : 1);
+  const proximas = todas.filter(f => { const cx = fechaCirugiaDe(f);
+      return cx && cx >= hoy && diasHasta(cx) <= 7; })
+    .sort((a,b) => (fechaCirugiaDe(a) + (a.hora||'')) < (fechaCirugiaDe(b) + (b.hora||'')) ? -1 : 1);
 
   /* fila de la lista de estado: rotulo, cuenta y a donde lleva */
   const filaEstado = (id, icono, txt, n, cls) =>
@@ -18190,6 +19744,8 @@ function vistaPanel(){
     filaEstado('Borr','ficha','Borradores', borradores.length, borradores.length?'warn':'')+
     filaEstado('Fin','check','Finalizadas', finalizadas.length, 'ok')+
     (sinFirmar.length ? filaEstado('Firm','firma','Pendientes de firma', sinFirmar.length, 'danger') : '')+
+    (honPend.length ? filaEstado('Hon','dinero','Honorarios que dejaste para después',
+      honPend.length, 'danger') : '')+
   '</div>'+
 
   tarjetaAvisosPanel()+
@@ -18258,6 +19814,9 @@ function vistaPanel(){
                        irA('fichas'); });
   ir('peFirm', () => { filtroFichas = Object.assign({}, filtroFichas, { estado:'realizada' });
                        irA('fichas'); });
+  /* Los honorarios diferidos se abren desde acá sin esperar al cartel de
+     las tres horas: el que quiere sacárselos de encima puede hacerlo ya. */
+  ir('peHon', () => { marcarCartelHon0(); revisarRecordatorioHonorarios(); });
   ir('tlIrPacientes', () => irA('pacientes'));
   ir('tlIrFichas', () => irA('fichas'));
   ir('tlIrVademecum', abrirVademecumSuelto);
@@ -18307,7 +19866,12 @@ function arrancarApp(){
   $('#app').classList.add('on');
   pintarEncabezado();
   irA(vistaInicial());
-  if(verDatosClinicos()) notificarCirugias();
+  if(verDatosClinicos()){
+    notificarCirugias();
+    /* Los honorarios que el anestesiólogo dejó para después se le recuerdan
+       cada tres horas hasta que los cargue. */
+    iniciarRecordatorioHonorarios();
+  }
   /* Refresco periodico: avisos clinicos cada 10 min y, para que el umbral de
      2 h de los reclamos se note sin recargar, los mensajes cada 2 minutos. */
   clearInterval(window.__tAvisos);

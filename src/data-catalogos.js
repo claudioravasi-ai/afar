@@ -266,16 +266,123 @@ const ANALGESIA_POP = [
   'Dexmedetomidina','Crioterapia / medidas no farmacológicas'
 ];
 
-/* ---------- Consentimiento informado - texto base ---------- */
-const TEXTO_CONSENTIMIENTO = `Declaro que el/la profesional anestesiólogo/a me ha explicado, en lenguaje claro y comprensible, el procedimiento anestésico propuesto para la intervención indicada, así como sus alternativas razonables.
+/* ---------- Consentimiento informado anestesico - texto base ----------
+   Redactado sobre el modelo de consentimiento informado anestesico de la
+   Asociacion de Anestesia, Analgesia y Reanimacion de Buenos Aires
+   (anestesia.org.ar) y los formularios de anestesia y analgesia
+   postoperatoria del Hospital Nacional Baldomero Sommer (Ministerio de
+   Salud de la Nacion), ajustado a la Ley 26.529 de Derechos del Paciente,
+   su modificatoria Ley 26.742, el Decreto reglamentario 1089/2012, el
+   articulo 59 del Codigo Civil y Comercial, la Ley 17.132 del Ejercicio de
+   la Medicina y la Ley 25.326 de Proteccion de Datos Personales.
 
-Comprendo que la anestesia es un acto médico que, aun realizado con la mayor diligencia, no está exento de riesgos. Se me han explicado los riesgos generales (náuseas y vómitos, dolor de garganta, lesión dentaria o labial, cefalea, dolor lumbar, retención urinaria, hipotensión, reacciones alérgicas) y los riesgos graves poco frecuentes (dificultad en el manejo de la vía aérea, aspiración de contenido gástrico, lesión nerviosa, despertar intraoperatorio, infarto, accidente cerebrovascular, hipertermia maligna, coma y muerte), cuya probabilidad aumenta en función de mi estado de salud previo y de la complejidad de la cirugía.
+   Se imprime completo en la valoracion pre-anestesica y viaja como PDF
+   aparte en el envio al paciente. */
+const TEXTO_CONSENTIMIENTO = `1. NATURALEZA DEL ACTO ANESTESICO
 
-Se me ha informado sobre mi riesgo anestésico particular, se me ha dado la oportunidad de realizar preguntas y todas ellas fueron respondidas satisfactoriamente. Entiendo que puedo revocar este consentimiento en cualquier momento antes del procedimiento sin que ello afecte la calidad de mi atención.
+Declaro que el/la profesional anestesiólogo/a me ha explicado, en lenguaje claro, sencillo y comprensible, el procedimiento anestésico propuesto para la intervención indicada, sus motivos, características, propósitos, beneficios esperados, riesgos, molestias, efectos adversos previsibles y las alternativas razonables, con sus propios riesgos y beneficios, incluida la de no realizar ningún procedimiento.
 
-Autorizo asimismo a que, si durante el acto anestésico surgieran situaciones imprevistas, el equipo adopte las medidas que resulten necesarias para preservar mi vida y mi salud, incluida la transfusión de hemoderivados cuando sea indispensable, salvo la objeción que se consigna expresamente en esta ficha.
+Comprendo que la anestesia es un acto médico autónomo, distinto de la cirugía, cuyo objeto es suprimir el dolor, mantener las funciones vitales y cuidar mi estado general durante todo el procedimiento y en el postoperatorio inmediato. Entiendo que es el/la médico/a anestesiólogo/a quien indica la técnica anestésica adecuada a mi caso, según la operación prevista y mis condiciones de salud, y que puede modificarla si las circunstancias lo exigen.
 
-Consentimiento otorgado conforme a la Ley Nacional 26.529 de Derechos del Paciente y su modificatoria Ley 26.742.`;
+2. TECNICAS ANESTESICAS Y EN QUE CONSISTEN
+
+Se me ha informado que, según el caso, la anestesia puede ser:
+
+· ANESTESIA GENERAL: administración de fármacos por vía intravenosa y/o gases inhalados que producen inconsciencia, amnesia, analgesia, relajación muscular y abolición de reflejos. Requiere canalizar una vena para administrar sueros y medicamentos y, habitualmente, colocar un tubo o dispositivo a través de la boca o la nariz hasta la vía aérea, conectado a un respirador que mantiene la respiración durante la intervención.
+
+· ANESTESIA NEUROAXIAL (raquídea o peridural): inyección de anestésico local en la región lumbar o dorsal, que bloquea la sensibilidad y el movimiento de la mitad inferior del cuerpo de manera transitoria, con o sin colocación de un catéter para analgesia posterior.
+
+· BLOQUEO DE NERVIOS O PLEXOS PERIFERICOS: inyección de anestésico local junto a un nervio o grupo de nervios, habitualmente guiada por ecografía y/o neuroestimulación, que anestesia únicamente la zona a operar.
+
+· SEDACION O CUIDADO ANESTESICO MONITORIZADO: administración de fármacos que producen somnolencia, ansiólisis y analgesia, conservando en distinto grado la respiración espontánea. Comprendo que una sedación puede requerir convertirse en anestesia general si el procedimiento o mi estado lo hacen necesario.
+
+· ANESTESIA LOCAL: infiltración de anestésico en la zona a intervenir, con o sin sedación complementaria.
+
+3. MONITOREO Y PROCEDIMIENTOS ASOCIADOS
+
+Se me ha explicado que durante todo el acto anestésico seré vigilado/a en forma continua con electrodos adhesivos en el pecho para el control del ritmo cardíaco, un manguito de presión arterial, un sensor en el dedo que mide el oxígeno en sangre (oximetría de pulso) y, cuando corresponda, medición del dióxido de carbono espirado, temperatura y profundidad anestésica. Autorizo asimismo la colocación de los accesos vasculares, sondas, catéteres y dispositivos que resulten necesarios para el procedimiento y para mi seguridad.
+
+4. RIESGOS DEL ACTO ANESTESICO
+
+Comprendo que todo acto anestésico, aun realizado con la mayor diligencia, con los medios adecuados y conforme a las reglas del arte, es un procedimiento capaz de originar lesiones agudas, secuelas crónicas, complicaciones graves e incluso la muerte, y que los riesgos NO pueden suprimirse por completo. Entiendo que su probabilidad guarda relación con mi estado de salud previo, mi edad, el tipo, la complejidad y la duración del acto quirúrgico, así como con reacciones alérgicas u otros factores de riesgo inevitables, y que cada técnica anestésica tiene sus riesgos propios.
+
+Se me han explicado, a título ejemplificativo y no taxativo:
+
+· Riesgos frecuentes y en general leves: náuseas y vómitos postoperatorios, dolor o irritación de garganta, ronquera, tos, escalofríos y temblores, somnolencia prolongada, dolores musculares, mareos, dolor o flebitis en el sitio de punción venosa, hematoma en el sitio de punción, retención urinaria, dolor lumbar, cefalea (incluida la cefalea pospunción dural en la anestesia neuroaxial), visión borrosa transitoria.
+
+· Riesgos poco frecuentes: lesión dentaria, labial o de la lengua durante el manejo instrumental de la vía aérea; dificultad imprevista para colocar el tubo en la tráquea; lesión de cuerdas vocales; laringoespasmo o broncoespasmo; reacciones alérgicas a los fármacos anestésicos; hipotensión o hipertensión arterial, bradicardia o arritmias que requieran tratamiento; bloqueo insuficiente o fallido que obligue a repetirlo o a convertir a anestesia general; lesión nerviosa periférica transitoria por el bloqueo o por la posición en la mesa quirúrgica; lesiones oculares por compresión o sequedad.
+
+· Riesgos graves e infrecuentes: imposibilidad de manejar la vía aérea; aspiración de contenido gástrico hacia el pulmón; despertar intraoperatorio; lesión nerviosa o medular permanente, hematoma o absceso peridural; convulsiones y toxicidad sistémica por anestésicos locales; anafilaxia; hipertermia maligna; infarto de miocardio; accidente cerebrovascular; insuficiencia renal o respiratoria; paro cardiorrespiratorio; daño cerebral, coma y muerte.
+
+Entiendo que la enumeración anterior no agota todas las complicaciones posibles y que la medicina no es una ciencia exacta: el/la profesional se compromete a poner todos los medios a su alcance, pero no puede garantizar un resultado.
+
+5. INSTRUCCIONES QUE ME FUERON DADAS Y ME COMPROMETO A CUMPLIR
+
+a) AYUNO. Debo cumplir el ayuno preoperatorio indicado (como regla, ocho horas para alimentos sólidos y leche no materna, seis horas para comidas livianas y fórmulas, cuatro horas para leche materna y dos horas para líquidos claros, conforme las guías de ayuno perioperatorio vigentes). Comprendo que incumplir esta indicación pone en riesgo mi vida por aspiración de contenido gástrico y obliga a suspender la cirugía.
+
+b) MEDICACION. Debo continuar la medicación habitual que se me indicó mantener —por ejemplo, la de la presión arterial—, tomándola el día de la cirugía con un sorbo de agua sin romper la norma anterior, y suspender únicamente aquella que se me indicó suspender y con la antelación señalada, en particular la que afecta la coagulación de la sangre. No debo suspender ni agregar medicamentos por mi cuenta.
+
+c) TABACO Y OTRAS SUSTANCIAS. Si soy fumador/a, debo intentar interrumpir el hábito al menos una semana antes de la cirugía. Debo informar el consumo de alcohol, cannabis, cocaína u otras sustancias, y el uso de suplementos, hierbas o medicamentos para adelgazar, porque interactúan con los fármacos anestésicos.
+
+d) PROTESIS Y ACCESORIOS. Debo informar y retirar prótesis dentales, lentes de contacto, audífonos, piercings y alhajas, y presentarme sin esmalte de uñas ni maquillaje.
+
+e) ACOMPAÑANTE. Si el procedimiento es ambulatorio, debo concurrir con un acompañante adulto responsable y comprendo que durante las veinticuatro horas siguientes no debo conducir vehículos, operar maquinarias, firmar documentos de importancia ni permanecer solo/a.
+
+6. SITUACIONES IMPREVISTAS
+
+Estoy en conocimiento de que durante el curso de la anestesia pueden presentarse condiciones especiales que requieran medidas extras o diferentes de las originariamente previstas. Por ello autorizo y requiero que el/la anestesiólogo/a interviniente, o quien él/ella designe, realice los procedimientos que a su juicio profesional resulten necesarios y deseables para preservar mi vida y mi salud, incluidos el cambio de técnica anestésica, el ingreso a una unidad de cuidados críticos y la ventilación mecánica prolongada.
+
+7. TRANSFUSION DE HEMODERIVADOS
+
+Autorizo la transfusión de sangre o hemoderivados cuando resulte indispensable para preservar mi vida o mi salud, con conocimiento de sus riesgos —reacciones transfusionales y transmisión de infecciones—, salvo que haya consignado expresamente mi negativa en esta misma ficha, en cuyo caso asumo las consecuencias de esa decisión y solicito que se apliquen las alternativas disponibles de ahorro de sangre.
+
+8. DECLARACION SOBRE MIS ANTECEDENTES
+
+Declaro bajo juramento no haber omitido ni alterado datos al exponer mis antecedentes clínicos, quirúrgicos, anestésicos, alérgicos y de medicación, ni al responder los distintos aspectos consultados en la evaluación preanestésica. Me comprometo a informar de inmediato al equipo tratante cualquier cambio en mi estado de salud, medicación nueva o síntoma que aparezca entre esta evaluación y el día de la cirugía.
+
+9. PREGUNTAS Y REVOCACION
+
+Se me ha dado la oportunidad de hacer preguntas y todas ellas me han sido contestadas satisfactoriamente. Entiendo que puedo retractar y anular este consentimiento en cualquier momento antes de que se administre el tratamiento anestésico, analgésico y/o la sedación, en forma libre y sin expresión de causa, sin que ello afecte la calidad de mi atención ni mi relación con el equipo tratante, haciéndome responsable de las consecuencias que puedan derivarse de esa decisión. La revocación se documentará por escrito en mi historia clínica.
+
+10. DATOS PERSONALES Y DOCENCIA
+
+Se me ha informado que mis datos de salud son datos sensibles, que reciben tratamiento confidencial, que se usan con fines asistenciales, administrativos y de facturación, y que puedo acceder a ellos, pedir su rectificación y conocer su destino. El uso de imágenes o registros con fines docentes o científicos requiere mi autorización expresa, que consta por separado en esta ficha, y en ningún caso permitirá mi identificación.
+
+11. MARCO LEGAL
+
+Consentimiento otorgado de manera libre, voluntaria e informada conforme a la Ley 26.529 de Derechos del Paciente en su Relación con los Profesionales e Instituciones de la Salud, su modificatoria Ley 26.742, el Decreto reglamentario 1089/2012, el artículo 59 del Código Civil y Comercial de la Nación, la Ley 17.132 del Ejercicio de la Medicina y la Ley 25.326 de Protección de los Datos Personales. Este documento integra mi historia clínica, me pertenece y se conserva por el plazo legal mínimo de diez años.
+
+Se me entrega copia del presente y de la valoración pre-anestésica.`;
+
+/* ---------- Declaraciones que el paciente marca junto al texto ---------- */
+const CONSENT_ITEMS = [
+  'Recibí y comprendí la información sobre la técnica anestésica propuesta',
+  'Se me explicaron los riesgos generales y los propios de mi estado de salud',
+  'Pude hacer preguntas y todas fueron respondidas satisfactoriamente',
+  'Recibí las indicaciones sobre el ayuno preoperatorio',
+  'Recibí las indicaciones sobre la medicación a suspender y a continuar',
+  'Acepta anestesia general',
+  'Acepta técnica regional (raquídea, peridural o bloqueo)',
+  'Acepta sedación / cuidado anestésico monitorizado',
+  'Acepta transfusión de hemoderivados si fuera indispensable',
+  'RECHAZA transfusión de hemoderivados',
+  'Autoriza el uso de imágenes con fines docentes o científicos',
+  'Concurrirá con acompañante adulto responsable (cirugía ambulatoria)'
+];
+
+/* Al paciente se le manda tambien una hoja de indicaciones en castellano
+   llano: ayuno, medicacion, horario y acompanante. Es el unico de los tres
+   documentos que realmente va a leer. */
+const INDICACIONES_AL_PACIENTE = true;
+
+/* ---------- Quien firma el consentimiento ---------- */
+const CONSENT_QUIEN = [
+  '', 'El paciente', 'Representante legal / familiar', 'Paciente y representante',
+  'Menor de 16 años: firma su representante legal',
+  'Paciente que rechaza transfusión',
+  'No firmado — urgencia vital (art. 9 Ley 26.529)',
+  'Consentimiento revocado por el paciente'
+];
 
 /* ---------- Escala de Aldrete modificada ---------- */
 const ALDRETE = [

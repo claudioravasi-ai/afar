@@ -5,11 +5,103 @@
    Se muestran en la campana del encabezado y resumidos en el panel.
    ========================================================================= */
 
+/* =========================================================================
+   HONORARIOS DIFERIDOS - el recordatorio de cada tres horas
+   -------------------------------------------------------------------------
+   Al cerrar una ficha, la app pregunta si carga el honorario o lo deja para
+   despues. Si lo difiere queda marcado, y a partir de ahi insiste: campana
+   en rojo, permanente, y un cartel cada tres horas mientras la app este
+   abierta. No es molestar por molestar: el honorario que no se carga en el
+   momento es el que aparece de menos a fin de mes, y despues es imposible
+   reconstruirlo.
+
+   El recordatorio se apaga solo en cuanto se carga la modalidad del acto
+   (ver abrirHonorarios en ui-ficha.js).
+   ========================================================================= */
+const HORAS_RECORDATORIO_HON = 3;
+
+function honorariosDiferidos(){
+  if(!SESION || !verDatosClinicos()) return [];
+  return lista('fichas').filter(f =>
+    (f.honDiferido || {}).desde &&
+    f.honDiferido.uid === SESION.uid &&
+    !(f.hon || {}).modalidad &&
+    esActorFicha(f));
+}
+
+/* Momento del ultimo cartel, por usuario y por dispositivo. Se guarda fuera
+   de la base: es una preferencia de este equipo, no un dato de la ficha. */
+function ultimoCartelHon(){
+  try{ return localStorage.getItem('afar_hon_cartel_' + (SESION ? SESION.uid : '')) || ''; }
+  catch(e){ return ''; }
+}
+function marcarCartelHon(){
+  try{ localStorage.setItem('afar_hon_cartel_' + (SESION ? SESION.uid : ''),
+                            new Date().toISOString()); }catch(e){}
+}
+
+/* Borra el sello del ultimo cartel: se usa cuando el propio anestesiologo
+   pide ver la lista desde el inicio, para que el cartel salga en el acto. */
+function marcarCartelHon0(){
+  try{ localStorage.removeItem('afar_hon_cartel_' + (SESION ? SESION.uid : '')); }catch(e){}
+}
+
+function revisarRecordatorioHonorarios(){
+  const l = honorariosDiferidos();
+  if(!l.length) return;
+  const ultimo = ultimoCartelHon();
+  if(ultimo && horasDesde(ultimo) < HORAS_RECORDATORIO_HON) return;
+  if($('#modal') && $('#modal').classList.contains('on')) return;   /* no pisar otro modal */
+  marcarCartelHon();
+
+  const filas = l.map(f => {
+    const p = DB.pacientes[f.pacienteId] || {};
+    const hs = Math.floor(horasDesde(f.honDiferido.desde));
+    return '<button type="button" class="hon-pend" data-honf="'+esc(f.id)+'">'+
+      ico('dinero')+'<span class="tx"><b>'+esc((p.apellido||'—')+', '+(p.nombre||''))+'</b>'+
+      '<i>'+esc(f.cirugia || 'sin cirugía')+' · '+fFecha(fechaCirugiaDe(f) || f.fecha)+
+      ' · pendiente hace '+hs+' h</i></span>'+
+      ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg);width:15px;height:15px;opacity:.5"')+
+      '</button>';
+  }).join('');
+
+  abrirModal('Honorarios pendientes',
+    '<div class="aviso warn">'+ico('reloj')+'<div><b>Dejaste '+l.length+' honorario'+
+      (l.length===1?'':'s')+' para después.</b><br>Mientras no cargues la modalidad del acto, '+
+      'la prestación no entra en tu facturación del mes ni en tus estadísticas.</div></div>'+
+    '<div class="hon-pend-lista">'+filas+'</div>',
+    '<button class="btn ghost" data-cerrar>Ahora no</button>');
+  $$('#modal [data-honf]').forEach(b => b.onclick = () => {
+    const id = b.dataset.honf;
+    cerrarModal();
+    abrirFicha(id);
+    if(fichaActual && fichaActual.id === id) setTimeout(() => abrirHonorarios(fichaActual), 200);
+  });
+}
+
+/* Arranca el reloj del recordatorio. Se llama al iniciar sesion. */
+let __relojHon = null;
+function iniciarRecordatorioHonorarios(){
+  if(__relojHon) clearInterval(__relojHon);
+  /* Un rato despues de entrar, para no recibir el cartel encima del login */
+  setTimeout(revisarRecordatorioHonorarios, 45000);
+  /* Se revisa cada diez minutos, pero el cartel sale cada tres horas: asi la
+     cuenta sigue bien aunque la app quede abierta toda la guardia. */
+  __relojHon = setInterval(revisarRecordatorioHonorarios, 10 * 60 * 1000);
+}
+function detenerRecordatorioHonorarios(){
+  if(__relojHon){ clearInterval(__relojHon); __relojHon = null; }
+}
+
 /* ------------------------------------------- Qué le falta a una ficha -- */
 function faltantesFicha(f){
   const m = [];
   const hoy = hoyISO();
-  const pasada = (f.fecha || '') < hoy;
+  /* Lo del acto se reclama recién cuando la cirugía ya ocurrió. Mientras no
+     haya fecha de cirugía cargada, la cirugía no ocurrió: la ficha está en
+     la etapa de valoración y pedirle el Aldrete no tiene sentido. */
+  const cx = fechaCirugiaDe(f);
+  const pasada = !!cx && cx < hoy;
   const v = f.v || {}, sc = v.scores || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {};
 
   const r = f.recup || {};
@@ -30,7 +122,10 @@ function faltantesFicha(f){
   if(!(v.ayuno || {}).tipo)                m.push({ t:'control de ayuno', s:'preanestesia' });
   if(!(v.riesgo || {}).fundamento)         m.push({ t:'conclusión de aptitud', s:'preanestesia', critico:true });
   if(!(pl.tecnica || []).length)           m.push({ t:'plan anestésico', s:'preanestesia', critico:true });
-  if(!(f.consent || {}).quien)             m.push({ t:'consentimiento informado', s:'consent', critico:true });
+  if(!consentimientoCompleto(f))           m.push({ t:'consentimiento informado (punto 15)',
+                                                    s:'preanestesia', critico:true });
+  if(!cx && (f.valoracionGuardada || (f.v||{}).scores))
+                                           m.push({ t:'fecha de la cirugía', s:'anestesia' });
   if(pasada){
     if(!(a.tecnicas || []).length)         m.push({ t:'técnica anestésica realizada', s:'anestesia', critico:true });
     if(!a.finCirugia && !a.finAnestesia)   m.push({ t:'tiempos del procedimiento', s:'anestesia', critico:true });
@@ -109,10 +204,11 @@ function calcularAvisos(){
   }
 
   /* --- 2. Cirugías de los próximos 7 días --- */
-  fichas.filter(f => f.fecha && f.fecha >= hoy && diasHasta(f.fecha) <= 7)
-    .sort((a,b) => (a.fecha + (a.hora||'')) < (b.fecha + (b.hora||'')) ? -1 : 1)
+  fichas.filter(f => { const cx = fechaCirugiaDe(f);
+      return cx && cx >= hoy && diasHasta(cx) <= 7; })
+    .sort((a,b) => fechaCirugiaDe(a) < fechaCirugiaDe(b) ? -1 : 1)
     .forEach(f => {
-      const d = diasHasta(f.fecha);
+      const d = diasHasta(fechaCirugiaDe(f));
       const p = DB.pacientes[f.pacienteId] || {};
       const falt = faltantesFicha(f);
       const criticos = falt.filter(x => x.critico);
@@ -136,27 +232,60 @@ function calcularAvisos(){
     });
 
   /* --- 3. Cirugías ya realizadas sin registro del acto --- */
-  fichas.filter(f => f.fecha && f.fecha < hoy && !(f.acto || {}).finAnestesia)
-    .sort((a,b) => a.fecha < b.fecha ? 1 : -1).slice(0, 12)
+  fichas.filter(f => { const cx = fechaCirugiaDe(f);
+      return cx && cx < hoy && !(f.acto || {}).finAnestesia; })
+    .sort((a,b) => fechaCirugiaDe(a) < fechaCirugiaDe(b) ? 1 : -1).slice(0, 12)
     .forEach(f => {
       const p = DB.pacientes[f.pacienteId] || {};
+      const cx = fechaCirugiaDe(f);
       av.push({ nivel:'warn', icono:'monitor', orden:30,
         titulo:'Sin registro del acto anestésico — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
-        detalle:(f.cirugia||'') + ' del ' + fFecha(f.fecha) + ' (' + cuandoTexto(diasHasta(f.fecha)) + ').' +
+        detalle:(f.cirugia||'') + ' del ' + fFecha(cx) + ' (' + cuandoTexto(diasHasta(cx)) + ').' +
                 '\nCompletá tiempos, técnica realizada, eventos y Aldrete.',
-        fichaId:f.id, solapa:'acto' });
+        fichaId:f.id, solapa:'anestesia' });
     });
 
   /* --- 4. Cirugías realizadas sin honorarios cargados --- */
-  fichas.filter(f => f.fecha && f.fecha < hoy && esActorFicha(f) && !(f.hon || {}).modalidad)
-    .sort((a,b) => a.fecha < b.fecha ? 1 : -1).slice(0, 12)
+  /* Los que el anestesiólogo DIFIRIO a proposito, al cerrar la ficha, van
+     primero y en rojo: los pidio el recordatorio y el recordatorio insiste
+     hasta que se cargan. Los demas quedan en ambar, como aviso normal. */
+  honorariosDiferidos().forEach(f => {
+    const p = DB.pacientes[f.pacienteId] || {};
+    const hs = Math.floor(horasDesde(f.honDiferido.desde));
+    av.push({ nivel:'danger', icono:'dinero', orden:4,
+      titulo:'Honorarios pendientes hace ' + hs + ' h — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
+      detalle:(f.cirugia||'') + ' del ' + fFecha(fechaCirugiaDe(f) || f.fecha) +
+              '.\nLos dejaste para después al cerrar la ficha. Te lo recuerdo cada 3 horas ' +
+              'hasta que los cargues: sin la modalidad del acto la prestación no entra en tu ' +
+              'facturación del mes.',
+      fichaId:f.id, solapa:'hon' });
+  });
+
+  fichas.filter(f => { const cx = fechaCirugiaDe(f);
+      return cx && cx < hoy && esActorFicha(f) && !(f.hon || {}).modalidad && !(f.honDiferido||{}).desde; })
+    .sort((a,b) => fechaCirugiaDe(a) < fechaCirugiaDe(b) ? 1 : -1).slice(0, 12)
     .forEach(f => {
       const p = DB.pacientes[f.pacienteId] || {};
       av.push({ nivel:'warn', icono:'dinero', orden:35,
         titulo:'Sin honorarios cargados — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
-        detalle:(f.cirugia||'') + ' del ' + fFecha(f.fecha) +
+        detalle:(f.cirugia||'') + ' del ' + fFecha(fechaCirugiaDe(f)) +
                 '.\nMientras no cargues la modalidad del acto no aparece en tu facturación del mes.',
         fichaId:f.id, solapa:'hon' });
+    });
+
+  /* --- 4 bis. Valoraciones vencidas --- */
+  fichas.filter(f => valoracionVencida(f) && !(f.firma||{}).firmado)
+    .slice(0, 8)
+    .forEach(f => {
+      const p = DB.pacientes[f.pacienteId] || {};
+      const d = diasDeValoracion(f);
+      av.push({ nivel:'warn', icono:'reloj', orden:33,
+        titulo:'Valoración vencida (' + d + ' días) — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
+        detalle:'La valoración prequirúrgica se hizo el ' + fFecha(fechaValoracionDe(f)) +
+                ', hace ' + d + ' días.\nPasados ' + DIAS_VIGENCIA_VALORACION + ' días conviene ' +
+                'reevaluar: pudo cambiar la medicación, aparecer una infección respiratoria o ' +
+                'descompensarse una patología de base.',
+        fichaId:f.id, solapa:'preanestesia' });
     });
 
   /* --- 5. Facturación del mes anterior sin presentar --- */
@@ -188,7 +317,7 @@ function calcularAvisos(){
 
   /* --- 7. Borradores olvidados --- */
   const viejos = fichas.filter(f => (f.estado || 'borrador') === 'borrador' &&
-    f.fecha && diasHasta(f.fecha) < -14);
+    fechaDeFicha(f) && diasHasta(fechaDeFicha(f)) < -14);
   if(viejos.length){
     av.push({ nivel:'info', icono:'editar', orden:50,
       titulo: viejos.length + ' ficha' + (viejos.length===1?'':'s') + ' en borrador hace más de dos semanas',
@@ -263,8 +392,9 @@ function abrirAvisos(){
     setTimeout(() => {
       if(a.fichaId){
         abrirFicha(a.fichaId);
-        if(a.solapa === 'consent'){ abrirConsentimiento(fichaActual); }
-        else if(a.solapa){ solapaFicha = a.solapa; pintarFicha(); }
+        if(!fichaActual || fichaActual.id !== a.fichaId) return;   /* no se pudo abrir */
+        if(a.solapa === 'hon') abrirHonorarios(fichaActual);
+        else if(a.solapa && PASOS_FICHA.some(p => p.k === a.solapa)) irAPaso(a.solapa);
       } else if(a.accion) a.accion();
     }, 180);
   });
@@ -329,8 +459,9 @@ function cablearAvisosPanel(){
     const a = av[Number(el.dataset.pav)];
     if(a.fichaId){
       abrirFicha(a.fichaId);
-      if(a.solapa === 'consent') abrirConsentimiento(fichaActual);
-      else if(a.solapa){ solapaFicha = a.solapa; pintarFicha(); }
+      if(!fichaActual || fichaActual.id !== a.fichaId) return;   /* no se pudo abrir */
+      if(a.solapa === 'hon') abrirHonorarios(fichaActual);
+      else if(a.solapa && PASOS_FICHA.some(p => p.k === a.solapa)) irAPaso(a.solapa);
     } else if(a.accion) a.accion();
   });
   if($('#avVerTodos')) $('#avVerTodos').onclick = abrirAvisos;
@@ -342,7 +473,12 @@ function bannerFaltantes(f){
   if(!m.length) return '<div class="aviso ok no-print">'+ico('check')+
     '<div><b>Ficha completa.</b> No falta ningún dato.</div></div>';
   const criticos = m.filter(x => x.critico), otros = m.filter(x => !x.critico);
-  const d = diasHasta(f.fecha);
+  /* La urgencia se mide contra la fecha de la CIRUGÍA. Mientras no haya
+     cirugía cargada no hay nada inminente: la ficha está en la etapa de
+     valoración, y avisar «la cirugía es hoy» porque la consulta es hoy es
+     decir una cosa por otra. */
+  const cx = fechaCirugiaDe(f);
+  const d = cx ? diasHasta(cx) : null;
   const inminente = d !== null && d >= 0 && d <= 1;
   return '<div class="aviso '+(criticos.length ? (inminente ? 'danger' : 'warn') : 'info')+' no-print">'+
     ico(criticos.length ? 'alerta' : 'info')+

@@ -17,20 +17,78 @@ const SOLAPAS_ACTO = [
   ['eventos','alerta','Eventos']
 ];
 
+/* =========================================================================
+   QUIEN ANESTESIA - el boton que abre el acto
+   -------------------------------------------------------------------------
+   Un acto anestesico tiene que tener un dueno con nombre y apellido antes de
+   que se escriba una sola linea: es el que firma, el que responde y el que
+   factura. En el punto 14 de la valoracion se DESIGNA a alguien, pero una
+   designacion no es una toma: el que designaron puede no estar, y en una
+   urgencia anestesia el que esta. Por eso al entrar al paso el primer
+   elemento de la pantalla, imposible de pasar por alto, es este.
+   ========================================================================= */
+function htmlTomarActo(f){
+  const g = DB.fichas[f.id] || f;
+  const mio      = esActorFicha(g);
+  const designado = g.asignadoUid && g.asignadoUid !== 'sinasignar' ? g.asignadoUid : '';
+  const tomado   = !!g.actoPorUid;
+  const firmada  = !!(g.firma || {}).firmado;
+
+  if(firmada) return '';
+
+  /* Ya es mio: no hay nada que tomar */
+  if(mio && tomado)
+    return '<div class="aviso ok no-print">'+ico('jeringa')+'<div><b>El acto anestésico está a tu '+
+      'nombre.</b> Lo que registres acá lo firmás vos y el honorario del acto es tuyo.</div></div>';
+
+  const quien = g.actorExterno ? g.actorExterno + ' (externo, sin usuario en la app)'
+              : designado      ? nombreUsuario(designado)
+              :                  '';
+
+  const yoSoyElDesignado = designado && SESION && designado === SESION.uid;
+
+  return '<div class="tomar-acto no-print">'+
+    '<div class="ta-txt">'+ico('jeringa')+
+      '<div><b>'+(yoSoyElDesignado
+        ? 'Te designaron para este acto anestésico'
+        : quien
+          ? 'Acto designado a '+esc(quien)
+          : 'Este acto anestésico todavía no tiene anestesiólogo')+'</b>'+
+      '<span>'+(yoSoyElDesignado
+        ? 'En el punto 14 de la valoración de '+esc(autorFicha(g))+' figurás vos. '+
+          'Confirmalo para empezar el registro: a partir de ahí el acto es tuyo.'
+        : quien
+          ? 'Si finalmente lo vas a anestesiar vos, tomalo: la designación del punto 14 es una '+
+            'previsión y en el quirófano manda quien está.'
+          : 'En el punto 14 quedó como «todavía no se sabe quién opera». Tomalo para poder '+
+            'registrar el acto y facturarlo.')+'</span></div>'+
+    '</div>'+
+    '<button class="btn pri grande" id="acTomar">'+ico('firma')+' TOMAR ACTO ANESTÉSICO</button>'+
+  '</div>'+
+  '<div class="aviso warn no-print">'+ico('candado')+'<div>Hasta que no lo tomes, lo que cargues '+
+    'no se guarda: un registro anestésico sin anestesiólogo responsable no tiene valor '+
+    'médico-legal.</div></div>';
+}
+
 function pintarPasoAnestesia(f){
   const a = f.acto || {};
   const cuenta = { drogas:(a.drogas||[]).length, vitales:(a.controles||[]).length,
                    eventos:(a.eventos2||[]).length };
+  const g = DB.fichas[f.id] || f;
+  const sinDueno = !(g.firma||{}).firmado && !esActorFicha(g);
+
   $('#fiCuerpo').innerHTML =
     '<div class="acto-solapas no-print">'+ SOLAPAS_ACTO.map(s =>
       '<button type="button" class="'+(solapaActo===s[0]?'on':'')+'" data-asolapa="'+s[0]+'">'+
         ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
         esc(s[2])+(cuenta[s[0]] ? '<span class="badge">'+cuenta[s[0]]+'</span>' : '')+
       '</button>').join('') +'</div>'+
-    '<div id="actoCuerpo"></div>';
+    '<div id="actoCuerpo"></div>'+
+    '<div class="autoguarda-acto no-print" id="acAviso"></div>';
 
   $$('#fiCuerpo [data-asolapa]').forEach(b => b.onclick = () => {
     fichaActual.acto = leerPasoAnestesia();
+    autoguardarActo(true);                 /* cambiar de solapa también guarda */
     solapaActo = b.dataset.asolapa;
     pintarPasoAnestesia(fichaActual);
   });
@@ -41,6 +99,53 @@ function pintarPasoAnestesia(f){
   else if(solapaActo === 'vitales'){ c.innerHTML = htmlActoVitales(f); cablearActoVitales(f); }
   else if(solapaActo === 'balance'){ c.innerHTML = htmlActoBalance(f); cablearActoBalance(f); }
   else { c.innerHTML = htmlActoEventos(f); cablearActoEventos(f); }
+
+  if(!sinDueno) cablearAutoguardadoActo();
+}
+
+/* =========================================================================
+   AUTOGUARDADO DE LAS CINCO SOLAPAS
+   -------------------------------------------------------------------------
+   El acto anestesico se registra mientras se anestesia: con una mano, entre
+   dos drogas, mirando el monitor. Pedirle a esa persona que se acuerde de
+   apretar «Guardar» es pedirle lo unico que seguro se va a olvidar, y lo que
+   se pierde es el registro de un acto medico. Asi que se guarda solo: cada
+   vez que se toca un campo, se cambia de solapa o se sale del paso.
+   El cartelito de abajo dice cuando fue la ultima vez, para que no haya que
+   confiar a ciegas.
+   ========================================================================= */
+let __actoUltimo = '';
+
+function autoguardarActo(silencioso){
+  const f = fichaActual;
+  if(!f || pasoFicha !== 'anestesia') return;
+  const g = DB.fichas[f.id] || f;
+  if((g.firma || {}).firmado) return;                 /* firmada: no se toca */
+  if(!puedeEditarSeccion(g, 'acto')) return;          /* el acto es de un colega */
+  if(!f.pacienteId) return;                           /* ficha sin paciente: nada que guardar */
+  f.acto = leerPasoAnestesia();
+  guardarFicha(true, true);                           /* silencioso y sin repintar */
+  __actoUltimo = ahoraHora();
+  const av = $('#acAviso');
+  if(av) av.innerHTML = ico('check')+'Guardado automáticamente a las '+esc(__actoUltimo)+' h';
+  if(!silencioso) return;
+}
+
+function cablearAutoguardadoActo(){
+  const cuerpo = $('#actoCuerpo');
+  if(!cuerpo) return;
+  const guardar = debounce(() => autoguardarActo(true), 900);
+  cuerpo.addEventListener('input',  guardar);
+  cuerpo.addEventListener('change', guardar);
+  /* Los botones de técnica, de sí/no y las casillas no disparan «change»:
+     se pintan por clase. Se los escucha aparte. */
+  cuerpo.addEventListener('click', e => {
+    if(e.target.closest('.tec, .seg button, .chk, [data-ahora], [data-crono]')) guardar();
+  });
+  const av = $('#acAviso');
+  if(av) av.innerHTML = __actoUltimo
+    ? ico('check')+'Guardado automáticamente a las '+esc(__actoUltimo)+' h'
+    : ico('nube')+'Este paso se guarda solo a medida que lo completás.';
 }
 
 /* El peso del paciente manda en todo el modulo de drogas */
@@ -60,22 +165,44 @@ function htmlActoResumen(f){
   const a = f.acto || {};
   const eq = a.equipo || {};
   const disp = DISPOSITIVOS_FLUJO.find(d => d.k === (a.dispositivo || 'ninguno')) || DISPOSITIVOS_FLUJO[0];
+  /* Los seis sellos de tiempo del acto, en el orden en que ocurren. El
+     cronometro pone la hora del reloj de un toque: en el quirofano nadie
+     tipea 07:42 con guantes puestos. */
+  const CRONO = [
+    ['acIngreso',  'Ingreso a quirófano',    a.ingreso],
+    ['acIniAnest', 'Inicio de anestesia',    a.inicioAnestesia],
+    ['acIniCx',    'Inicio de cirugía',      a.inicioCirugia],
+    ['acFinCx',    'Fin de cirugía',         a.finCirugia],
+    ['acFinAnest', 'Fin de anestesia',       a.finAnestesia],
+    ['acSalida',   'Salida a recuperación',  a.salida]
+  ];
+
   return ''+
-  '<div class="card"><h3>'+ico('reloj')+'Datos del procedimiento</h3>'+
+  '<div class="card"><h3>'+ico('calendario')+'Fecha de la cirugía</h3>'+
+    /* La fecha del acto NO es la de la valoración. Entre una y otra suelen
+       pasar días o semanas, y de cuál se use dependen la facturación del mes,
+       las estadísticas y el aviso de cirugía próxima. Se carga acá, el día
+       del acto, que es cuando se sabe de verdad. */
     '<div class="grid c2">'+
-      '<div class="campo"><label>Inicio de cirugía</label>'+
-        '<div class="hora-campo"><input type="time" id="acIniCx" value="'+esc(a.inicioCirugia||'')+'">'+
-        '<button type="button" class="btn ghost chico" data-ahora="acIniCx">'+ico('reloj')+' Ahora</button></div></div>'+
-      '<div class="campo"><label>Fin de cirugía</label>'+
-        '<div class="hora-campo"><input type="time" id="acFinCx" value="'+esc(a.finCirugia||'')+'">'+
-        '<button type="button" class="btn ghost chico" data-ahora="acFinCx">'+ico('reloj')+' Ahora</button></div></div>'+
+      campoFecha('acFechaCx','Fecha en que se realizó la cirugía', a.fechaCirugia || hoyISO())+
+      campoSel('acTurnoCx','Turno', ['','Mañana','Tarde','Noche','Fin de semana / feriado'], a.turno)+
     '</div>'+
-    '<div class="grid c4">'+
-      '<div class="campo"><label>Ingreso a quirófano</label><input type="time" id="acIngreso" value="'+esc(a.ingreso||'')+'"></div>'+
-      '<div class="campo"><label>Inicio de anestesia</label><input type="time" id="acIniAnest" value="'+esc(a.inicioAnestesia||'')+'"></div>'+
-      '<div class="campo"><label>Fin de anestesia</label><input type="time" id="acFinAnest" value="'+esc(a.finAnestesia||'')+'"></div>'+
-      '<div class="campo"><label>Salida a recuperación</label><input type="time" id="acSalida" value="'+esc(a.salida||'')+'"></div>'+
-    '</div>'+
+    '<div class="ayuda">La <b>valoración prequirúrgica</b> quedó fechada '+
+      (f.fechaValoracion ? 'el <b>'+fFecha(f.fechaValoracion)+'</b>' : 'aparte')+
+      '. Son dos fechas distintas: la consulta se factura e informa en su mes, y el acto en el '+
+      'suyo.</div>'+
+  '</div>'+
+
+  '<div class="card"><h3>'+ico('reloj')+'Tiempos del procedimiento</h3>'+
+    '<div class="crono">'+ CRONO.map(c =>
+      '<div class="crono-fila">'+
+        '<label for="'+c[0]+'">'+esc(c[1])+'</label>'+
+        '<input type="time" id="'+c[0]+'" value="'+esc(c[2]||'')+'">'+
+        '<button type="button" class="btn '+(c[2] ? 'ghost' : 'pri')+' chico" data-crono="'+c[0]+'" '+
+          'title="Sellar con la hora actual">'+ico('reloj')+' Ahora</button>'+
+      '</div>').join('') +'</div>'+
+    '<div class="ayuda">Tocá <b>Ahora</b> a medida que ocurren y quedan sellados con la hora del '+
+      'reloj. También se pueden escribir a mano si estás completando la ficha después.</div>'+
     '<div id="acDuracion"></div>'+
   '</div>'+
 
@@ -161,8 +288,13 @@ function htmlActoResumen(f){
 }
 
 function cablearActoResumen(f){
-  $$('#actoCuerpo [data-ahora]').forEach(b => b.onclick = () => {
-    $('#'+b.dataset.ahora).value = ahoraHora(); recalcTiempos();
+  $$('#actoCuerpo [data-crono]').forEach(b => b.onclick = () => {
+    const e = $('#'+b.dataset.crono);
+    e.value = ahoraHora();
+    b.classList.remove('pri'); b.classList.add('ghost');
+    e.classList.add('sellado');
+    setTimeout(() => e.classList.remove('sellado'), 900);
+    recalcTiempos();
   });
   $$('#acTecnicas .tec').forEach(b => b.onclick = () => b.classList.toggle('on'));
   $$('#acVaDificil button').forEach(b => b.onclick = () => {
@@ -998,6 +1130,7 @@ function leerPasoAnestesia(){
   a.balance   = a.balance   || {};
 
   if(solapaActo === 'resumen' && $('#acIniCx')){
+    a.fechaCirugia = val('acFechaCx');      a.turno = val('acTurnoCx');
     a.inicioCirugia = val('acIniCx');       a.finCirugia = val('acFinCx');
     a.ingreso = val('acIngreso');           a.inicioAnestesia = val('acIniAnest');
     a.finAnestesia = val('acFinAnest');     a.salida = val('acSalida');

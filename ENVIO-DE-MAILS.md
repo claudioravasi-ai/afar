@@ -108,17 +108,33 @@ y quién lo mandó.
 
 ## Qué recibe el paciente
 
-Un correo de la AFAAR con:
+Un correo de la AFAAR con una explicación en lenguaje llano y **tres archivos
+PDF separados**:
 
-- Una explicación en lenguaje llano de los dos documentos.
-- La **valoración prequirúrgica** completa y el **consentimiento informado**,
-  con el membrete de la asociación.
-- Los datos del profesional: nombre, matrícula, especialidad y correo.
-- Un pie legal con las leyes **25.326** (protección de datos), **17.132**
-  (ejercicio de la medicina) y **26.529** (derechos del paciente).
+1. **Valoración pre-anestésica.** Filiación, antecedentes, medicación,
+   alergias, examen, laboratorio, escalas de riesgo y plan anestésico.
+2. **Consentimiento informado anestésico.** El texto completo, las
+   declaraciones que marcó el paciente y las dos firmas —la suya y la del
+   anestesiólogo—. Va aparte porque es un instrumento jurídico autónomo: se
+   firma, se guarda y eventualmente se presenta solo.
+3. **Indicaciones para el día de la cirugía.** En castellano llano: ayuno,
+   qué medicación seguir tomando y cuál suspender, qué llevar, con quién venir
+   y en qué casos avisar antes.
 
-**No lleva honorarios ni ningún dato económico.** Tampoco el registro
-intraoperatorio.
+Los tres llevan el membrete de la institución donde se hizo la valoración, los
+datos del profesional —nombre, título, matrícula nacional y provincial y
+correo— y el pie legal con las leyes **26.529** y **26.742** (derechos del
+paciente), **17.132** (ejercicio de la medicina) y **25.326** (protección de
+datos personales).
+
+**No llevan honorarios ni ningún dato económico.** Tampoco el registro
+intraoperatorio, la recuperación ni la ficha firmada: eso es historia clínica
+del equipo tratante y destino de auditoría, no correspondencia con el
+paciente.
+
+El botón sólo se habilita después de tocar **«Guardar valoración»** en el paso
+Preanestesia, y exige que esté completo el punto 15, el consentimiento
+informado. Un PDF de una valoración a medio cargar no le sirve a nadie.
 
 Si el paciente responde, la respuesta le llega **al anestesiólogo**, no a la
 casilla de la asociación.
@@ -198,3 +214,39 @@ Lo que agrega la versión nueva:
 - `doGet` informa la versión y si admite adjuntos. No revela la clave ni ningún
   dato: sólo sirve para que la app sepa qué puede mandarle.
 - El registro de envíos anota cuántos adjuntos llevó cada correo.
+
+---
+
+## Actualización: los tres PDF del paciente (agosto de 2026)
+
+La app **no genera PDF**: no tiene ninguna librería de PDF y no hay proceso de
+compilación que permita agregarla. Lo que hace es mandarle a Apps Script el
+**HTML de cada documento**, y el conversor de Google lo pasa a PDF antes de
+adjuntarlo. Sale un PDF de verdad, que abre en cualquier teléfono, sin cargar
+un solo kilobyte más en la app.
+
+Para que esto funcione hay que **volver a publicar el programa**, igual que con
+los adjuntos:
+
+1. Entrar a `script.google.com`, abrir el proyecto de AFAAR.
+2. Pegar de nuevo el contenido de `apps-script/Codigo.gs` **completo**
+   (conservando tu `CLAVE_COMPARTIDA`, que no cambió).
+3. *Implementar → Gestionar implementaciones → editar (lápiz) → Versión: nueva
+   → Implementar*. **Editar la implementación existente**, no crear una nueva,
+   para que la dirección `/exec` siga siendo la misma.
+
+Hasta que se republique, la app **no deja mandar nada**: antes de enviar le
+pregunta al servicio qué versión está publicada y, si es la vieja, avisa en
+pantalla y cancela. Es a propósito. La versión vieja no conoce el campo
+`documentos` y mandaría el correo **sin un solo archivo adjunto**, que es peor
+que fallar: el anestesiólogo creería que el paciente recibió su documentación.
+El resto de la app funciona igual; lo único que espera la republicación es
+este botón.
+
+Lo que agrega la versión 3:
+
+- `doPost` acepta `documentos: [{ nombre, html }]` y convierte cada uno a PDF
+  con `Utilities.newBlob(html, 'text/html', nombre).getAs('application/pdf')`.
+- Los PDF convertidos se suman a los adjuntos binarios que ya existían y se
+  miden contra el mismo tope de 18 MB.
+- `doGet` informa `version: 3` y `documentosPdf: true`.
