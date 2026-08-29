@@ -94,7 +94,7 @@ function vistaStats(){
   /* Cada indicador se calcula sobre el acto que lo genera: el ASA sale de la
      valoración y los eventos adversos del intraoperatorio. Si el colega tuvo
      un evento en un acto suyo, no es mi estadística. */
-  const urg = mias.filter(f => f.caracter !== 'programada').length;
+  const urg = mias.filter(f => esNoProgramado(caracterActo(f))).length;
   const eventos = actos.filter(f => ((f.acto||{}).eventos||[]).some(e => e !== 'Sin eventos')).length;
   const asa34 = valoraciones.filter(f => ['III','IV','V'].indexOf(((f.v||{}).scores||{}).asa) >= 0).length;
   const pacs = new Set(mias.map(f => f.pacienteId)).size;
@@ -117,7 +117,7 @@ function vistaStats(){
        coordinador. Se quitan más abajo para el resto. */
     anestesiologo: ['Anestesiólogo (valoración)', f => nombreUsuario(f.ownerUid)],
     actor:         ['Anestesiólogo (acto)',        f => nombreActor(f)],
-    caracter:      ['Carácter',      f => (f.caracter||'programada').charAt(0).toUpperCase() + (f.caracter||'programada').slice(1)],
+    caracter:      ['Carácter',      f => nombreCaracter(caracterActo(f))],
     asa:           ['Riesgo ASA',    f => 'ASA ' + (((f.v||{}).scores||{}).asa || 'sin cargar')],
     tecnica:       ['Técnica',       f => ((f.acto||{}).tecnica || (f.plan||{}).tecnica || [])],
     eventos:       ['Eventos adversos', f => ((f.acto||{}).eventos || []).filter(e => e !== 'Sin eventos')]
@@ -239,7 +239,7 @@ function tablaAnestesiologos(l){
     if(hayActo(f) && act){
       const r = fila(act);
       r.act++; r.honAct += Number((f.hon||{}).total || 0);
-      if(f.caracter !== 'programada') r.urg++;
+      if(esNoProgramado(caracterActo(f))) r.urg++;
       if(((f.acto||{}).eventos||[]).some(e => e !== 'Sin eventos')) r.ev++;
     }
   });

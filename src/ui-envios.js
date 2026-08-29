@@ -115,6 +115,170 @@ function cargarParteQuirurgico(f, files){
   siguiente();
 }
 
+/* =========================================================================
+   FOTO DE LA VALORACION HECHA EN PAPEL
+   -------------------------------------------------------------------------
+   Mismo camino que el parte quirurgico, y por la misma razon: la rama
+   afar/archivos no la escucha nadie en vivo. La foto no viaja con la ficha ni
+   se guarda entera en el dispositivo -en el equipo queda una cache chica con
+   lo ultimo abierto, que se poda sola-, y se trae de la nube recien cuando
+   alguien la abre. Para la app y para Firebase pesa lo mismo que un renglon
+   de texto: lo unico que la ficha guarda es el id del archivo.
+
+   Se comprime mas fuerte que el parte quirurgico. Una hoja manuscrita se lee
+   perfecto con el lado mayor en 1400 px, y asi una foto de 4 MB del telefono
+   queda en unos 180 KB.
+   ========================================================================= */
+function cargarValoracionExterna(f, files){
+  const cola = files.slice();
+  const hechos = [];
+  toast('Procesando '+cola.length+' archivo'+(cola.length===1?'':'s')+'…', 'ok');
+
+  const siguiente = () => {
+    if(!cola.length){
+      if(!hechos.length) return;
+      f.sinValoracion = Object.assign({ motivo:'externa', adjuntos:[] }, f.sinValoracion || {});
+      f.sinValoracion.adjuntos = adjuntosValoracion(f).concat(hechos);
+      guardarFicha(true, true);
+      auditar('valoracion-externa-adjunto', hechos.length + ' archivo(s) en la ficha ' + f.id);
+      refrescarValoracionExterna();
+      toast(hechos.length+' archivo'+(hechos.length===1?'':'s')+' adjunto'+
+        (hechos.length===1?'':'s')+(nubeOK ? ' y sincronizado.' : ' en este dispositivo.'), 'ok');
+      return;
+    }
+    const file = cola.shift();
+    const esImg = /^image\//.test(file.type) ||
+                  /\.(jpe?g|png|webp|gif|tiff?|heic|heif)$/i.test(file.name);
+    const prom = esImg ? comprimirImagen(file, 1400, 0.70).catch(() => leerArchivoCrudo(file))
+                       : leerArchivoCrudo(file);
+    prom.then(dataUrl => {
+      const id = uid('arch');
+      const mime = esImg ? 'image/jpeg' : (file.type || 'application/octet-stream');
+      const reg = {
+        id, fichaId:f.id, nombre:file.name, mime, demo: !!f.demo,
+        tam: Math.round((dataUrl.length - (dataUrl.indexOf(',')+1)) * 0.75),
+        datos: dataUrl, cuando: new Date().toISOString(),
+        porUid: SESION ? SESION.uid : '',
+        porNombre: USUARIO ? (USUARIO.apellido+', '+USUARIO.nombre) : ''
+      };
+      return archivoGuardar(reg).then(enNube => {
+        hechos.push({ id, nombre:file.name, mime, tam:reg.tam, cuando:reg.cuando,
+                      porUid:reg.porUid, porNombre:reg.porNombre, enNube: !!enNube });
+        siguiente();
+      });
+    }).catch(e => {
+      toast(e.message || 'No se pudo adjuntar el archivo.', 'err');
+      siguiente();
+    });
+  };
+  siguiente();
+}
+
+function quitarValoracionExterna(f, id){
+  confirmar('Quitar el archivo',
+    'Se elimina de la ficha y de la nube. Esta acción no se puede deshacer.',
+    () => {
+      f.sinValoracion = f.sinValoracion || {};
+      f.sinValoracion.adjuntos = adjuntosValoracion(f).filter(x => x.id !== id);
+      archivoEliminar(id);
+      guardarFicha(true, true);
+      auditar('valoracion-externa-baja', id);
+      refrescarValoracionExterna();
+      toast('Archivo eliminado.', 'ok');
+    }, 'Quitar', true);
+}
+
+/* La tarjeta que encabeza el paso Preanestesia cuando se declaro un motivo */
+function htmlValoracionExterna(f){
+  const s = deudaValoracion(f);
+  if(!s) return '';
+  const m = MOTIVOS_SIN_VALORACION.find(x => x.id === s.motivo) || {};
+  const l = adjuntosValoracion(f);
+  const puede = esAutorFicha(f) || esActorFicha(f) || esCoordinador();
+  return ''+
+  '<div class="card no-print" id="svCard" style="border:1.5px solid var(--warn)">'+
+    '<h3>'+ico('alerta')+'Valoración prequirúrgica pendiente</h3>'+
+    '<div class="aviso warn" style="margin-top:0">'+ico('info')+'<div>'+
+      '<b>'+esc(m.n)+'.</b> Declarado por '+esc(s.porNombre || '—')+
+      (s.cuando ? ' el '+fFecha(s.cuando.slice(0,10)) : '')+'.'+
+      (s.quien ? '<br>La hizo <b>'+esc(s.quien)+'</b>'+
+        (s.fechaVal ? ' el '+fFecha(s.fechaVal) : '')+'.' : '')+
+      (s.origenTxt ? '<br>Viene de la ficha de <b>'+esc(s.origenTxt)+'</b>.' : '')+
+      (s.tipo ? '<br>Tipo: <b>'+esc(s.tipo)+'</b>.' : '')+
+      (s.nota ? '<br>'+esc(s.nota) : '')+
+      '<br>Esta ficha <b>no se puede firmar</b> hasta que estos quince puntos estén completos, y '+
+      'una vez terminado el acto se te va a recordar cada diez minutos.'+
+    '</div></div>'+
+
+    /* Reintervencion: si todavia no se trajo la valoracion de aquella ficha,
+       el atajo sigue disponible aca. Es lo que salda la deuda en un clic. */
+    (s.motivo === 'reintervencion' && s.fichaOrigen && DB.fichas[s.fichaOrigen] && puede
+      ? '<div class="btn-row mt8">'+
+          '<button class="btn pri chico" id="svTraer">'+ico('valoracion')+
+            ' Traer la valoración de aquella ficha</button>'+
+          '<button class="btn ghost chico" id="svVerOrigen">'+ico('ojo')+
+            ' Ver aquella ficha</button>'+
+        '</div>'+
+        '<p class="mini mt8">Se traen antecedentes, examen, laboratorio, escalas y plan. '+
+        'El <b>consentimiento no se copia</b>: hay que firmar el de esta intervención.</p>'
+      : '')+
+    (s.motivo === 'externa'
+      ? '<p class="mini">Si tenés la valoración en papel, sacale una foto: queda adjunta como '+
+        'respaldo. La foto se achica sola y no viaja con la ficha —se guarda aparte y se trae '+
+        'recién cuando alguien la abre—, así que no pesa ni en la app ni en la base.</p>'+
+        (puede ? '<div class="btn-row mt8">'+
+          '<button class="btn ghost chico" id="svFoto" data-lectura>'+ico('camara')+
+            ' Tomar foto</button>'+
+          '<button class="btn ghost chico" id="svArchivo" data-lectura>'+ico('adjunto')+
+            ' Elegir archivo</button></div>' : '')+
+        '<div id="svLista" class="adjuntos mt14">'+ htmlListaAdjuntos(l, puede) +'</div>'
+      : '')+
+  '</div>';
+}
+
+function cablearValoracionExterna(f){
+  const s = sinValoracion(f) || {};
+  if($('#svTraer')) $('#svTraer').onclick = () => {
+    const g = DB.fichas[s.fichaOrigen];
+    if(!g) return toast('Aquella ficha ya no está disponible.', 'err');
+    confirmar('Traer la valoración',
+      'Se copian antecedentes, examen, laboratorio, escalas y plan de la ficha del '+
+      esc(fFecha(fechaDeFicha(g) || g.fecha))+'. Lo que ya tengas cargado en este paso se '+
+      'reemplaza. El consentimiento no se toca.',
+      () => {
+        copiarValoracionDesde(f, g);
+        guardarFicha(true, true);
+        auditar('valoracion-copiada', 'de la ficha ' + s.fichaOrigen + ' a ' + f.id);
+        pintarFicha();
+        toast('Valoración traída. Revisala y firmá el consentimiento de esta intervención.', 'ok');
+      }, 'Traer');
+  };
+  if($('#svVerOrigen')) $('#svVerOrigen').onclick = () => abrirFicha(s.fichaOrigen);
+  if($('#svFoto')) $('#svFoto').onclick = () =>
+    pedirArchivos('image/*', true, fs => cargarValoracionExterna(f, fs));
+  if($('#svArchivo')) $('#svArchivo').onclick = () =>
+    pedirArchivos(PQ_ACEPTA, false, fs => cargarValoracionExterna(f, fs));
+  $$('#svLista [data-adjver]').forEach(b => b.onclick = () => verAdjunto(b.dataset.adjver));
+  $$('#svLista [data-adjbaj]').forEach(b => b.onclick = () => bajarAdjunto(b.dataset.adjbaj));
+  $$('#svLista [data-adjdel]').forEach(b =>
+    b.onclick = () => quitarValoracionExterna(f, b.dataset.adjdel));
+}
+
+/* Repinta solo su tarjeta, sin rehacer el paso: mismo criterio que los
+   partes quirurgicos, para no devolver el telefono al principio. */
+function refrescarValoracionExterna(){
+  const f = fichaActual;
+  if(!f) return;
+  const c = $('#svCard');
+  if(!c) return;
+  const y = window.scrollY || 0;
+  const m = $('main'); const my = m ? m.scrollTop : 0;
+  c.outerHTML = htmlValoracionExterna(f);
+  cablearValoracionExterna(f);
+  if(m && my) m.scrollTop = my;
+  if(y) window.scrollTo({ top:y, behavior:'auto' });
+}
+
 function quitarParteQuirurgico(f, id){
   confirmar('Quitar el archivo',
     'Se elimina de la ficha y de la nube. Si ya fue enviado a contaduría, el contador '+
@@ -439,7 +603,9 @@ function armarEnvio(f, tipo, extra){
     financiador: f.obraSocial || 'Sin cobertura',
     afiliado: f.nroAfiliado || '',
     cirugia: f.cirugia || '', cirugiaCod: f.cirugiaCod || '',
-    diagnostico: f.diagnostico || '', caracter: f.caracter || '',
+    diagnostico: f.diagnostico || '',
+    /* El acto se factura por el caracter del acto; la valoracion, por el suyo. */
+    caracter: tipo === 'acto' ? caracterActo(f) : caracterValoracion(f),
 
     honorario: honorarioDeEnvio(f, tipo),
     docId, docNombre: nombreDoc,

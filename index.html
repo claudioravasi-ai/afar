@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.25.1621";</script>
+<script>window.AFAR_BUILD = "2026.08.29.2000";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -1512,6 +1512,36 @@ const MODALIDADES_CONSULTA = [
   { id:'incluida',   n:'Incluida en el acto',       d:'No se factura por separado; queda comprendida en el honorario del acto.' },
   { id:'institucional', n:'Cubierta por la institución', d:'La consulta la remunera la institución.' },
   { id:'sincargo',   n:'Sin cargo',                 d:'No genera honorario.' }
+];
+
+/* ---------- Por que un acto no tiene valoracion previa ----------
+   Un acto anestesico sin valoracion prequirurgica cargada no siempre es un
+   descuido: puede ser una urgencia sin tiempo, o una valoracion hecha en
+   papel o en otra institucion. Lo que no puede es quedar sin explicacion.
+
+   `deuda: true` marca los motivos que dejan una valoracion pendiente de
+   completar y que por lo tanto disparan el recordatorio. */
+const MOTIVOS_SIN_VALORACION = [
+  { id:'urgencia', deuda:true,  n:'Urgencia o emergencia',
+    d:'No hubo tiempo de hacer la valoración prequirúrgica. Se declara y el carácter del acto queda propuesto como urgencia.' },
+  { id:'externa',  deuda:true,  n:'La valoración se hizo fuera de la aplicación',
+    d:'En papel, en otra institución o por un profesional que no es socio. Se asienta quién la hizo y cuándo, y se puede adjuntar la foto.' },
+  { id:'reintervencion', deuda:true, n:'Ya lo valoré para una intervención anterior',
+    d:'Reintervención o segundo acto del mismo paciente. Se enlaza aquella ficha y se puede traer su valoración para actualizarla.' },
+  { id:'sinconsulta',    deuda:true, n:'Procedimiento sin consulta previa programada',
+    d:'Sedación para endoscopia o imágenes, cardioversión, analgesia del parto. La evaluación se hace al lado de la camilla, no en consultorio.' },
+  { id:'ahora',    deuda:false, n:'La cargo ahora',
+    d:'Lleva al paso 2 para completarla antes de anestesiar. No queda nada declarado.' }
+];
+
+/* ---------- Caracter de la cirugia y del acto ----------
+   La misma lista sirve para los dos: el que se carga en la valoracion
+   (paso 1) y el que se confirma en el acto (paso 3). Ver caracterActo()
+   en core.js para por que son dos y no uno. */
+const CARACTERES = [
+  { id:'programada', n:'Programada', d:'Cirugía con fecha acordada.' },
+  { id:'urgencia',   n:'Urgencia',   d:'Debe resolverse en horas.' },
+  { id:'emergencia', n:'Emergencia', d:'Riesgo vital inmediato, sin demora posible.' }
 ];
 
 /* ---------- Adicionales del nomenclador anestesico ---------- */
@@ -7303,6 +7333,188 @@ function nombreActor(f){
 }
 
 /* =========================================================================
+   ACTOS SIN VALORACION PREQUIRURGICA
+   -------------------------------------------------------------------------
+   Anestesiar sin valoracion previa cargada en la aplicacion pasa, y no
+   siempre por descuido: en una urgencia no hay tiempo, y muchas valoraciones
+   se hacen en papel o en otra institucion. Lo que no puede pasar es que quede
+   sin explicacion, porque despues nadie sabe si falto la consulta o falto
+   cargarla.
+
+   Por eso, al entrar al registro del acto con la preanestesia en blanco, se
+   pide declarar el motivo. Dos de los tres motivos dejan una DEUDA: la
+   valoracion sigue faltando y hay que completarla. El tercero no es una
+   excepcion, es ir a cargarla.
+
+   La deuda se salda sola cuando la preanestesia llega a verde. No hay que
+   marcar nada: el estado de la ficha es el que manda.
+   ========================================================================= */
+function sinValoracion(f){ return (f && f.sinValoracion) || null; }
+
+/* El motivo declarado, solo si es de los que dejan deuda */
+function motivoSinValoracion(f){
+  const s = sinValoracion(f);
+  if(!s || !s.motivo) return null;
+  const m = MOTIVOS_SIN_VALORACION.find(x => x.id === s.motivo);
+  return (m && m.deuda) ? m : null;
+}
+/* Hay que preguntar el motivo: preanestesia sin tocar y nada declarado */
+function debeDeclararSinValoracion(f){
+  if(!f || (f.firma || {}).firmado) return false;
+  if(sinValoracion(f) && sinValoracion(f).motivo) return false;
+  return estadoPaso(f, 'preanestesia') === 'pend';
+}
+/* La deuda que sigue abierta, o null si ya se completo la valoracion */
+function deudaValoracion(f){
+  if(!motivoSinValoracion(f)) return null;
+  return estadoPaso(f, 'preanestesia') === 'ok' ? null : sinValoracion(f);
+}
+/* Fichas mias con la valoracion todavia debiendose.
+   -------------------------------------------------------------------------
+   El disparador NO puede ser la firma. La firma exige la preanestesia en
+   verde, asi que una ficha firmada nunca debe una valoracion: si esperaramos
+   a la firma, el recordatorio no sonaria jamas.
+
+   El disparador es haber CONCLUIDO EL ACTO: fecha de cirugia, tecnica y fin
+   de anestesia cargados. Ahi el paciente ya se anestesio, el anestesiologo ya
+   salio del quirofano y la valoracion sigue faltando. Es exactamente el
+   momento en que hay que reclamarla, y es lo que traba la firma.
+
+   Mientras el acto sigue abierto no se molesta a nadie: quien esta
+   anestesiando no necesita un cartel cada diez minutos. */
+function valoracionesAdeudadas(){
+  if(!SESION || !verDatosClinicos()) return [];
+  return lista('fichas').filter(f => {
+    if(!esActorFicha(f) || !deudaValoracion(f)) return false;
+    return (f.firma || {}).firmado || estadoPaso(f, 'anestesia') === 'ok';
+  });
+}
+/* =========================================================================
+   LA VALORACION TRABADA HASTA TOMAR EL ACTO
+   -------------------------------------------------------------------------
+   Una ficha abierta desde «Nueva ficha anestesica» queda marcada con
+   `viaActo`. Mientras el acto no tenga dueno, el paso Preanestesia no se
+   abre: primero se toma el acto -que es el momento en que alguien se hace
+   responsable- y recien ahi se decide que pasa con la valoracion.
+
+   La traba mira el DATO, no el modo de pantalla: cambiar de solapa no la
+   saltea. Y no toca el camino normal -«Nueva valoracion preanestesica»-,
+   donde no hay `viaActo` y el paso 2 se abre como siempre.
+   ========================================================================= */
+function valoracionTrabada(f){
+  if(!f || !f.viaActo) return false;
+  if((f.firma || {}).firmado) return false;
+  if(f.actoPorUid) return false;          /* ya lo tomó alguien: se destraba */
+  return !hayValoracion(f);               /* si ya tiene algo cargado, no se traba */
+}
+
+function adjuntosValoracion(f){
+  return ((f && f.sinValoracion) || {}).adjuntos || [];
+}
+
+/* Otras fichas del MISMO paciente que ya tienen valoracion cargada, de la mas
+   reciente a la mas vieja. Es lo que se ofrece en una reintervencion. */
+function fichasValoradasDe(pacienteId, exceptoId){
+  if(!pacienteId) return [];
+  return lista('fichas')
+    .filter(f => f.pacienteId === pacienteId && f.id !== exceptoId && hayValoracion(f))
+    .sort((a, b) => (fechaDeFicha(b) || '').localeCompare(fechaDeFicha(a) || ''));
+}
+
+/* Trae la valoracion de otra ficha del mismo paciente.
+   -------------------------------------------------------------------------
+   Se copian los antecedentes, el examen, el laboratorio, las escalas y el
+   plan. NO se copia el consentimiento: es de aquel procedimiento y de aquel
+   riesgo, y la Ley 26.529 lo pide para ESTA intervencion. Por eso la ficha
+   sigue sin poder firmarse hasta que se firme el punto 15 nuevo, que es
+   exactamente lo que corresponde.
+
+   Tampoco se copian los honorarios: son de aquel acto. */
+function copiarValoracionDesde(destino, origen){
+  if(!destino || !origen) return false;
+  const clon = o => JSON.parse(JSON.stringify(o || {}));
+  destino.v    = clon(origen.v);
+  destino.plan = clon(origen.plan);
+  destino.valoracionGuardada = true;
+  /* Queda dicho de donde salio: sin esto, dentro de un ano nadie sabe si esa
+     valoracion se hizo para esta cirugia o se trajo de otra. */
+  destino.v.riesgo = destino.v.riesgo || {};
+  const traida = 'Valoración traída de la ficha del ' +
+                 fFecha(fechaDeFicha(origen) || origen.fecha) +
+                 ' (' + (origen.cirugia || 'sin cirugía') + '). Revisar y actualizar lo que cambió.';
+  destino.v.riesgo.fundamento = (destino.v.riesgo.fundamento || '').indexOf('Valoración traída') >= 0
+    ? destino.v.riesgo.fundamento
+    : (destino.v.riesgo.fundamento ? destino.v.riesgo.fundamento + '\n' + traida : traida);
+  return true;
+}
+
+/* =========================================================================
+   LOS DOS CARACTERES: EL DE LA VALORACION Y EL DEL ACTO
+   -------------------------------------------------------------------------
+   Mismo problema que las dos fechas, y por la misma razon: el caracter recien
+   se sabe de verdad el dia del acto.
+
+     f.caracter            como se vio la cirugia en la consulta
+                           prequirurgica. Describe ESA consulta, y alimenta
+                           el ARISCAT que se imprime en la valoracion.
+
+     f.acto.caracterActo   en que condicion se anestesio realmente. Es lo que
+                           se informa en las estadisticas y lo que sostiene el
+                           adicional de urgencia del honorario del acto.
+
+   Con un solo campo, una valoracion hecha en consultorio como PROGRAMADA que
+   termina en una cirugia adelantada por una perforacion obligaba a volver al
+   paso 1 y corregirla: eso reescribia hacia atras el contexto de un documento
+   ya firmado y le cambiaba el ARISCAT. Son dos hechos distintos y los dos son
+   ciertos; la aplicacion los guarda por separado.
+
+   Mientras el acto no lo confirme, caracterActo() devuelve el de la
+   valoracion: es una propuesta, no una herencia fija. La confirmacion se hace
+   en el paso Anestesia, igual que la fecha de la cirugia.
+   ========================================================================= */
+function caracterValoracion(f){
+  return (f && f.caracter) || 'programada';
+}
+function caracterActo(f){
+  return ((f && f.acto) || {}).caracterActo || caracterValoracion(f);
+}
+/* ¿El anestesiologo ya lo confirmo en el paso 3, o sigue siendo la propuesta? */
+function caracterActoConfirmado(f){
+  return !!((f && f.acto) || {}).caracterActo;
+}
+function nombreCaracter(id){
+  const c = CARACTERES.find(x => x.id === id);
+  return c ? c.n : 'Programada';
+}
+function esNoProgramado(id){ return id === 'urgencia' || id === 'emergencia'; }
+/* ¿La valoracion y el acto discrepan? No es un error: es lo normal cuando una
+   programada se adelanta. Sirve para dejarlo dicho en el documento. */
+function caracterCambio(f){
+  return caracterActoConfirmado(f) && caracterActo(f) !== caracterValoracion(f);
+}
+
+/* -------------------------------------------------------------------------
+   El puente con la facturacion.
+   El adicional de urgencia NO se auto-tilda: depende del convenio, no solo
+   del caracter, y un recargo puesto por la maquina en una factura que firma
+   una persona es exactamente lo que no hay que hacer. Lo que si se puede es
+   avisar cuando el honorario y el registro del acto se contradicen, que hoy
+   no lo ve nadie: ni el anestesiologo, ni el contador -a su portal el
+   caracter no llega, por la lista blanca de prestacionesContables()-.
+   ------------------------------------------------------------------------- */
+function discordanciaUrgencia(f){
+  if(!f) return null;
+  const car = caracterActo(f);
+  const h = f.hon || {};
+  /* Sin modalidad cargada todavia no hay honorario que contradecir */
+  if(!h.modalidad || h.modalidad === 'sincargo' || h.modalidad === 'salario') return null;
+  const tildado = (h.adicionales || []).indexOf('urgencia') >= 0;
+  if(esNoProgramado(car) && !tildado) return { tipo:'falta', caracter:car };
+  if(!esNoProgramado(car) && tildado) return { tipo:'sobra', caracter:car };
+  return null;
+}
+
+/* =========================================================================
    LAS DOS FECHAS DE UNA FICHA
    -------------------------------------------------------------------------
    Una ficha tiene dos fechas y casi nunca coinciden:
@@ -10409,7 +10621,7 @@ function abrirPaciente(id){
       ico('descargar')+' Traer el historial completo</button></div></div>' : '')+
   (fichas.length ? '<div class="lista">'+ fichas.map(f =>
       '<div class="item" data-ficha="'+f.id+'">'+
-        '<div class="avatar" style="background:'+(f.caracter==='urgencia'?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
+        '<div class="avatar" style="background:'+(esNoProgramado(caracterActo(f))?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
           ico('ficha')+'</div>'+
         '<div class="txt"><b>'+esc(f.cirugia||'Sin cirugía cargada')+'</b>'+
           '<span>'+(fechaCirugiaDe(f)
@@ -10494,6 +10706,9 @@ function htmlValoracion(f){
   const desdePaciente = (p.antecedentes || []).length || (p.medicacion || []).length;
 
   return ''+
+  /* Si se declaro que el acto arranco sin valoracion, la deuda se cobra aca:
+     es el paso donde se salda. Desaparece sola al llegar a verde. */
+  htmlValoracionExterna(f)+
   '<div class="aviso info">'+ico('valoracion')+'<div><b>Valoración anestésica prequirúrgica</b><br>'+
     'Las escalas se calculan solas a medida que completás. Todo campo puede dejarse vacío: '+
     'el documento final sólo imprime lo que cargaste.</div></div>'+
@@ -11086,6 +11301,7 @@ function leerPlan(){
 let dxSeleccionados = [], medSeleccionados = [];
 
 function cablearValoracion(f){
+  cablearValoracionExterna(f);
   const v = f.v || {};
   const p = DB.pacientes[f.pacienteId] || {};
 
@@ -11558,7 +11774,7 @@ function vistaFichas(){
     const p = DB.pacientes[f.pacienteId] || {};
     return norm([p.apellido,p.nombre,p.dni,f.cirugia,f.cirujano,autorFicha(f)].join(' ')).indexOf(q) >= 0;
   });
-  if(filtroFichas.caracter)    l = l.filter(f => f.caracter === filtroFichas.caracter);
+  if(filtroFichas.caracter)    l = l.filter(f => caracterActo(f) === filtroFichas.caracter);
   if(filtroFichas.institucion) l = l.filter(f => f.institucion === filtroFichas.institucion);
   if(filtroFichas.estado)      l = l.filter(f => (f.estado||'borrador') === filtroFichas.estado);
 
@@ -11596,8 +11812,8 @@ function vistaFichas(){
       '<input type="search" id="fBuscar" placeholder="Paciente, DNI, cirugía o cirujano" value="'+esc(filtroFichas.texto)+'"></div>'+
     '<div class="campo"><label>Carácter</label><select id="fCaracter">'+
       '<option value="">Todos</option>'+
-      ['programada','urgencia','emergencia'].map(c => '<option value="'+c+'"'+
-        (filtroFichas.caracter===c?' selected':'')+'>'+c.charAt(0).toUpperCase()+c.slice(1)+'</option>').join('')+
+      CARACTERES.map(c => '<option value="'+c.id+'"'+
+        (filtroFichas.caracter===c.id?' selected':'')+'>'+esc(c.n)+'</option>').join('')+
     '</select></div>'+
     '<div class="campo"><label>Institución</label><select id="fInst">'+
       '<option value="">Todas</option>'+
@@ -11616,10 +11832,10 @@ function vistaFichas(){
     const cx  = fechaCirugiaDe(f);
     const mio = esAutorFicha(f), actor = esActorFicha(f);
     return '<div class="item" data-f="'+f.id+'">'+
-      '<div class="avatar" style="'+(f.caracter==='programada'
+      '<div class="avatar" style="'+(!esNoProgramado(caracterActo(f))
         ? 'background:var(--azul-100);color:var(--azul-700)'
         : 'background:var(--danger-bg);color:var(--danger)')+'">'+
-        (f.caracter==='programada'?ico('calendario'):ico('alerta'))+'</div>'+
+        (!esNoProgramado(caracterActo(f))?ico('calendario'):ico('alerta'))+'</div>'+
       '<div class="txt"><b>'+esc(p.apellido||'—')+', '+esc(p.nombre||'')+'</b>'+
         '<span>'+esc(f.cirugia||'Sin cirugía')+' · '+
         /* Se muestra la fecha que corresponde y se dice cuál es: una ficha
@@ -11835,6 +12051,189 @@ function irAPaso(k){
   const m = $('main'); if(m) m.scrollTop = 0;
   window.scrollTo({ top:0, behavior:'auto' });
 }
+
+/* =========================================================================
+   POR QUE ESTE ACTO NO TIENE VALORACION PREVIA
+   -------------------------------------------------------------------------
+   No bloquea: preguntar y dejar constancia sirve; impedir el registro de un
+   acto que ya esta ocurriendo, no. Lo que si esta bloqueado es la FIRMA, que
+   exige la preanestesia en verde, y ahi es donde la deuda se paga.
+
+   Los tres motivos no son intercambiables. El de urgencia mueve el caracter
+   del acto, que arrastra el adicional del nomenclador: por eso no alcanza con
+   uno solo -si urgencia fuera la unica salida, todo el mundo marcaria
+   urgencia para poder trabajar, y la facturacion se llenaria de recargos sin
+   respaldo-.
+   ========================================================================= */
+function pedirMotivoSinValoracion(f){
+  if(!f || !debeDeclararSinValoracion(f)) return;
+  if($('#modal') && $('#modal').classList.contains('on')) return;
+
+  abrirModal('Este acto no tiene valoración prequirúrgica',
+    '<div class="aviso warn">'+ico('alerta')+'<div>En esta ficha el paso <b>Preanestesia</b> está '+
+      'sin tocar. Antes de registrar el acto, decinos por qué: queda asentado en la ficha y en la '+
+      'auditoría.</div></div>'+
+    /* «La cargo ahora» no es un motivo: es no tener ninguno. Mezclarla con las
+       cuatro excepciones las pone al mismo nivel, y no lo están. Va al pie. */
+    '<div class="hon-pend-lista">'+ MOTIVOS_SIN_VALORACION.filter(m => m.deuda).map(m =>
+      '<button type="button" class="hon-pend" data-motivo="'+esc(m.id)+'">'+
+        ico({ urgencia:'alerta', externa:'archivo',
+              reintervencion:'ficha', sinconsulta:'corazon' }[m.id] || 'valoracion')+
+        '<span class="tx"><b>'+esc(m.n)+'</b><i>'+esc(m.d)+'</i></span>'+
+        ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg);width:15px;height:15px;opacity:.5"')+
+      '</button>').join('') +'</div>'+
+    '<p class="mini mt8">Si el paciente ya fue valorado por otro socio, no elijas ninguna: '+
+      'buscá la ficha en <b>Fichas → Disponibles</b> y tomá el acto desde ahí.</p>',
+    '<button class="btn pri" data-motivo="ahora">'+ico('valoracion')+
+      ' Ninguna: la cargo ahora</button>', '620px');
+
+  $$('#modal [data-motivo]').forEach(b => b.onclick = () => {
+    const id = b.dataset.motivo;
+    if(id === 'ahora'){ cerrarModal(); irAPaso('preanestesia'); return; }
+    if(id === 'externa'){ pedirDatosValoracionExterna(f); return; }
+    if(id === 'reintervencion'){ pedirFichaDeOrigen(f); return; }
+    if(id === 'sinconsulta'){ pedirDatosSinConsulta(f); return; }
+    guardarMotivoSinValoracion(f, 'urgencia', {});
+    cerrarModal();
+    /* La urgencia NO manda al paso 2: el paciente está por entrar y lo que hay
+       que hacer ahora es anestesiar. La valoración se reclama después, con el
+       recordatorio de cada diez minutos. */
+    /* La urgencia es tambien un dato del acto: se propone el caracter, sin
+       imponerlo. Confirmarlo sigue siendo del anestesiologo. */
+    f.acto = f.acto || {};
+    if(!f.acto.caracterActo && !esNoProgramado(caracterValoracion(f)))
+      toast('Declarado. Revisá el carácter del acto: quedó propuesto como urgencia.', 'ok');
+    else toast('Declarado. Queda pendiente completar la valoración.', 'ok');
+    if(!f.acto.caracterActo) f.acto.caracterActo = 'urgencia';
+    guardarFicha(true, true);
+    pintarFicha();
+  });
+}
+
+/* Segundo paso, solo para la valoracion hecha fuera de la app */
+function pedirDatosValoracionExterna(f){
+  const s = sinValoracion(f) || {};
+  abrirModal('Valoración hecha fuera de la aplicación',
+    '<div class="aviso info">'+ico('info')+'<div>Queda asentado que la valoración existe y dónde '+
+      'está. <b>No reemplaza a cargarla</b>: la ficha no se puede firmar hasta que el paso '+
+      'Preanestesia esté completo, porque el documento que se emite sale de ahí.</div></div>'+
+    campoTxt('svQuien','Quién la hizo — apellido y nombre, o la institución', s.quien)+
+    campoFecha('svFecha','Fecha de esa valoración', s.fechaVal || hoyISO())+
+    campoArea('svNota','Dónde está / observaciones', s.nota,
+      'Historia clínica en papel del sanatorio, carpeta de quirófano, etc.'),
+    '<button class="btn ghost" data-cerrar>Volver</button>'+
+    '<button class="btn pri" id="svGuardar">'+ico('check')+' Declarar</button>', '620px');
+
+  $('#svGuardar').onclick = () => {
+    guardarMotivoSinValoracion(f, 'externa', {
+      quien: val('svQuien'), fechaVal: val('svFecha'), nota: val('svNota')
+    });
+    cerrarModal();
+    guardarFicha(true, true);
+    /* Lleva a donde se resuelve: la tarjeta con el botón de la foto */
+    irAPaso('preanestesia');
+    setTimeout(() => { const c = $('#svCard'); if(c) c.scrollIntoView({ block:'start' }); }, 200);
+    toast('Declarado. Adjuntá acá la foto de la valoración en papel.', 'ok');
+  };
+}
+
+/* Reintervencion: se elige de cual de las fichas anteriores del paciente
+   viene la valoracion. Enlazar sola no alcanza -el paso 2 de esta ficha
+   quedaria vacio y no se podria firmar-, asi que ademas se ofrece traerla. */
+function pedirFichaDeOrigen(f){
+  const previas = fichasValoradasDe(f.pacienteId, f.id);
+  if(!previas.length){
+    toast('Este paciente no tiene ninguna ficha anterior con valoración cargada.', 'err');
+    return pedirMotivoSinValoracion(f);
+  }
+  abrirModal('¿De qué intervención viene la valoración?',
+    '<div class="aviso info">'+ico('info')+'<div>Fichas anteriores de este paciente que ya tienen '+
+      'valoración cargada. Elegí la que corresponde: queda enlazada, y podés traer sus antecedentes, '+
+      'examen, laboratorio, escalas y plan para actualizarlos.</div></div>'+
+    '<div class="hon-pend-lista">'+ previas.map(g => {
+      const dias = Math.round((Date.now() - new Date((fechaDeFicha(g)||g.fecha)+'T12:00:00').getTime())/86400000);
+      return '<button type="button" class="hon-pend" data-origen="'+esc(g.id)+'">'+
+        ico('valoracion')+'<span class="tx"><b>'+esc(g.cirugia || 'Sin cirugía')+'</b>'+
+        '<i>'+fFecha(fechaDeFicha(g) || g.fecha)+' · hace '+dias+' día'+(dias===1?'':'s')+
+        ' · ASA '+esc(((g.v||{}).scores||{}).asa || '—')+' · valoró '+esc(autorFicha(g))+'</i></span>'+
+        ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg);width:15px;height:15px;opacity:.5"')+
+        '</button>';
+    }).join('') +'</div>'+
+    '<label class="chk sel" id="svCopiar" style="width:100%;margin-top:12px">'+
+      '<input type="checkbox" checked>Traer esa valoración a esta ficha</label>'+
+    '<p class="mini mt8">El <b>consentimiento informado no se copia</b>: es de aquel procedimiento '+
+      'y de aquel riesgo. Hay que firmar el del punto 15 para esta intervención.</p>',
+    '<button class="btn ghost" data-cerrar>Volver</button>', '620px');
+
+  $$('#modal .chk').forEach(l => l.onclick = () =>
+    setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0));
+
+  $$('#modal [data-origen]').forEach(b => b.onclick = () => {
+    const g = DB.fichas[b.dataset.origen];
+    const cx = $('#svCopiar') ? $('#svCopiar').querySelector('input') : null;
+    const copiar = cx ? cx.checked : true;
+    guardarMotivoSinValoracion(f, 'reintervencion', {
+      fichaOrigen: b.dataset.origen,
+      origenTxt: (g ? ((g.cirugia || 'sin cirugía') + ' · ' +
+                  fFecha(fechaDeFicha(g) || g.fecha)) : '')
+    });
+    let copiada = false;
+    if(copiar && g) copiada = copiarValoracionDesde(f, g);
+    cerrarModal();
+    guardarFicha(true, true);
+    irAPaso('preanestesia');
+    if(copiada){
+      auditar('valoracion-copiada', 'de la ficha ' + b.dataset.origen + ' a ' + f.id);
+      toast('Valoración traída. Revisala y firmá el consentimiento de esta intervención.', 'ok');
+    } else toast('Ficha enlazada. La valoración de esta intervención sigue pendiente.', 'warn');
+  });
+}
+
+/* Procedimiento sin consulta previa: sedacion, cardioversion, analgesia del
+   parto. No es una urgencia y no es un olvido: la evaluacion se hace al lado
+   de la camilla. Por eso NO toca el caracter del acto -marcar urgencia aca
+   meteria el adicional del 50 % en un parto normal-. */
+function pedirDatosSinConsulta(f){
+  const s = sinValoracion(f) || {};
+  abrirModal('Procedimiento sin consulta previa',
+    '<div class="aviso info">'+ico('info')+'<div>Queda declarado que no hubo consulta prequirúrgica '+
+      'programada porque el procedimiento no la lleva. <b>El carácter del acto no se toca</b>: esto '+
+      'no es una urgencia, y marcarlo como tal metería el adicional del 50 % en la '+
+      'facturación.</div></div>'+
+    '<div class="campo"><label>Tipo de procedimiento</label><select id="svTipo">'+
+      ['','Sedación para endoscopia','Sedación para estudios por imágenes',
+       'Analgesia del trabajo de parto','Cardioversión eléctrica',
+       'Procedimiento en consultorio o sala','Otro']
+        .map(t => '<option'+(s.tipo===t?' selected':'')+'>'+esc(t)+'</option>').join('')+
+    '</select></div>'+
+    campoArea('svNota2','Observaciones', s.nota,
+      'La evaluación se hizo al lado de la camilla, antes del procedimiento.'),
+    '<button class="btn ghost" data-cerrar>Volver</button>'+
+    '<button class="btn pri" id="svGuardar2">'+ico('check')+' Declarar</button>', '620px');
+
+  $('#svGuardar2').onclick = () => {
+    guardarMotivoSinValoracion(f, 'sinconsulta', {
+      tipo: val('svTipo'), nota: val('svNota2')
+    });
+    cerrarModal();
+    guardarFicha(true, true);
+    irAPaso('preanestesia');
+    toast('Declarado. Cargá acá la evaluación que hiciste al lado de la camilla.', 'ok');
+  };
+}
+
+function guardarMotivoSinValoracion(f, motivo, extra){
+  const previo = sinValoracion(f) || {};
+  f.sinValoracion = Object.assign({}, previo, extra, {
+    motivo: motivo,
+    cuando: new Date().toISOString(),
+    porUid: SESION ? SESION.uid : '',
+    porNombre: USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '',
+    adjuntos: previo.adjuntos || []
+  });
+  auditar('acto-sin-valoracion',
+    (MOTIVOS_SIN_VALORACION.find(x => x.id === motivo) || {}).n + ' — ficha ' + f.id);
+}
 function pasoVecino(delta){
   const i = PASOS_FICHA.findIndex(p => p.k === pasoFicha);
   const j = i + delta;
@@ -11894,10 +12293,35 @@ function estadoPaso(f, k){
   }
   if(k === 'firma'){
     if((f.firma||{}).firmado) return 'ok';
-    const listo = estadoPaso(f,'anestesia') === 'ok' && estadoPaso(f,'recuperacion') === 'ok';
-    return listo ? 'alerta' : 'pend';
+    /* Miraba solo anestesia y recuperacion. Una ficha se firma entera: si el
+       paciente, la valoracion o el consentimiento no estan cerrados, no hay
+       nada que firmar todavia. */
+    return pasosPreviosPendientes(f).length ? 'pend' : 'alerta';
   }
   return 'pend';
+}
+
+/* =========================================================================
+   LA CONDICION PARA FIRMAR
+   -------------------------------------------------------------------------
+   Una ficha no se cierra con la firma si alguno de los cuatro pasos previos
+   no esta en verde. Antes se podia firmar igual y el documento salia
+   incompleto: una historia clinica firmada con la vía aérea sin evaluar o sin
+   consentimiento no es un registro incompleto, es un registro que no deberia
+   existir. La Ley 26.529 pide que la historia clinica sea completa y la firma
+   es lo que la cierra.
+
+   Las dos salidas legitimas del consentimiento -urgencia vital del art. 9 y
+   revocacion del paciente- ya cuentan como consentimiento completo, asi que
+   esta regla no traba la emergencia: la traba es no haberlo documentado.
+   ========================================================================= */
+const PASOS_PREVIOS_FIRMA = ['paciente','preanestesia','anestesia','recuperacion'];
+
+function pasosPreviosPendientes(f){
+  return PASOS_PREVIOS_FIRMA
+    .filter(k => estadoPaso(f, k) !== 'ok')
+    .map(k => ({ k:k, t:(PASOS_FICHA.find(x => x.k === k) || {}).t || k,
+                 estado:estadoPaso(f, k) }));
 }
 
 /* =========================================================================
@@ -11980,18 +12404,29 @@ function pintarFicha(){
   /* ------- barra de pasos, igual que el flujo de trabajo del manual ------- */
   '<div class="stepper no-print">'+ PASOS_FICHA.map((s,i) => {
     const est = estadoPaso(f, s.k);
+    /* Ficha nacida por el acto: la valoración no se abre hasta tomarlo */
+    const trabado = (s.k === 'preanestesia') && valoracionTrabada(f);
     return '<button type="button" class="step'+(s.k===pasoFicha?' on':'')+' '+est+
-      (pasoEnFoco(s.k) ? '' : ' atenuado')+
-      '" data-paso="'+s.k+'" title="'+esc(s.t+' — '+ROTULO_ESTADO[est])+'">'+
+      (pasoEnFoco(s.k) && !trabado ? '' : ' atenuado')+
+      '" data-paso="'+s.k+'"'+(trabado ? ' data-trabado="1"' : '')+
+      ' title="'+esc(trabado
+        ? s.t+' — se abre al tomar el acto anestésico'
+        : s.t+' — '+ROTULO_ESTADO[est])+'">'+
       '<span class="dot">'+(est==='ok' ? ico('check') : est==='alerta' ? ico('alerta') : ico(s.ico))+'</span>'+
       '<span class="lbl">'+esc(s.t)+'</span>'+
       '<span class="est '+est+'">'+esc(ROTULO_ESTADO[est])+'</span>'+
       (i < PASOS_FICHA.length-1 ? '<span class="linea"></span>' : '')+
       '</button>';
   }).join('') +'</div>'+
-  '<div class="modo-sw seg no-print">'+ MODOS_FICHA.map(m =>
-    '<button type="button" data-modo="'+m.k+'"'+(m.k===modoFicha?' class="on"':'')+'>'+
-    esc(m.t)+'</button>').join('') +'</div>'+
+  /* El conmutador existe para poder LEER la sección del colega: quien valoró
+     necesita ver el acto y quien anestesia necesita leer el prequirúrgico.
+     Cuando las dos secciones son de la misma persona no separa nada, así que
+     no se dibuja: son tres botones permanentes para una acción que no existe. */
+  (modoDeFicha(DB.fichas[f.id] || f) === 'completo'
+    ? ''
+    : '<div class="modo-sw seg no-print">'+ MODOS_FICHA.map(m =>
+        '<button type="button" data-modo="'+m.k+'"'+(m.k===modoFicha?' class="on"':'')+'>'+
+        esc(m.t)+'</button>').join('') +'</div>')+
   '<div class="paso-cabecera no-print">'+
     '<div><b>Paso '+(idx+1)+' de '+PASOS_FICHA.length+'</b> · '+esc(PASOS_FICHA[idx].sub)+'</div>'+
     '<div class="barra"><span style="width:'+Math.round((idx+1)/PASOS_FICHA.length*100)+'%"></span></div>'+
@@ -12042,7 +12477,14 @@ function pintarFicha(){
      cablea acá para que funcione en los cinco pasos, no sólo en el primero. */
   if($('#fiTomar')) $('#fiTomar').onclick = () => tomarActo(f);
   if($('#acTomar')) $('#acTomar').onclick = () => tomarActo(f);
-  $$('#vFicha [data-paso]').forEach(b => b.onclick = () => irAPaso(b.dataset.paso));
+  $$('#vFicha [data-paso]').forEach(b => b.onclick = () => {
+    if(b.dataset.trabado){
+      toast('Primero tomá el acto anestésico: ahí se decide qué pasa con la valoración.', 'warn');
+      irAPaso('anestesia');
+      return;
+    }
+    irAPaso(b.dataset.paso);
+  });
   $$('#vFicha [data-modo]').forEach(b => b.onclick = () => cambiarModoFicha(b.dataset.modo));
   if($('#fiAtras'))     $('#fiAtras').onclick = () => irAPaso(pasoVecino(-1));
   if($('#fiSiguiente')) $('#fiSiguiente').onclick = () => avanzarPaso();
@@ -12469,12 +12911,21 @@ function htmlPasoPaciente(f){
   '</div>'+
 
   '<div class="card"><h3>'+ico('calendario')+'Datos de la cirugía</h3>'+
-    '<div class="campo"><label>Carácter de la cirugía <span class="req">*</span></label>'+
+    '<div class="campo"><label>Carácter de la cirugía, tal como se la ve hoy '+
+      '<span class="req">*</span></label>'+
       '<div class="seg" id="qxCaracter">'+
-        [['programada','Programada'],['urgencia','Urgencia'],['emergencia','Emergencia']].map(c =>
-          '<button type="button" data-v="'+c[0]+'"'+(f.caracter===c[0]?' class="on"':'')+'>'+c[1]+'</button>').join('')+
+        CARACTERES.map(c => '<button type="button" data-v="'+c.id+'"'+
+          (caracterValoracion(f)===c.id?' class="on"':'')+'>'+esc(c.n)+'</button>').join('')+
       '</div>'+
-      '<div class="ayuda">Urgencia: debe resolverse en horas. Emergencia: riesgo vital inmediato, sin demora posible.</div></div>'+
+      '<div class="ayuda">Urgencia: debe resolverse en horas. Emergencia: riesgo vital inmediato, '+
+      'sin demora posible.</div>'+
+      /* El caracter del ACTO se confirma en el paso 3: una programada que se
+         adelanta se anestesia de urgencia, y de ese dato -no de este- dependen
+         las estadisticas y el adicional del honorario. */
+      '<div class="aviso info mt8">'+ico('info')+'<div>Este es el carácter de <b>la consulta</b>. '+
+        'El del acto anestésico se confirma el día de la cirugía, en el paso <b>Anestesia</b>: '+
+        'una programada que se adelanta se anestesia de urgencia, y es ese el que se informa y '+
+        'se factura.</div></div></div>'+
     /* Fecha, hora y turno NO se piden acá: cuando el anestesiólogo hace la
        valoración prequirúrgica todavía no los sabe —la cirugía se programa
        después—. La fecha real del acto se carga en el paso Anestesia, y la
@@ -12748,6 +13199,11 @@ function tomarActo(f){
       modoFicha = pasoEnFoco('anestesia') ? modoFicha : 'acto';
       pintarFicha();
       toast('El acto quedó a tu nombre. Ya podés registrarlo.', 'ok');
+      /* Tomar el acto es el momento en que alguien se hace responsable. Recién
+         ahí tiene sentido preguntar qué pasa con la valoración: antes, quien
+         mira la ficha todavía no es nadie. */
+      if(debeDeclararSinValoracion(base))
+        setTimeout(() => pedirMotivoSinValoracion(base), 300);
     }, 'Tomar el acto');
 }
 
@@ -12894,6 +13350,7 @@ function htmlPasoFirma(f){
   const durAn = minutosEntre(a.inicioAnestesia, a.finAnestesia);
   const eventos = (a.eventos2 || []);
   const faltan = faltantesFicha(f).filter(x => x.critico);
+  const trabas = pasosPreviosPendientes(f);
   const disp = DISPOSITIVOS_FLUJO.find(d => d.k === a.dispositivo);
   const alertas = alertasVitales(a.controles || []);
   const analgesia = (pl.analgesia || []).length || pl.analgesiaDetalle ? 'Planificada' : 'Sin planificar';
@@ -12968,10 +13425,18 @@ function htmlPasoFirma(f){
       'Paciente estable. Sin complicaciones.')+
   '</div>'+
 
-  (faltan.length
-    ? '<div class="aviso warn">'+ico('alerta')+'<div><b>Faltan datos importantes:</b> '+
-      esc(faltan.map(x => x.t).join(', '))+'.<br>Podés firmar igual, pero el documento sale incompleto.</div></div>'
-    : '<div class="aviso ok">'+ico('check')+'<div>El registro está completo.</div></div>')+
+  (trabas.length
+    ? '<div class="aviso danger">'+ico('alerta')+'<div><b>La ficha todavía no se puede firmar.</b><br>'+
+      'Falta cerrar '+(trabas.length === 1 ? 'este paso' : 'estos pasos')+', que quedan en '+
+      (trabas.length === 1 ? 'estado' : 'estados')+' distinto'+(trabas.length === 1 ? '' : 's')+
+      ' de «Completo»:'+
+      '<div class="btn-row mt8">'+ trabas.map(t =>
+        '<button class="btn ghost chico" data-irpaso="'+t.k+'">'+ico('flecha')+' '+
+        esc(t.t)+' — '+esc(ROTULO_ESTADO[t.estado])+'</button>').join('')+'</div>'+
+      (faltan.length ? '<div class="mini mt8">Datos esenciales sin cargar: '+
+        esc(faltan.map(x => x.t).join(', '))+'.</div>' : '')+
+      '</div></div>'
+    : '<div class="aviso ok">'+ico('check')+'<div>El registro está completo. Ya se puede firmar.</div></div>')+
 
   '<div class="card"><h3>'+ico('firma')+'Firma del anestesiólogo</h3>'+
     '<p class="mini">Al firmar, la ficha queda cerrada y en sólo lectura. Después se puede '+
@@ -12981,7 +13446,10 @@ function htmlPasoFirma(f){
       '<button class="btn ghost chico" id="fiFirmaLimpiar">Borrar</button>'+
       '<button class="btn ghost chico" id="fiFirmaPerfil">Usar mi firma guardada</button>'+
     '</div>'+
-    '<button class="btn pri grande mt14" id="fiFirmar">'+ico('check')+' Finalizar y firmar</button>'+
+    '<button class="btn pri grande mt14" id="fiFirmar"'+(trabas.length ? ' disabled' : '')+'>'+
+      ico('check')+' Finalizar y firmar</button>'+
+    (trabas.length ? '<p class="mini mt8">El botón se habilita cuando los cinco puntos del '+
+      'recorrido estén en verde.</p>' : '')+
   '</div>'+
 
   /* La foja quirúrgica y el envío a contaduría van al final del registro, en
@@ -13057,7 +13525,15 @@ function cablearPasoFirma(f){
     if(!USUARIO || !USUARIO.firmaDataUrl) return toast('No tenés firma guardada en Mi perfil.', 'err');
     c.limpiar(); c.cargar(USUARIO.firmaDataUrl); firma = USUARIO.firmaDataUrl;
   };
+  /* Los botones del cartel llevan al paso que falta cerrar */
+  $$('#vFicha [data-irpaso]').forEach(b => b.onclick = () => irAPaso(b.dataset.irpaso));
+
   $('#fiFirmar').onclick = () => {
+    /* El boton ya sale deshabilitado, pero la comprobacion se rehace aca:
+       entre que se pinto la pantalla y el clic pudo cambiar algo. */
+    const trabas = pasosPreviosPendientes(fichaActual);
+    if(trabas.length) return toast('Falta cerrar: ' +
+      trabas.map(t => t.t).join(', ') + '.', 'err');
     if(!firma) return toast('Firmá antes de finalizar el registro.', 'err');
     confirmar('Finalizar y firmar',
       'La ficha queda cerrada y en sólo lectura. Se puede reabrir después, dejando constancia.',
@@ -13191,6 +13667,7 @@ function htmlHonorarios(f){
       'Débitos, reclamos, auditoría del financiador, número de expediente')+
   '</div>'+
 
+  '<div id="hoCaracterAviso"></div>'+
   '<div id="hoResumen"></div>';
 }
 function cablearHonorariosModal(f){
@@ -13215,10 +13692,10 @@ function cablearHonorariosModal(f){
     $('#hoAbierto').style.display = porUnidades ? '' : 'none';
     $('#hoFijo').style.display    = fijo ? '' : 'none';
 
-    let total = 0, detalle = '';
+    let total = 0, detalle = '', base = 0;
     if(porUnidades){
       const ua = Number(val('hoUA')) || 0, vu = Number(val('hoVU')) || 0;
-      const base = ua * vu;
+      base = ua * vu;
       const sel = $$('#hoAdic input:checked').map(i => i.value);
       const pct = sel.reduce((a,id) => a + (ADICIONALES_HONORARIOS.find(x => x.id === id) || {pct:0}).pct, 0);
       total = base * (1 + pct/100);
@@ -13240,6 +13717,30 @@ function cablearHonorariosModal(f){
     const sinConsulta = val('hcModalidad') === 'incluida' || val('hcModalidad') === 'sincargo';
     if($('#hcMontoBox')) $('#hcMontoBox').style.display = sinConsulta ? 'none' : '';
     const consulta = sinConsulta ? 0 : (Number(val('hcMonto')) || 0);
+
+    /* Cruce entre lo que dice el registro del acto y lo que se esta
+       facturando. NO auto-tilda nada: el adicional depende del convenio y no
+       solo del caracter, y un recargo puesto por la maquina en una factura
+       que firma una persona es exactamente lo que no hay que hacer. Lo unico
+       que hace es decir que los dos datos se contradicen, que hasta ahora no
+       lo veia nadie: al contador el caracter no le llega. */
+    const avCar = $('#hoCaracterAviso');
+    if(avCar){
+      const car = caracterActo(fichaActual);
+      const urg = $$('#hoAdic input:checked').map(i => i.value).indexOf('urgencia') >= 0;
+      let aviso = '';
+      if(porUnidades && esNoProgramado(car) && !urg)
+        aviso = '<div class="aviso warn">'+ico('alerta')+'<div><b>El acto está registrado como '+
+          esc(nombreCaracter(car).toLowerCase())+' y el honorario no lleva el adicional de '+
+          'urgencia.</b><br>Si el convenio lo reconoce, corresponde tildarlo: son '+
+          fMoneda(base * 0.5)+' más. Si el convenio no lo prevé, dejalo así.</div></div>';
+      else if(porUnidades && !esNoProgramado(car) && urg)
+        aviso = '<div class="aviso danger">'+ico('alerta')+'<div><b>El honorario lleva el adicional '+
+          'de urgencia, pero el acto está registrado como programado.</b><br>Revisá cuál de los dos '+
+          'está mal. Un recargo sin respaldo en el registro es lo primero que debita una auditoría '+
+          'del financiador.</div></div>';
+      avCar.innerHTML = aviso;
+    }
 
     $('#hoResumen').innerHTML = '<div class="grid c3">'+
       '<div class="kpi aqua"><div class="lbl">'+ico('valoracion')+' Consulta</div>'+
@@ -13468,6 +13969,15 @@ function edadDeFicha(f){
 function htmlActoResumen(f){
   const a = f.acto || {};
   const eq = a.equipo || {};
+  /* El caracter del acto: propuesto desde la valoracion hasta que se lo
+     confirma aca. Ver caracterActo() en core.js. */
+  const carAct  = caracterActo(f);
+  const carVal  = caracterValoracion(f);
+  const carConf = caracterActoConfirmado(f);
+  /* En una ficha ya firmada no se pide confirmar nada: el registro esta
+     cerrado y el aviso solo seria ruido. Las fichas anteriores a este campo
+     se leen con el caracter de la valoracion, que es lo que siempre tuvieron. */
+  const carCerrado = carConf || !!(f.firma || {}).firmado;
   const disp = DISPOSITIVOS_FLUJO.find(d => d.k === (a.dispositivo || 'ninguno')) || DISPOSITIVOS_FLUJO[0];
   /* Los seis sellos de tiempo del acto, en el orden en que ocurren. El
      cronometro pone la hora del reloj de un toque: en el quirofano nadie
@@ -13482,7 +13992,7 @@ function htmlActoResumen(f){
   ];
 
   return ''+
-  '<div class="card"><h3>'+ico('calendario')+'Fecha de la cirugía</h3>'+
+  '<div class="card"><h3>'+ico('calendario')+'Fecha y carácter del acto</h3>'+
     /* La fecha del acto NO es la de la valoración. Entre una y otra suelen
        pasar días o semanas, y de cuál se use dependen la facturación del mes,
        las estadísticas y el aviso de cirugía próxima. Se carga acá, el día
@@ -13495,6 +14005,30 @@ function htmlActoResumen(f){
       (f.fechaValoracion ? 'el <b>'+fFecha(f.fechaValoracion)+'</b>' : 'aparte')+
       '. Son dos fechas distintas: la consulta se factura e informa en su mes, y el acto en el '+
       'suyo.</div>'+
+
+    /* El caracter tampoco se sabe en la consulta: una programada se adelanta
+       por una perforacion y se anestesia de urgencia. Se propone el de la
+       valoracion y se confirma aca, que es cuando se sabe. De este dato
+       dependen las estadisticas y el adicional del honorario. */
+    '<div class="campo mt14"><label>Carácter del acto anestésico <span class="req">*</span></label>'+
+      '<div class="seg" id="acCaracter" data-conf="'+(carConf ? '1' : '0')+'">'+
+        CARACTERES.map(c => '<button type="button" data-v="'+c.id+'"'+
+          (carAct === c.id ? ' class="on"' : '')+'>'+esc(c.n)+'</button>').join('')+
+      '</div>'+
+      '<div id="acCaracterNota">'+
+      (carCerrado
+        ? (carAct !== carVal
+            ? '<div class="aviso info mt8">'+ico('info')+'<div>La valoración se hizo como <b>'+
+              esc(nombreCaracter(carVal).toLowerCase())+'</b> y este acto se registró como <b>'+
+              esc(nombreCaracter(carAct).toLowerCase())+'</b>. Las dos cosas quedan asentadas: la '+
+              'consulta fue lo que fue, y el acto también.</div></div>'
+            : '<div class="ayuda">'+esc(CARACTERES.find(c => c.id === carAct).d)+'</div>')
+        : '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Propuesto desde la valoración, '+
+          'donde se cargó como '+esc(nombreCaracter(carVal).toLowerCase())+'.</b><br>'+
+          'Confirmalo o corregilo: es el carácter con el que este acto se informa y se factura, y '+
+          'no siempre es el que se previó en la consulta.</div></div>')+
+      '</div>'+
+    '</div>'+
   '</div>'+
 
   '<div class="card"><h3>'+ico('reloj')+'Tiempos del procedimiento</h3>'+
@@ -13604,6 +14138,30 @@ function cablearActoResumen(f){
   $$('#acVaDificil button').forEach(b => b.onclick = () => {
     $$('#acVaDificil button').forEach(x => x.classList.remove('on')); b.classList.add('on');
     avisarVA();
+  });
+
+  /* Caracter del acto. Al tocarlo deja de ser una propuesta: se repinta solo
+     la nota, no la solapa entera, para no perder lo que se este tipeando. */
+  const notaCaracter = () => {
+    const el = $('#acCaracterNota');
+    const b = $('#acCaracter button.on');
+    if(!el || !b) return;
+    const car = b.dataset.v, val = caracterValoracion(f);
+    el.innerHTML = car !== val
+      ? '<div class="aviso info mt8">'+ico('info')+'<div>La valoración se hizo como <b>'+
+        esc(nombreCaracter(val).toLowerCase())+'</b> y este acto se registró como <b>'+
+        esc(nombreCaracter(car).toLowerCase())+'</b>. Las dos cosas quedan asentadas: la consulta '+
+        'fue lo que fue, y el acto también.</div></div>'
+      : '<div class="ayuda">'+esc((CARACTERES.find(c => c.id === car) || {}).d || '')+'</div>';
+  };
+  $$('#acCaracter button').forEach(b => b.onclick = () => {
+    $$('#acCaracter button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    /* Recien acá deja de ser una propuesta: el boton venia pintado con el
+       caracter de la valoracion, y guardarlo sin que nadie lo mire seria
+       darlo por confirmado sin que nadie lo confirme. */
+    const cnt = $('#acCaracter'); if(cnt) cnt.dataset.conf = '1';
+    notaCaracter();
   });
   ['acMonitor','acMonitorExtra','acOMS'].forEach(id => $$('#'+id+' .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
@@ -14435,6 +14993,11 @@ function leerPasoAnestesia(){
 
   if(solapaActo === 'resumen' && $('#acIniCx')){
     a.fechaCirugia = val('acFechaCx');      a.turno = val('acTurnoCx');
+    /* Solo se guarda si el anestesiologo lo toco. Mientras no lo haga, la
+       ficha no tiene caracter de acto propio y caracterActo() sigue
+       devolviendo el de la valoracion: es una propuesta, no una herencia. */
+    const cnt = $('#acCaracter'), bc = $('#acCaracter button.on');
+    if(cnt && bc && cnt.dataset.conf === '1') a.caracterActo = bc.dataset.v;
     a.inicioCirugia = val('acIniCx');       a.finCirugia = val('acFinCx');
     a.ingreso = val('acIngreso');           a.inicioAnestesia = val('acIniAnest');
     a.finAnestesia = val('acFinAnest');     a.salida = val('acSalida');
@@ -14573,7 +15136,7 @@ function vistaStats(){
   /* Cada indicador se calcula sobre el acto que lo genera: el ASA sale de la
      valoración y los eventos adversos del intraoperatorio. Si el colega tuvo
      un evento en un acto suyo, no es mi estadística. */
-  const urg = mias.filter(f => f.caracter !== 'programada').length;
+  const urg = mias.filter(f => esNoProgramado(caracterActo(f))).length;
   const eventos = actos.filter(f => ((f.acto||{}).eventos||[]).some(e => e !== 'Sin eventos')).length;
   const asa34 = valoraciones.filter(f => ['III','IV','V'].indexOf(((f.v||{}).scores||{}).asa) >= 0).length;
   const pacs = new Set(mias.map(f => f.pacienteId)).size;
@@ -14596,7 +15159,7 @@ function vistaStats(){
        coordinador. Se quitan más abajo para el resto. */
     anestesiologo: ['Anestesiólogo (valoración)', f => nombreUsuario(f.ownerUid)],
     actor:         ['Anestesiólogo (acto)',        f => nombreActor(f)],
-    caracter:      ['Carácter',      f => (f.caracter||'programada').charAt(0).toUpperCase() + (f.caracter||'programada').slice(1)],
+    caracter:      ['Carácter',      f => nombreCaracter(caracterActo(f))],
     asa:           ['Riesgo ASA',    f => 'ASA ' + (((f.v||{}).scores||{}).asa || 'sin cargar')],
     tecnica:       ['Técnica',       f => ((f.acto||{}).tecnica || (f.plan||{}).tecnica || [])],
     eventos:       ['Eventos adversos', f => ((f.acto||{}).eventos || []).filter(e => e !== 'Sin eventos')]
@@ -14718,7 +15281,7 @@ function tablaAnestesiologos(l){
     if(hayActo(f) && act){
       const r = fila(act);
       r.act++; r.honAct += Number((f.hon||{}).total || 0);
-      if(f.caracter !== 'programada') r.urg++;
+      if(esNoProgramado(caracterActo(f))) r.urg++;
       if(((f.acto||{}).eventos||[]).some(e => e !== 'Sin eventos')) r.ev++;
     }
   });
@@ -17325,6 +17888,92 @@ function detenerRecordatorioHonorarios(){
   if(__relojHon){ clearInterval(__relojHon); __relojHon = null; }
 }
 
+/* =========================================================================
+   RECORDATORIO DE VALORACION ADEUDADA
+   -------------------------------------------------------------------------
+   Cuando un acto se firmo habiendose declarado que no habia valoracion previa
+   -urgencia, o valoracion hecha en papel-, la ficha queda con una deuda: el
+   documento que se emite sale de la preanestesia, y sin ella sale vacio.
+
+   El cartel vuelve cada diez minutos, con tono, hasta que la valoracion este
+   completa. Es a proposito mas insistente que el de honorarios (tres horas):
+   ahi lo que se pierde es plata, aca lo que falta es la mitad de una historia
+   clinica de un paciente que ya se anestesio.
+
+   Se puede posponer una hora. Sin esa salida, el cartel caeria encima de
+   alguien que puede estar anestesiando a otro paciente, y un recordatorio que
+   interrumpe un acto medico deja de ser un recordatorio.
+   ========================================================================= */
+const MIN_RECORDATORIO_VAL = 10;
+
+function selloCartelVal(){
+  try{ return localStorage.getItem('afar_val_cartel_' + (SESION ? SESION.uid : '')) || ''; }
+  catch(e){ return ''; }
+}
+function marcarCartelVal(minutos){
+  const t = new Date(Date.now() + (minutos || 0) * 60000).toISOString();
+  try{ localStorage.setItem('afar_val_cartel_' + (SESION ? SESION.uid : ''), t); }catch(e){}
+}
+
+function revisarRecordatorioValoracion(){
+  const l = valoracionesAdeudadas();
+  if(!l.length) return;
+  const sello = selloCartelVal();
+  if(sello && (Date.now() - new Date(sello).getTime()) / 60000 < MIN_RECORDATORIO_VAL) return;
+  if($('#modal') && $('#modal').classList.contains('on')) return;   /* no pisar otro modal */
+  marcarCartelVal(0);
+
+  const filas = l.map(f => {
+    const p = DB.pacientes[f.pacienteId] || {};
+    const s = deudaValoracion(f) || {};
+    const m = MOTIVOS_SIN_VALORACION.find(x => x.id === s.motivo) || {};
+    return '<button type="button" class="hon-pend" data-valf="'+esc(f.id)+'">'+
+      ico('valoracion')+'<span class="tx"><b>'+esc((p.apellido||'—')+', '+(p.nombre||''))+'</b>'+
+      '<i>'+esc(f.cirugia || 'sin cirugía')+' · '+fFecha(fechaCirugiaDe(f) || f.fecha)+
+      ' · '+esc(m.n || 'sin valoración')+'</i></span>'+
+      ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg);width:15px;height:15px;opacity:.5"')+
+      '</button>';
+  }).join('');
+
+  abrirModal('Falta completar la valoración prequirúrgica',
+    '<div class="aviso danger">'+ico('alerta')+'<div><b>'+
+      (l.length === 1 ? 'Hay un acto anestésico terminado sin su valoración prequirúrgica.'
+                      : 'Hay '+l.length+' actos anestésicos terminados sin su valoración prequirúrgica.')+
+      '</b><br>Se declaró el motivo en su momento, pero la valoración sigue faltando. Sin ella la '+
+      'historia clínica del paciente queda por la mitad, el documento que se emite sale incompleto '+
+      'y '+(l.length === 1 ? 'la ficha no se puede firmar' : 'esas fichas no se pueden firmar')+
+      '.</div></div>'+
+    '<div class="hon-pend-lista">'+filas+'</div>',
+    '<button class="btn ghost" id="valPosponer">Posponer una hora</button>'+
+    '<button class="btn pri" data-cerrar>Entendido</button>');
+
+  $$('#modal [data-valf]').forEach(b => b.onclick = () => {
+    const id = b.dataset.valf;
+    cerrarModal();
+    abrirFicha(id);
+    if(fichaActual && fichaActual.id === id) setTimeout(() => irAPaso('preanestesia'), 200);
+  });
+  if($('#valPosponer')) $('#valPosponer').onclick = () => {
+    marcarCartelVal(60 - MIN_RECORDATORIO_VAL);
+    cerrarModal();
+    toast('Se vuelve a avisar en una hora.', 'ok');
+  };
+
+  /* El tono usa la misma preferencia que el aviso de apertura: quien la
+     apago no quiere que la aplicacion suene, y esto tambien es sonar. */
+  if(sonidoAvisosOn()) tocarAvisoSonoro();
+}
+
+let __relojVal = null;
+function iniciarRecordatorioValoracion(){
+  if(__relojVal) clearInterval(__relojVal);
+  setTimeout(revisarRecordatorioValoracion, 60000);
+  __relojVal = setInterval(revisarRecordatorioValoracion, MIN_RECORDATORIO_VAL * 60 * 1000);
+}
+function detenerRecordatorioValoracion(){
+  if(__relojVal){ clearInterval(__relojVal); __relojVal = null; }
+}
+
 /* ------------------------------------------- Qué le falta a una ficha -- */
 function faltantesFicha(f){
   const m = [];
@@ -17424,6 +18073,20 @@ function calcularAvisos(){
   /* El contable no accede a información clínica: sus avisos terminan acá. */
   if(!verDatosClinicos()) return av.sort((a,b) => a.orden - b.orden);
 
+  /* --- 0 bis. Actos firmados con la valoración todavía debiéndose --- */
+  valoracionesAdeudadas().forEach(f => {
+    const p = DB.pacientes[f.pacienteId] || {};
+    const s = deudaValoracion(f) || {};
+    const m = MOTIVOS_SIN_VALORACION.find(x => x.id === s.motivo) || {};
+    av.push({ nivel:'danger', icono:'valoracion', orden:1,
+      titulo:'Falta completar la valoración prequirúrgica — ' +
+             (p.apellido||'—') + ', ' + (p.nombre||''),
+      detalle:(m.n || 'Sin valoración previa') + '.' +
+              '\nEl acto se registró el ' + fFecha(fechaCirugiaDe(f) || f.fecha) +
+              ' y la valoración sigue sin cargarse: hasta que esté, la ficha no se puede firmar.',
+      fichaId:f.id, solapa:'preanestesia' });
+  });
+
   const fichas = misFichas();
 
   /* --- 1. Solicitudes de acceso (coordinación) --- */
@@ -17453,7 +18116,8 @@ function calcularAvisos(){
                 (p.apellido ? p.apellido + ', ' + p.nombre : 'sin paciente'),
         detalle: (f.cirugia || 'sin cirugía cargada') + ' · ' +
                  nombreInstitucion(f.institucion).split('"')[0].trim() +
-                 (f.caracter !== 'programada' ? ' · ' + f.caracter.toUpperCase() : '') +
+                 (esNoProgramado(caracterActo(f))
+                   ? ' · ' + nombreCaracter(caracterActo(f)).toUpperCase() : '') +
                  (actorFicha(f) !== f.ownerUid
                    ? '\nValoración: ' + autorFicha(f) + ' · Acto: ' + nombreActor(f) : '') +
                  (criticos.length
@@ -17602,18 +18266,34 @@ function abrirAvisos(){
     : '<div class="vacio">'+ico('check')+'<b>No hay nada pendiente</b>'+
       '<span>Todas tus fichas están completas y al día.</span></div>';
 
-  const permiso = ('Notification' in window) ? Notification.permission : 'no-soportado';
-  const pie = ('Notification' in window)
-    ? '<hr class="sep"><label class="chk'+(permiso==='granted'?' sel':'')+'" id="avNotif" style="width:100%">'+
-      '<input type="checkbox"'+(permiso==='granted'?' checked disabled':'')+'>'+
-      (permiso === 'granted'
-        ? 'Recordatorios del sistema activados'
-        : (permiso === 'denied'
-           ? 'Recordatorios bloqueados en este navegador'
-           : 'Avisarme con una notificación del sistema'))+
-      '</label>'+
-      '<p class="mini mt8">Al abrir la app te recuerda las cirugías del día y las del día siguiente.</p>'
-    : '';
+  /* ---- Pie: las dos maneras de enterarse desde afuera de la pantalla ----
+     La casilla de notificaciones NO se tilda al tocarla: el permiso lo da el
+     navegador, no nosotros, asi que se pide y despues se repinta el modal con
+     el estado real. Tildarla antes seria mentir sobre algo que puede fallar. */
+  const soporta = ('Notification' in window);
+  const permiso = soporta ? Notification.permission : 'no-soportado';
+  const casilla = (id, marcado, bloqueada, txt) =>
+    '<label class="chk'+(marcado ? ' sel' : '')+'" id="'+id+'" style="width:100%">'+
+    '<input type="checkbox"'+(marcado ? ' checked' : '')+(bloqueada ? ' disabled' : '')+'>'+
+    esc(txt)+'</label>';
+
+  const pie = '<hr class="sep">'+
+    (soporta
+      ? casilla('avNotif', permiso === 'granted', permiso !== 'default',
+          permiso === 'granted' ? 'Recordatorios del sistema activados'
+          : permiso === 'denied' ? 'Recordatorios bloqueados en este navegador'
+          : 'Avisarme con una notificación del sistema')+
+        (permiso === 'denied'
+          ? '<p class="mini mt8">Los bloqueaste alguna vez y el navegador ya no vuelve a preguntar. '+
+            'Se destraban desde el candado de la barra de direcciones, en Notificaciones → Permitir.</p>'
+          : '<p class="mini mt8">Al abrir la app te recuerda las cirugías del día y las del día '+
+            'siguiente, aunque la tengas en segundo plano.</p>')
+      : '<p class="mini">Este navegador no da notificaciones del sistema. En iPhone y iPad sólo '+
+        'funcionan con la app agregada a la pantalla de inicio.</p>')+
+    casilla('avSonido', sonidoAvisosOn(), false,
+      'Sonar un tono al abrir la app cuando haya algo pendiente')+
+    '<p class="mini mt8">Suena una sola vez por apertura, y sólo si hay avisos, recordatorios o '+
+    'mensajes sin ver. Funciona sin conexión y sin permiso del navegador.</p>';
 
   abrirModal('Avisos y recordatorios', cuerpo + pie,
     '<button class="btn pri" data-cerrar>Cerrar</button>');
@@ -17631,15 +18311,123 @@ function abrirAvisos(){
     }, 180);
   });
 
+  /* Notificaciones: se pide el permiso y se vuelve a pintar el modal con lo
+     que el navegador haya contestado. Antes cerraba la ventana y la casilla
+     quedaba igual que antes, asi que parecia que el clic no hacia nada. */
   const sw = $('#avNotif');
   if(sw && permiso === 'default') sw.onclick = e => {
     e.preventDefault();
     Notification.requestPermission().then(p => {
       if(p === 'granted'){ toast('Recordatorios activados.', 'ok'); notificarCirugias(true); }
+      else if(p === 'denied') toast('El navegador bloqueó las notificaciones.', 'err');
       else toast('No se activaron los recordatorios.', 'warn');
-      cerrarModal();
-    });
+      abrirAvisos();          /* se repinta con el estado real */
+    }).catch(() => toast('Este navegador no pudo pedir el permiso.', 'err'));
   };
+
+  /* Sonido: esta si es nuestra, se tilda sola y se guarda en el dispositivo.
+     Al activarla suena de muestra, y esa muestra ya cuenta como el aviso de
+     esta apertura: no tiene sentido sonar dos veces seguidas. */
+  const ss = $('#avSonido');
+  if(ss) ss.onclick = () => setTimeout(() => {
+    const on = ss.querySelector('input').checked;
+    ss.classList.toggle('sel', on);
+    guardarSonidoAvisos(on);
+    if(on){ sonoHecho = true; tocarAvisoSonoro(); toast('Sonido activado.', 'ok'); }
+    else toast('Sonido silenciado.', 'warn');
+  }, 0);
+}
+
+/* =========================================================================
+   AVISO SONORO AL ABRIR LA APP
+   -------------------------------------------------------------------------
+   Quien abre la aplicacion y tiene avisos, recordatorios o mensajes sin ver
+   escucha un tono corto, una sola vez por apertura. No reemplaza a la
+   campana: solo hace que nadie entre sin enterarse de que hay algo esperando.
+
+   El tono se sintetiza en el navegador (WebAudio): no hay archivo que
+   descargar, asi que tambien suena con la app instalada y sin conexion.
+
+   Los navegadores no dejan sonar antes de que la persona toque la pantalla.
+   Si el primer intento queda bloqueado, el aviso queda armado y suena en el
+   primer toque o tecla, sin volver a sonar despues.
+   ========================================================================= */
+const SONO_PREF_KEY = 'afar_sonido_avisos_v1';
+const SONO_VENTANA_MS = 120000;   /* margen de apertura: la nube puede tardar */
+let sonoDesde  = Date.now();
+let sonoHecho  = false;
+let sonoArmado = false;
+
+function sonidoAvisosOn(){
+  try{ return localStorage.getItem(SONO_PREF_KEY) !== 'off'; }catch(e){ return true; }
+}
+function guardarSonidoAvisos(on){
+  try{ localStorage.setItem(SONO_PREF_KEY, on ? 'on' : 'off'); }catch(e){}
+}
+
+/* Lo que cuenta como actividad pendiente: los avisos clinicos de la campana
+   y los mensajes internos sin leer o vencidos. */
+function pendientesParaSonar(){
+  const av = conteoAvisos().total;
+  const m  = conteoMensajes();
+  return av + m.noLeidos + m.vencidos;
+}
+
+/* Dos notas ascendentes, cortas y sin estridencia: se oye en un pasillo de
+   quirofano sin sobresaltar a nadie. Devuelve si el dispositivo dejo sonar. */
+function tocarAvisoSonoro(){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return Promise.resolve(false);
+  let ctx;
+  try{ ctx = new AC(); }catch(e){ return Promise.resolve(false); }
+  const emitir = () => {
+    const t0 = ctx.currentTime + 0.02;
+    [[880, 0], [1174.66, 0.17]].forEach(([hz, d]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(hz, t0 + d);
+      g.gain.setValueAtTime(0.0001, t0 + d);
+      g.gain.exponentialRampToValueAtTime(0.18, t0 + d + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.42);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0 + d); o.stop(t0 + d + 0.45);
+    });
+    setTimeout(() => { try{ ctx.close(); }catch(e){} }, 1400);
+  };
+  let r;
+  try{ r = ctx.resume ? ctx.resume() : null; }catch(e){ r = null; }
+  return Promise.resolve(r).catch(() => {}).then(() => {
+    if(ctx.state !== 'running'){ try{ ctx.close(); }catch(e){} return false; }
+    emitir();
+    return true;
+  });
+}
+
+function armarSonidoPorGesto(){
+  if(sonoArmado) return;
+  sonoArmado = true;
+  const evs = ['pointerdown','keydown','touchstart'];
+  const alTocar = () => {
+    evs.forEach(ev => document.removeEventListener(ev, alTocar, true));
+    sonoArmado = false;
+    sonarAvisosPendientes(true);   /* el gesto vale aunque la ventana ya cerro */
+  };
+  evs.forEach(ev => document.addEventListener(ev, alTocar, true));
+}
+
+/* Se llama al entrar. Si los datos de la nube llegan tarde, el aviso igual se
+   escucha una sola vez dentro de la ventana de dos minutos. */
+function sonarAvisosPendientes(porGesto){
+  if(sonoHecho || !sonidoAvisosOn()) return;
+  if(!porGesto && Date.now() - sonoDesde > SONO_VENTANA_MS) return;
+  const n = pendientesParaSonar();
+  if(!n) return;
+  sonoHecho = true;
+  tocarAvisoSonoro().then(ok => {
+    if(!ok){ sonoHecho = false; armarSonidoPorGesto(); return; }
+    toast('Tenes ' + n + ' cosa' + (n === 1 ? '' : 's') + ' pendiente' +
+          (n === 1 ? '' : 's') + ' a resolver.', 'warn');
+  });
 }
 
 /* ------------------------------------------ Notificaciones del sistema */
@@ -18005,7 +18793,12 @@ function documentoFicha(f, opts){
   seccion('Datos del acto quirúrgico',
     '<table><tr>'+
       '<td style="width:50%"><b>Fecha:</b> '+fFecha(f.fecha)+' '+esc(f.hora||'')+'</td>'+
-      '<td><b>Carácter:</b> '+esc((f.caracter||'programada').toUpperCase())+'</td></tr>'+
+      '<td><b>Carácter:</b> '+esc(nombreCaracter(soloVal ? caracterValoracion(f)
+          : caracterActo(f)).toUpperCase())+
+        (!soloVal && caracterCambio(f)
+          ? '<span style="font-weight:400"> (en la valoración: '+
+            esc(nombreCaracter(caracterValoracion(f)).toLowerCase())+')</span>' : '')+
+        '</td></tr>'+
     '<tr><td colspan="2"><b>Cirugía:</b> '+esc(f.cirugia||'—')+
       (f.lateralidad && f.lateralidad !== 'No aplica' ? ' ('+esc(f.lateralidad)+')' : '')+'</td></tr>'+
     '<tr><td><b>Especialidad:</b> '+esc(f.especialidad||'—')+'</td>'+
@@ -18588,7 +19381,7 @@ function exportarFacturacionExcel(l, mes){
       f.cirugia||'', f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '',
       nombreInstitucion(f.institucion), f.obraSocial||'',
       (datosFinanciador(f.obraSocial)||{}).cuit || '', nombreUsuario(x.uid),
-      f.caracter||'', ((f.v||{}).scores||{}).asa || '',
+      nombreCaracter(caracterActo(f)), ((f.v||{}).scores||{}).asa || '',
       x.tipo === 'consulta'
         ? (MODALIDADES_CONSULTA.find(m => m.id === (f.honConsulta||{}).modalidad)||{}).n || ''
         : (MODALIDADES_HONORARIOS.find(m => m.id === h.modalidad)||{}).n || '',
@@ -18629,7 +19422,7 @@ function exportarEstadisticas(l, corteNombre, datos){
     const hv = v ? Number((f.honConsulta||{}).total || 0) : 0;
     const ha = a ? Number((f.hon||{}).total || 0) : 0;
     return [ fFecha(f.fecha), (p.apellido||'')+', '+(p.nombre||''), nombreInstitucion(f.institucion),
-      f.obraSocial||'', f.cirugia||'', f.especialidad||'', f.caracter||'',
+      f.obraSocial||'', f.cirugia||'', f.especialidad||'', nombreCaracter(caracterActo(f)),
       v ? (((f.v||{}).scores||{}).asa || '') : '',
       v ? 'Sí' : 'No', v ? nombreUsuario(f.ownerUid) : '', v ? hv.toFixed(2) : '',
       a ? 'Sí' : 'No', a ? nombreActor(f) : '', a ? ha.toFixed(2) : '',
@@ -19048,6 +19841,170 @@ function cargarParteQuirurgico(f, files){
   siguiente();
 }
 
+/* =========================================================================
+   FOTO DE LA VALORACION HECHA EN PAPEL
+   -------------------------------------------------------------------------
+   Mismo camino que el parte quirurgico, y por la misma razon: la rama
+   afar/archivos no la escucha nadie en vivo. La foto no viaja con la ficha ni
+   se guarda entera en el dispositivo -en el equipo queda una cache chica con
+   lo ultimo abierto, que se poda sola-, y se trae de la nube recien cuando
+   alguien la abre. Para la app y para Firebase pesa lo mismo que un renglon
+   de texto: lo unico que la ficha guarda es el id del archivo.
+
+   Se comprime mas fuerte que el parte quirurgico. Una hoja manuscrita se lee
+   perfecto con el lado mayor en 1400 px, y asi una foto de 4 MB del telefono
+   queda en unos 180 KB.
+   ========================================================================= */
+function cargarValoracionExterna(f, files){
+  const cola = files.slice();
+  const hechos = [];
+  toast('Procesando '+cola.length+' archivo'+(cola.length===1?'':'s')+'…', 'ok');
+
+  const siguiente = () => {
+    if(!cola.length){
+      if(!hechos.length) return;
+      f.sinValoracion = Object.assign({ motivo:'externa', adjuntos:[] }, f.sinValoracion || {});
+      f.sinValoracion.adjuntos = adjuntosValoracion(f).concat(hechos);
+      guardarFicha(true, true);
+      auditar('valoracion-externa-adjunto', hechos.length + ' archivo(s) en la ficha ' + f.id);
+      refrescarValoracionExterna();
+      toast(hechos.length+' archivo'+(hechos.length===1?'':'s')+' adjunto'+
+        (hechos.length===1?'':'s')+(nubeOK ? ' y sincronizado.' : ' en este dispositivo.'), 'ok');
+      return;
+    }
+    const file = cola.shift();
+    const esImg = /^image\//.test(file.type) ||
+                  /\.(jpe?g|png|webp|gif|tiff?|heic|heif)$/i.test(file.name);
+    const prom = esImg ? comprimirImagen(file, 1400, 0.70).catch(() => leerArchivoCrudo(file))
+                       : leerArchivoCrudo(file);
+    prom.then(dataUrl => {
+      const id = uid('arch');
+      const mime = esImg ? 'image/jpeg' : (file.type || 'application/octet-stream');
+      const reg = {
+        id, fichaId:f.id, nombre:file.name, mime, demo: !!f.demo,
+        tam: Math.round((dataUrl.length - (dataUrl.indexOf(',')+1)) * 0.75),
+        datos: dataUrl, cuando: new Date().toISOString(),
+        porUid: SESION ? SESION.uid : '',
+        porNombre: USUARIO ? (USUARIO.apellido+', '+USUARIO.nombre) : ''
+      };
+      return archivoGuardar(reg).then(enNube => {
+        hechos.push({ id, nombre:file.name, mime, tam:reg.tam, cuando:reg.cuando,
+                      porUid:reg.porUid, porNombre:reg.porNombre, enNube: !!enNube });
+        siguiente();
+      });
+    }).catch(e => {
+      toast(e.message || 'No se pudo adjuntar el archivo.', 'err');
+      siguiente();
+    });
+  };
+  siguiente();
+}
+
+function quitarValoracionExterna(f, id){
+  confirmar('Quitar el archivo',
+    'Se elimina de la ficha y de la nube. Esta acción no se puede deshacer.',
+    () => {
+      f.sinValoracion = f.sinValoracion || {};
+      f.sinValoracion.adjuntos = adjuntosValoracion(f).filter(x => x.id !== id);
+      archivoEliminar(id);
+      guardarFicha(true, true);
+      auditar('valoracion-externa-baja', id);
+      refrescarValoracionExterna();
+      toast('Archivo eliminado.', 'ok');
+    }, 'Quitar', true);
+}
+
+/* La tarjeta que encabeza el paso Preanestesia cuando se declaro un motivo */
+function htmlValoracionExterna(f){
+  const s = deudaValoracion(f);
+  if(!s) return '';
+  const m = MOTIVOS_SIN_VALORACION.find(x => x.id === s.motivo) || {};
+  const l = adjuntosValoracion(f);
+  const puede = esAutorFicha(f) || esActorFicha(f) || esCoordinador();
+  return ''+
+  '<div class="card no-print" id="svCard" style="border:1.5px solid var(--warn)">'+
+    '<h3>'+ico('alerta')+'Valoración prequirúrgica pendiente</h3>'+
+    '<div class="aviso warn" style="margin-top:0">'+ico('info')+'<div>'+
+      '<b>'+esc(m.n)+'.</b> Declarado por '+esc(s.porNombre || '—')+
+      (s.cuando ? ' el '+fFecha(s.cuando.slice(0,10)) : '')+'.'+
+      (s.quien ? '<br>La hizo <b>'+esc(s.quien)+'</b>'+
+        (s.fechaVal ? ' el '+fFecha(s.fechaVal) : '')+'.' : '')+
+      (s.origenTxt ? '<br>Viene de la ficha de <b>'+esc(s.origenTxt)+'</b>.' : '')+
+      (s.tipo ? '<br>Tipo: <b>'+esc(s.tipo)+'</b>.' : '')+
+      (s.nota ? '<br>'+esc(s.nota) : '')+
+      '<br>Esta ficha <b>no se puede firmar</b> hasta que estos quince puntos estén completos, y '+
+      'una vez terminado el acto se te va a recordar cada diez minutos.'+
+    '</div></div>'+
+
+    /* Reintervencion: si todavia no se trajo la valoracion de aquella ficha,
+       el atajo sigue disponible aca. Es lo que salda la deuda en un clic. */
+    (s.motivo === 'reintervencion' && s.fichaOrigen && DB.fichas[s.fichaOrigen] && puede
+      ? '<div class="btn-row mt8">'+
+          '<button class="btn pri chico" id="svTraer">'+ico('valoracion')+
+            ' Traer la valoración de aquella ficha</button>'+
+          '<button class="btn ghost chico" id="svVerOrigen">'+ico('ojo')+
+            ' Ver aquella ficha</button>'+
+        '</div>'+
+        '<p class="mini mt8">Se traen antecedentes, examen, laboratorio, escalas y plan. '+
+        'El <b>consentimiento no se copia</b>: hay que firmar el de esta intervención.</p>'
+      : '')+
+    (s.motivo === 'externa'
+      ? '<p class="mini">Si tenés la valoración en papel, sacale una foto: queda adjunta como '+
+        'respaldo. La foto se achica sola y no viaja con la ficha —se guarda aparte y se trae '+
+        'recién cuando alguien la abre—, así que no pesa ni en la app ni en la base.</p>'+
+        (puede ? '<div class="btn-row mt8">'+
+          '<button class="btn ghost chico" id="svFoto" data-lectura>'+ico('camara')+
+            ' Tomar foto</button>'+
+          '<button class="btn ghost chico" id="svArchivo" data-lectura>'+ico('adjunto')+
+            ' Elegir archivo</button></div>' : '')+
+        '<div id="svLista" class="adjuntos mt14">'+ htmlListaAdjuntos(l, puede) +'</div>'
+      : '')+
+  '</div>';
+}
+
+function cablearValoracionExterna(f){
+  const s = sinValoracion(f) || {};
+  if($('#svTraer')) $('#svTraer').onclick = () => {
+    const g = DB.fichas[s.fichaOrigen];
+    if(!g) return toast('Aquella ficha ya no está disponible.', 'err');
+    confirmar('Traer la valoración',
+      'Se copian antecedentes, examen, laboratorio, escalas y plan de la ficha del '+
+      esc(fFecha(fechaDeFicha(g) || g.fecha))+'. Lo que ya tengas cargado en este paso se '+
+      'reemplaza. El consentimiento no se toca.',
+      () => {
+        copiarValoracionDesde(f, g);
+        guardarFicha(true, true);
+        auditar('valoracion-copiada', 'de la ficha ' + s.fichaOrigen + ' a ' + f.id);
+        pintarFicha();
+        toast('Valoración traída. Revisala y firmá el consentimiento de esta intervención.', 'ok');
+      }, 'Traer');
+  };
+  if($('#svVerOrigen')) $('#svVerOrigen').onclick = () => abrirFicha(s.fichaOrigen);
+  if($('#svFoto')) $('#svFoto').onclick = () =>
+    pedirArchivos('image/*', true, fs => cargarValoracionExterna(f, fs));
+  if($('#svArchivo')) $('#svArchivo').onclick = () =>
+    pedirArchivos(PQ_ACEPTA, false, fs => cargarValoracionExterna(f, fs));
+  $$('#svLista [data-adjver]').forEach(b => b.onclick = () => verAdjunto(b.dataset.adjver));
+  $$('#svLista [data-adjbaj]').forEach(b => b.onclick = () => bajarAdjunto(b.dataset.adjbaj));
+  $$('#svLista [data-adjdel]').forEach(b =>
+    b.onclick = () => quitarValoracionExterna(f, b.dataset.adjdel));
+}
+
+/* Repinta solo su tarjeta, sin rehacer el paso: mismo criterio que los
+   partes quirurgicos, para no devolver el telefono al principio. */
+function refrescarValoracionExterna(){
+  const f = fichaActual;
+  if(!f) return;
+  const c = $('#svCard');
+  if(!c) return;
+  const y = window.scrollY || 0;
+  const m = $('main'); const my = m ? m.scrollTop : 0;
+  c.outerHTML = htmlValoracionExterna(f);
+  cablearValoracionExterna(f);
+  if(m && my) m.scrollTop = my;
+  if(y) window.scrollTo({ top:y, behavior:'auto' });
+}
+
 function quitarParteQuirurgico(f, id){
   confirmar('Quitar el archivo',
     'Se elimina de la ficha y de la nube. Si ya fue enviado a contaduría, el contador '+
@@ -19372,7 +20329,9 @@ function armarEnvio(f, tipo, extra){
     financiador: f.obraSocial || 'Sin cobertura',
     afiliado: f.nroAfiliado || '',
     cirugia: f.cirugia || '', cirugiaCod: f.cirugiaCod || '',
-    diagnostico: f.diagnostico || '', caracter: f.caracter || '',
+    diagnostico: f.diagnostico || '',
+    /* El acto se factura por el caracter del acto; la valoracion, por el suyo. */
+    caracter: tipo === 'acto' ? caracterActo(f) : caracterValoracion(f),
 
     honorario: honorarioDeEnvio(f, tipo),
     docId, docNombre: nombreDoc,
@@ -20362,9 +21321,12 @@ function nuevaFichaEnInstitucion(paso){
      queda atenuada para que la pantalla muestre una sola cosa por vez. */
   modoFicha = (paso === 'anestesia') ? 'acto' : 'valoracion';
   if(paso === 'anestesia'){
+    /* Queda marcada como nacida por el acto: hasta que alguien tome el acto,
+       el paso Preanestesia no se abre. Ver valoracionTrabada() en core.js. */
+    fichaActual.viaActo = true;
     /* el acceso directo a la ficha anestesica igual arranca por el paciente:
        sin paciente no hay registro que valga */
-    toast('Elegí el paciente y la cirugía; después pasás al registro del acto.', 'ok');
+    toast('Elegí el paciente y la cirugía; después tomá el acto anestésico.', 'ok');
   }
   pintarFicha();
 }
@@ -20391,7 +21353,14 @@ function arrancarApp(){
     /* Los honorarios que el anestesiólogo dejó para después se le recuerdan
        cada tres horas hasta que los cargue. */
     iniciarRecordatorioHonorarios();
+    /* Y la valoracion que quedo debiendose en un acto ya firmado. */
+    iniciarRecordatorioValoracion();
   }
+  /* Un tono corto si hay algo esperando: avisos, recordatorios o mensajes sin
+     ver. Entrar es un gesto del usuario, asi que el navegador deja sonar; si
+     igual lo bloquea, queda armado para el primer toque. */
+  sonoDesde = Date.now(); sonoHecho = false;
+  setTimeout(() => sonarAvisosPendientes(false), 700);
   /* Refresco periodico: avisos clinicos cada 10 min y, para que el umbral de
      2 h de los reclamos se note sin recargar, los mensajes cada 2 minutos. */
   clearInterval(window.__tAvisos);

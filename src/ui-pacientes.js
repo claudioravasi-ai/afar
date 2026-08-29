@@ -803,7 +803,7 @@ function abrirPaciente(id){
       ico('descargar')+' Traer el historial completo</button></div></div>' : '')+
   (fichas.length ? '<div class="lista">'+ fichas.map(f =>
       '<div class="item" data-ficha="'+f.id+'">'+
-        '<div class="avatar" style="background:'+(f.caracter==='urgencia'?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
+        '<div class="avatar" style="background:'+(esNoProgramado(caracterActo(f))?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
           ico('ficha')+'</div>'+
         '<div class="txt"><b>'+esc(f.cirugia||'Sin cirugía cargada')+'</b>'+
           '<span>'+(fechaCirugiaDe(f)

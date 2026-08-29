@@ -309,9 +309,12 @@ function nuevaFichaEnInstitucion(paso){
      queda atenuada para que la pantalla muestre una sola cosa por vez. */
   modoFicha = (paso === 'anestesia') ? 'acto' : 'valoracion';
   if(paso === 'anestesia'){
+    /* Queda marcada como nacida por el acto: hasta que alguien tome el acto,
+       el paso Preanestesia no se abre. Ver valoracionTrabada() en core.js. */
+    fichaActual.viaActo = true;
     /* el acceso directo a la ficha anestesica igual arranca por el paciente:
        sin paciente no hay registro que valga */
-    toast('Elegí el paciente y la cirugía; después pasás al registro del acto.', 'ok');
+    toast('Elegí el paciente y la cirugía; después tomá el acto anestésico.', 'ok');
   }
   pintarFicha();
 }
@@ -338,7 +341,14 @@ function arrancarApp(){
     /* Los honorarios que el anestesiólogo dejó para después se le recuerdan
        cada tres horas hasta que los cargue. */
     iniciarRecordatorioHonorarios();
+    /* Y la valoracion que quedo debiendose en un acto ya firmado. */
+    iniciarRecordatorioValoracion();
   }
+  /* Un tono corto si hay algo esperando: avisos, recordatorios o mensajes sin
+     ver. Entrar es un gesto del usuario, asi que el navegador deja sonar; si
+     igual lo bloquea, queda armado para el primer toque. */
+  sonoDesde = Date.now(); sonoHecho = false;
+  setTimeout(() => sonarAvisosPendientes(false), 700);
   /* Refresco periodico: avisos clinicos cada 10 min y, para que el umbral de
      2 h de los reclamos se note sin recargar, los mensajes cada 2 minutos. */
   clearInterval(window.__tAvisos);

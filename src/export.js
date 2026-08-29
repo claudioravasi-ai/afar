@@ -139,7 +139,12 @@ function documentoFicha(f, opts){
   seccion('Datos del acto quirúrgico',
     '<table><tr>'+
       '<td style="width:50%"><b>Fecha:</b> '+fFecha(f.fecha)+' '+esc(f.hora||'')+'</td>'+
-      '<td><b>Carácter:</b> '+esc((f.caracter||'programada').toUpperCase())+'</td></tr>'+
+      '<td><b>Carácter:</b> '+esc(nombreCaracter(soloVal ? caracterValoracion(f)
+          : caracterActo(f)).toUpperCase())+
+        (!soloVal && caracterCambio(f)
+          ? '<span style="font-weight:400"> (en la valoración: '+
+            esc(nombreCaracter(caracterValoracion(f)).toLowerCase())+')</span>' : '')+
+        '</td></tr>'+
     '<tr><td colspan="2"><b>Cirugía:</b> '+esc(f.cirugia||'—')+
       (f.lateralidad && f.lateralidad !== 'No aplica' ? ' ('+esc(f.lateralidad)+')' : '')+'</td></tr>'+
     '<tr><td><b>Especialidad:</b> '+esc(f.especialidad||'—')+'</td>'+
@@ -722,7 +727,7 @@ function exportarFacturacionExcel(l, mes){
       f.cirugia||'', f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '',
       nombreInstitucion(f.institucion), f.obraSocial||'',
       (datosFinanciador(f.obraSocial)||{}).cuit || '', nombreUsuario(x.uid),
-      f.caracter||'', ((f.v||{}).scores||{}).asa || '',
+      nombreCaracter(caracterActo(f)), ((f.v||{}).scores||{}).asa || '',
       x.tipo === 'consulta'
         ? (MODALIDADES_CONSULTA.find(m => m.id === (f.honConsulta||{}).modalidad)||{}).n || ''
         : (MODALIDADES_HONORARIOS.find(m => m.id === h.modalidad)||{}).n || '',
@@ -763,7 +768,7 @@ function exportarEstadisticas(l, corteNombre, datos){
     const hv = v ? Number((f.honConsulta||{}).total || 0) : 0;
     const ha = a ? Number((f.hon||{}).total || 0) : 0;
     return [ fFecha(f.fecha), (p.apellido||'')+', '+(p.nombre||''), nombreInstitucion(f.institucion),
-      f.obraSocial||'', f.cirugia||'', f.especialidad||'', f.caracter||'',
+      f.obraSocial||'', f.cirugia||'', f.especialidad||'', nombreCaracter(caracterActo(f)),
       v ? (((f.v||{}).scores||{}).asa || '') : '',
       v ? 'Sí' : 'No', v ? nombreUsuario(f.ownerUid) : '', v ? hv.toFixed(2) : '',
       a ? 'Sí' : 'No', a ? nombreActor(f) : '', a ? ha.toFixed(2) : '',

@@ -24,6 +24,9 @@ function htmlValoracion(f){
   const desdePaciente = (p.antecedentes || []).length || (p.medicacion || []).length;
 
   return ''+
+  /* Si se declaro que el acto arranco sin valoracion, la deuda se cobra aca:
+     es el paso donde se salda. Desaparece sola al llegar a verde. */
+  htmlValoracionExterna(f)+
   '<div class="aviso info">'+ico('valoracion')+'<div><b>Valoración anestésica prequirúrgica</b><br>'+
     'Las escalas se calculan solas a medida que completás. Todo campo puede dejarse vacío: '+
     'el documento final sólo imprime lo que cargaste.</div></div>'+
@@ -616,6 +619,7 @@ function leerPlan(){
 let dxSeleccionados = [], medSeleccionados = [];
 
 function cablearValoracion(f){
+  cablearValoracionExterna(f);
   const v = f.v || {};
   const p = DB.pacientes[f.pacienteId] || {};
 

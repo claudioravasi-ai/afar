@@ -227,6 +227,36 @@ const MODALIDADES_CONSULTA = [
   { id:'sincargo',   n:'Sin cargo',                 d:'No genera honorario.' }
 ];
 
+/* ---------- Por que un acto no tiene valoracion previa ----------
+   Un acto anestesico sin valoracion prequirurgica cargada no siempre es un
+   descuido: puede ser una urgencia sin tiempo, o una valoracion hecha en
+   papel o en otra institucion. Lo que no puede es quedar sin explicacion.
+
+   `deuda: true` marca los motivos que dejan una valoracion pendiente de
+   completar y que por lo tanto disparan el recordatorio. */
+const MOTIVOS_SIN_VALORACION = [
+  { id:'urgencia', deuda:true,  n:'Urgencia o emergencia',
+    d:'No hubo tiempo de hacer la valoración prequirúrgica. Se declara y el carácter del acto queda propuesto como urgencia.' },
+  { id:'externa',  deuda:true,  n:'La valoración se hizo fuera de la aplicación',
+    d:'En papel, en otra institución o por un profesional que no es socio. Se asienta quién la hizo y cuándo, y se puede adjuntar la foto.' },
+  { id:'reintervencion', deuda:true, n:'Ya lo valoré para una intervención anterior',
+    d:'Reintervención o segundo acto del mismo paciente. Se enlaza aquella ficha y se puede traer su valoración para actualizarla.' },
+  { id:'sinconsulta',    deuda:true, n:'Procedimiento sin consulta previa programada',
+    d:'Sedación para endoscopia o imágenes, cardioversión, analgesia del parto. La evaluación se hace al lado de la camilla, no en consultorio.' },
+  { id:'ahora',    deuda:false, n:'La cargo ahora',
+    d:'Lleva al paso 2 para completarla antes de anestesiar. No queda nada declarado.' }
+];
+
+/* ---------- Caracter de la cirugia y del acto ----------
+   La misma lista sirve para los dos: el que se carga en la valoracion
+   (paso 1) y el que se confirma en el acto (paso 3). Ver caracterActo()
+   en core.js para por que son dos y no uno. */
+const CARACTERES = [
+  { id:'programada', n:'Programada', d:'Cirugía con fecha acordada.' },
+  { id:'urgencia',   n:'Urgencia',   d:'Debe resolverse en horas.' },
+  { id:'emergencia', n:'Emergencia', d:'Riesgo vital inmediato, sin demora posible.' }
+];
+
 /* ---------- Adicionales del nomenclador anestesico ---------- */
 const ADICIONALES_HONORARIOS = [
   { id:'urgencia', n:'Urgencia / emergencia',            pct:50 },

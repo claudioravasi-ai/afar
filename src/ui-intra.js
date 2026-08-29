@@ -164,6 +164,15 @@ function edadDeFicha(f){
 function htmlActoResumen(f){
   const a = f.acto || {};
   const eq = a.equipo || {};
+  /* El caracter del acto: propuesto desde la valoracion hasta que se lo
+     confirma aca. Ver caracterActo() en core.js. */
+  const carAct  = caracterActo(f);
+  const carVal  = caracterValoracion(f);
+  const carConf = caracterActoConfirmado(f);
+  /* En una ficha ya firmada no se pide confirmar nada: el registro esta
+     cerrado y el aviso solo seria ruido. Las fichas anteriores a este campo
+     se leen con el caracter de la valoracion, que es lo que siempre tuvieron. */
+  const carCerrado = carConf || !!(f.firma || {}).firmado;
   const disp = DISPOSITIVOS_FLUJO.find(d => d.k === (a.dispositivo || 'ninguno')) || DISPOSITIVOS_FLUJO[0];
   /* Los seis sellos de tiempo del acto, en el orden en que ocurren. El
      cronometro pone la hora del reloj de un toque: en el quirofano nadie
@@ -178,7 +187,7 @@ function htmlActoResumen(f){
   ];
 
   return ''+
-  '<div class="card"><h3>'+ico('calendario')+'Fecha de la cirugía</h3>'+
+  '<div class="card"><h3>'+ico('calendario')+'Fecha y carácter del acto</h3>'+
     /* La fecha del acto NO es la de la valoración. Entre una y otra suelen
        pasar días o semanas, y de cuál se use dependen la facturación del mes,
        las estadísticas y el aviso de cirugía próxima. Se carga acá, el día
@@ -191,6 +200,30 @@ function htmlActoResumen(f){
       (f.fechaValoracion ? 'el <b>'+fFecha(f.fechaValoracion)+'</b>' : 'aparte')+
       '. Son dos fechas distintas: la consulta se factura e informa en su mes, y el acto en el '+
       'suyo.</div>'+
+
+    /* El caracter tampoco se sabe en la consulta: una programada se adelanta
+       por una perforacion y se anestesia de urgencia. Se propone el de la
+       valoracion y se confirma aca, que es cuando se sabe. De este dato
+       dependen las estadisticas y el adicional del honorario. */
+    '<div class="campo mt14"><label>Carácter del acto anestésico <span class="req">*</span></label>'+
+      '<div class="seg" id="acCaracter" data-conf="'+(carConf ? '1' : '0')+'">'+
+        CARACTERES.map(c => '<button type="button" data-v="'+c.id+'"'+
+          (carAct === c.id ? ' class="on"' : '')+'>'+esc(c.n)+'</button>').join('')+
+      '</div>'+
+      '<div id="acCaracterNota">'+
+      (carCerrado
+        ? (carAct !== carVal
+            ? '<div class="aviso info mt8">'+ico('info')+'<div>La valoración se hizo como <b>'+
+              esc(nombreCaracter(carVal).toLowerCase())+'</b> y este acto se registró como <b>'+
+              esc(nombreCaracter(carAct).toLowerCase())+'</b>. Las dos cosas quedan asentadas: la '+
+              'consulta fue lo que fue, y el acto también.</div></div>'
+            : '<div class="ayuda">'+esc(CARACTERES.find(c => c.id === carAct).d)+'</div>')
+        : '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Propuesto desde la valoración, '+
+          'donde se cargó como '+esc(nombreCaracter(carVal).toLowerCase())+'.</b><br>'+
+          'Confirmalo o corregilo: es el carácter con el que este acto se informa y se factura, y '+
+          'no siempre es el que se previó en la consulta.</div></div>')+
+      '</div>'+
+    '</div>'+
   '</div>'+
 
   '<div class="card"><h3>'+ico('reloj')+'Tiempos del procedimiento</h3>'+
@@ -300,6 +333,30 @@ function cablearActoResumen(f){
   $$('#acVaDificil button').forEach(b => b.onclick = () => {
     $$('#acVaDificil button').forEach(x => x.classList.remove('on')); b.classList.add('on');
     avisarVA();
+  });
+
+  /* Caracter del acto. Al tocarlo deja de ser una propuesta: se repinta solo
+     la nota, no la solapa entera, para no perder lo que se este tipeando. */
+  const notaCaracter = () => {
+    const el = $('#acCaracterNota');
+    const b = $('#acCaracter button.on');
+    if(!el || !b) return;
+    const car = b.dataset.v, val = caracterValoracion(f);
+    el.innerHTML = car !== val
+      ? '<div class="aviso info mt8">'+ico('info')+'<div>La valoración se hizo como <b>'+
+        esc(nombreCaracter(val).toLowerCase())+'</b> y este acto se registró como <b>'+
+        esc(nombreCaracter(car).toLowerCase())+'</b>. Las dos cosas quedan asentadas: la consulta '+
+        'fue lo que fue, y el acto también.</div></div>'
+      : '<div class="ayuda">'+esc((CARACTERES.find(c => c.id === car) || {}).d || '')+'</div>';
+  };
+  $$('#acCaracter button').forEach(b => b.onclick = () => {
+    $$('#acCaracter button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    /* Recien acá deja de ser una propuesta: el boton venia pintado con el
+       caracter de la valoracion, y guardarlo sin que nadie lo mire seria
+       darlo por confirmado sin que nadie lo confirme. */
+    const cnt = $('#acCaracter'); if(cnt) cnt.dataset.conf = '1';
+    notaCaracter();
   });
   ['acMonitor','acMonitorExtra','acOMS'].forEach(id => $$('#'+id+' .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
@@ -1131,6 +1188,11 @@ function leerPasoAnestesia(){
 
   if(solapaActo === 'resumen' && $('#acIniCx')){
     a.fechaCirugia = val('acFechaCx');      a.turno = val('acTurnoCx');
+    /* Solo se guarda si el anestesiologo lo toco. Mientras no lo haga, la
+       ficha no tiene caracter de acto propio y caracterActo() sigue
+       devolviendo el de la valoracion: es una propuesta, no una herencia. */
+    const cnt = $('#acCaracter'), bc = $('#acCaracter button.on');
+    if(cnt && bc && cnt.dataset.conf === '1') a.caracterActo = bc.dataset.v;
     a.inicioCirugia = val('acIniCx');       a.finCirugia = val('acFinCx');
     a.ingreso = val('acIngreso');           a.inicioAnestesia = val('acIniAnest');
     a.finAnestesia = val('acFinAnest');     a.salida = val('acSalida');

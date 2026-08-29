@@ -93,6 +93,92 @@ function detenerRecordatorioHonorarios(){
   if(__relojHon){ clearInterval(__relojHon); __relojHon = null; }
 }
 
+/* =========================================================================
+   RECORDATORIO DE VALORACION ADEUDADA
+   -------------------------------------------------------------------------
+   Cuando un acto se firmo habiendose declarado que no habia valoracion previa
+   -urgencia, o valoracion hecha en papel-, la ficha queda con una deuda: el
+   documento que se emite sale de la preanestesia, y sin ella sale vacio.
+
+   El cartel vuelve cada diez minutos, con tono, hasta que la valoracion este
+   completa. Es a proposito mas insistente que el de honorarios (tres horas):
+   ahi lo que se pierde es plata, aca lo que falta es la mitad de una historia
+   clinica de un paciente que ya se anestesio.
+
+   Se puede posponer una hora. Sin esa salida, el cartel caeria encima de
+   alguien que puede estar anestesiando a otro paciente, y un recordatorio que
+   interrumpe un acto medico deja de ser un recordatorio.
+   ========================================================================= */
+const MIN_RECORDATORIO_VAL = 10;
+
+function selloCartelVal(){
+  try{ return localStorage.getItem('afar_val_cartel_' + (SESION ? SESION.uid : '')) || ''; }
+  catch(e){ return ''; }
+}
+function marcarCartelVal(minutos){
+  const t = new Date(Date.now() + (minutos || 0) * 60000).toISOString();
+  try{ localStorage.setItem('afar_val_cartel_' + (SESION ? SESION.uid : ''), t); }catch(e){}
+}
+
+function revisarRecordatorioValoracion(){
+  const l = valoracionesAdeudadas();
+  if(!l.length) return;
+  const sello = selloCartelVal();
+  if(sello && (Date.now() - new Date(sello).getTime()) / 60000 < MIN_RECORDATORIO_VAL) return;
+  if($('#modal') && $('#modal').classList.contains('on')) return;   /* no pisar otro modal */
+  marcarCartelVal(0);
+
+  const filas = l.map(f => {
+    const p = DB.pacientes[f.pacienteId] || {};
+    const s = deudaValoracion(f) || {};
+    const m = MOTIVOS_SIN_VALORACION.find(x => x.id === s.motivo) || {};
+    return '<button type="button" class="hon-pend" data-valf="'+esc(f.id)+'">'+
+      ico('valoracion')+'<span class="tx"><b>'+esc((p.apellido||'—')+', '+(p.nombre||''))+'</b>'+
+      '<i>'+esc(f.cirugia || 'sin cirugía')+' · '+fFecha(fechaCirugiaDe(f) || f.fecha)+
+      ' · '+esc(m.n || 'sin valoración')+'</i></span>'+
+      ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg);width:15px;height:15px;opacity:.5"')+
+      '</button>';
+  }).join('');
+
+  abrirModal('Falta completar la valoración prequirúrgica',
+    '<div class="aviso danger">'+ico('alerta')+'<div><b>'+
+      (l.length === 1 ? 'Hay un acto anestésico terminado sin su valoración prequirúrgica.'
+                      : 'Hay '+l.length+' actos anestésicos terminados sin su valoración prequirúrgica.')+
+      '</b><br>Se declaró el motivo en su momento, pero la valoración sigue faltando. Sin ella la '+
+      'historia clínica del paciente queda por la mitad, el documento que se emite sale incompleto '+
+      'y '+(l.length === 1 ? 'la ficha no se puede firmar' : 'esas fichas no se pueden firmar')+
+      '.</div></div>'+
+    '<div class="hon-pend-lista">'+filas+'</div>',
+    '<button class="btn ghost" id="valPosponer">Posponer una hora</button>'+
+    '<button class="btn pri" data-cerrar>Entendido</button>');
+
+  $$('#modal [data-valf]').forEach(b => b.onclick = () => {
+    const id = b.dataset.valf;
+    cerrarModal();
+    abrirFicha(id);
+    if(fichaActual && fichaActual.id === id) setTimeout(() => irAPaso('preanestesia'), 200);
+  });
+  if($('#valPosponer')) $('#valPosponer').onclick = () => {
+    marcarCartelVal(60 - MIN_RECORDATORIO_VAL);
+    cerrarModal();
+    toast('Se vuelve a avisar en una hora.', 'ok');
+  };
+
+  /* El tono usa la misma preferencia que el aviso de apertura: quien la
+     apago no quiere que la aplicacion suene, y esto tambien es sonar. */
+  if(sonidoAvisosOn()) tocarAvisoSonoro();
+}
+
+let __relojVal = null;
+function iniciarRecordatorioValoracion(){
+  if(__relojVal) clearInterval(__relojVal);
+  setTimeout(revisarRecordatorioValoracion, 60000);
+  __relojVal = setInterval(revisarRecordatorioValoracion, MIN_RECORDATORIO_VAL * 60 * 1000);
+}
+function detenerRecordatorioValoracion(){
+  if(__relojVal){ clearInterval(__relojVal); __relojVal = null; }
+}
+
 /* ------------------------------------------- Qué le falta a una ficha -- */
 function faltantesFicha(f){
   const m = [];
@@ -192,6 +278,20 @@ function calcularAvisos(){
   /* El contable no accede a información clínica: sus avisos terminan acá. */
   if(!verDatosClinicos()) return av.sort((a,b) => a.orden - b.orden);
 
+  /* --- 0 bis. Actos firmados con la valoración todavía debiéndose --- */
+  valoracionesAdeudadas().forEach(f => {
+    const p = DB.pacientes[f.pacienteId] || {};
+    const s = deudaValoracion(f) || {};
+    const m = MOTIVOS_SIN_VALORACION.find(x => x.id === s.motivo) || {};
+    av.push({ nivel:'danger', icono:'valoracion', orden:1,
+      titulo:'Falta completar la valoración prequirúrgica — ' +
+             (p.apellido||'—') + ', ' + (p.nombre||''),
+      detalle:(m.n || 'Sin valoración previa') + '.' +
+              '\nEl acto se registró el ' + fFecha(fechaCirugiaDe(f) || f.fecha) +
+              ' y la valoración sigue sin cargarse: hasta que esté, la ficha no se puede firmar.',
+      fichaId:f.id, solapa:'preanestesia' });
+  });
+
   const fichas = misFichas();
 
   /* --- 1. Solicitudes de acceso (coordinación) --- */
@@ -221,7 +321,8 @@ function calcularAvisos(){
                 (p.apellido ? p.apellido + ', ' + p.nombre : 'sin paciente'),
         detalle: (f.cirugia || 'sin cirugía cargada') + ' · ' +
                  nombreInstitucion(f.institucion).split('"')[0].trim() +
-                 (f.caracter !== 'programada' ? ' · ' + f.caracter.toUpperCase() : '') +
+                 (esNoProgramado(caracterActo(f))
+                   ? ' · ' + nombreCaracter(caracterActo(f)).toUpperCase() : '') +
                  (actorFicha(f) !== f.ownerUid
                    ? '\nValoración: ' + autorFicha(f) + ' · Acto: ' + nombreActor(f) : '') +
                  (criticos.length
@@ -370,18 +471,34 @@ function abrirAvisos(){
     : '<div class="vacio">'+ico('check')+'<b>No hay nada pendiente</b>'+
       '<span>Todas tus fichas están completas y al día.</span></div>';
 
-  const permiso = ('Notification' in window) ? Notification.permission : 'no-soportado';
-  const pie = ('Notification' in window)
-    ? '<hr class="sep"><label class="chk'+(permiso==='granted'?' sel':'')+'" id="avNotif" style="width:100%">'+
-      '<input type="checkbox"'+(permiso==='granted'?' checked disabled':'')+'>'+
-      (permiso === 'granted'
-        ? 'Recordatorios del sistema activados'
-        : (permiso === 'denied'
-           ? 'Recordatorios bloqueados en este navegador'
-           : 'Avisarme con una notificación del sistema'))+
-      '</label>'+
-      '<p class="mini mt8">Al abrir la app te recuerda las cirugías del día y las del día siguiente.</p>'
-    : '';
+  /* ---- Pie: las dos maneras de enterarse desde afuera de la pantalla ----
+     La casilla de notificaciones NO se tilda al tocarla: el permiso lo da el
+     navegador, no nosotros, asi que se pide y despues se repinta el modal con
+     el estado real. Tildarla antes seria mentir sobre algo que puede fallar. */
+  const soporta = ('Notification' in window);
+  const permiso = soporta ? Notification.permission : 'no-soportado';
+  const casilla = (id, marcado, bloqueada, txt) =>
+    '<label class="chk'+(marcado ? ' sel' : '')+'" id="'+id+'" style="width:100%">'+
+    '<input type="checkbox"'+(marcado ? ' checked' : '')+(bloqueada ? ' disabled' : '')+'>'+
+    esc(txt)+'</label>';
+
+  const pie = '<hr class="sep">'+
+    (soporta
+      ? casilla('avNotif', permiso === 'granted', permiso !== 'default',
+          permiso === 'granted' ? 'Recordatorios del sistema activados'
+          : permiso === 'denied' ? 'Recordatorios bloqueados en este navegador'
+          : 'Avisarme con una notificación del sistema')+
+        (permiso === 'denied'
+          ? '<p class="mini mt8">Los bloqueaste alguna vez y el navegador ya no vuelve a preguntar. '+
+            'Se destraban desde el candado de la barra de direcciones, en Notificaciones → Permitir.</p>'
+          : '<p class="mini mt8">Al abrir la app te recuerda las cirugías del día y las del día '+
+            'siguiente, aunque la tengas en segundo plano.</p>')
+      : '<p class="mini">Este navegador no da notificaciones del sistema. En iPhone y iPad sólo '+
+        'funcionan con la app agregada a la pantalla de inicio.</p>')+
+    casilla('avSonido', sonidoAvisosOn(), false,
+      'Sonar un tono al abrir la app cuando haya algo pendiente')+
+    '<p class="mini mt8">Suena una sola vez por apertura, y sólo si hay avisos, recordatorios o '+
+    'mensajes sin ver. Funciona sin conexión y sin permiso del navegador.</p>';
 
   abrirModal('Avisos y recordatorios', cuerpo + pie,
     '<button class="btn pri" data-cerrar>Cerrar</button>');
@@ -399,15 +516,123 @@ function abrirAvisos(){
     }, 180);
   });
 
+  /* Notificaciones: se pide el permiso y se vuelve a pintar el modal con lo
+     que el navegador haya contestado. Antes cerraba la ventana y la casilla
+     quedaba igual que antes, asi que parecia que el clic no hacia nada. */
   const sw = $('#avNotif');
   if(sw && permiso === 'default') sw.onclick = e => {
     e.preventDefault();
     Notification.requestPermission().then(p => {
       if(p === 'granted'){ toast('Recordatorios activados.', 'ok'); notificarCirugias(true); }
+      else if(p === 'denied') toast('El navegador bloqueó las notificaciones.', 'err');
       else toast('No se activaron los recordatorios.', 'warn');
-      cerrarModal();
-    });
+      abrirAvisos();          /* se repinta con el estado real */
+    }).catch(() => toast('Este navegador no pudo pedir el permiso.', 'err'));
   };
+
+  /* Sonido: esta si es nuestra, se tilda sola y se guarda en el dispositivo.
+     Al activarla suena de muestra, y esa muestra ya cuenta como el aviso de
+     esta apertura: no tiene sentido sonar dos veces seguidas. */
+  const ss = $('#avSonido');
+  if(ss) ss.onclick = () => setTimeout(() => {
+    const on = ss.querySelector('input').checked;
+    ss.classList.toggle('sel', on);
+    guardarSonidoAvisos(on);
+    if(on){ sonoHecho = true; tocarAvisoSonoro(); toast('Sonido activado.', 'ok'); }
+    else toast('Sonido silenciado.', 'warn');
+  }, 0);
+}
+
+/* =========================================================================
+   AVISO SONORO AL ABRIR LA APP
+   -------------------------------------------------------------------------
+   Quien abre la aplicacion y tiene avisos, recordatorios o mensajes sin ver
+   escucha un tono corto, una sola vez por apertura. No reemplaza a la
+   campana: solo hace que nadie entre sin enterarse de que hay algo esperando.
+
+   El tono se sintetiza en el navegador (WebAudio): no hay archivo que
+   descargar, asi que tambien suena con la app instalada y sin conexion.
+
+   Los navegadores no dejan sonar antes de que la persona toque la pantalla.
+   Si el primer intento queda bloqueado, el aviso queda armado y suena en el
+   primer toque o tecla, sin volver a sonar despues.
+   ========================================================================= */
+const SONO_PREF_KEY = 'afar_sonido_avisos_v1';
+const SONO_VENTANA_MS = 120000;   /* margen de apertura: la nube puede tardar */
+let sonoDesde  = Date.now();
+let sonoHecho  = false;
+let sonoArmado = false;
+
+function sonidoAvisosOn(){
+  try{ return localStorage.getItem(SONO_PREF_KEY) !== 'off'; }catch(e){ return true; }
+}
+function guardarSonidoAvisos(on){
+  try{ localStorage.setItem(SONO_PREF_KEY, on ? 'on' : 'off'); }catch(e){}
+}
+
+/* Lo que cuenta como actividad pendiente: los avisos clinicos de la campana
+   y los mensajes internos sin leer o vencidos. */
+function pendientesParaSonar(){
+  const av = conteoAvisos().total;
+  const m  = conteoMensajes();
+  return av + m.noLeidos + m.vencidos;
+}
+
+/* Dos notas ascendentes, cortas y sin estridencia: se oye en un pasillo de
+   quirofano sin sobresaltar a nadie. Devuelve si el dispositivo dejo sonar. */
+function tocarAvisoSonoro(){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return Promise.resolve(false);
+  let ctx;
+  try{ ctx = new AC(); }catch(e){ return Promise.resolve(false); }
+  const emitir = () => {
+    const t0 = ctx.currentTime + 0.02;
+    [[880, 0], [1174.66, 0.17]].forEach(([hz, d]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(hz, t0 + d);
+      g.gain.setValueAtTime(0.0001, t0 + d);
+      g.gain.exponentialRampToValueAtTime(0.18, t0 + d + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.42);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0 + d); o.stop(t0 + d + 0.45);
+    });
+    setTimeout(() => { try{ ctx.close(); }catch(e){} }, 1400);
+  };
+  let r;
+  try{ r = ctx.resume ? ctx.resume() : null; }catch(e){ r = null; }
+  return Promise.resolve(r).catch(() => {}).then(() => {
+    if(ctx.state !== 'running'){ try{ ctx.close(); }catch(e){} return false; }
+    emitir();
+    return true;
+  });
+}
+
+function armarSonidoPorGesto(){
+  if(sonoArmado) return;
+  sonoArmado = true;
+  const evs = ['pointerdown','keydown','touchstart'];
+  const alTocar = () => {
+    evs.forEach(ev => document.removeEventListener(ev, alTocar, true));
+    sonoArmado = false;
+    sonarAvisosPendientes(true);   /* el gesto vale aunque la ventana ya cerro */
+  };
+  evs.forEach(ev => document.addEventListener(ev, alTocar, true));
+}
+
+/* Se llama al entrar. Si los datos de la nube llegan tarde, el aviso igual se
+   escucha una sola vez dentro de la ventana de dos minutos. */
+function sonarAvisosPendientes(porGesto){
+  if(sonoHecho || !sonidoAvisosOn()) return;
+  if(!porGesto && Date.now() - sonoDesde > SONO_VENTANA_MS) return;
+  const n = pendientesParaSonar();
+  if(!n) return;
+  sonoHecho = true;
+  tocarAvisoSonoro().then(ok => {
+    if(!ok){ sonoHecho = false; armarSonidoPorGesto(); return; }
+    toast('Tenes ' + n + ' cosa' + (n === 1 ? '' : 's') + ' pendiente' +
+          (n === 1 ? '' : 's') + ' a resolver.', 'warn');
+  });
 }
 
 /* ------------------------------------------ Notificaciones del sistema */

@@ -1685,6 +1685,188 @@ function nombreActor(f){
 }
 
 /* =========================================================================
+   ACTOS SIN VALORACION PREQUIRURGICA
+   -------------------------------------------------------------------------
+   Anestesiar sin valoracion previa cargada en la aplicacion pasa, y no
+   siempre por descuido: en una urgencia no hay tiempo, y muchas valoraciones
+   se hacen en papel o en otra institucion. Lo que no puede pasar es que quede
+   sin explicacion, porque despues nadie sabe si falto la consulta o falto
+   cargarla.
+
+   Por eso, al entrar al registro del acto con la preanestesia en blanco, se
+   pide declarar el motivo. Dos de los tres motivos dejan una DEUDA: la
+   valoracion sigue faltando y hay que completarla. El tercero no es una
+   excepcion, es ir a cargarla.
+
+   La deuda se salda sola cuando la preanestesia llega a verde. No hay que
+   marcar nada: el estado de la ficha es el que manda.
+   ========================================================================= */
+function sinValoracion(f){ return (f && f.sinValoracion) || null; }
+
+/* El motivo declarado, solo si es de los que dejan deuda */
+function motivoSinValoracion(f){
+  const s = sinValoracion(f);
+  if(!s || !s.motivo) return null;
+  const m = MOTIVOS_SIN_VALORACION.find(x => x.id === s.motivo);
+  return (m && m.deuda) ? m : null;
+}
+/* Hay que preguntar el motivo: preanestesia sin tocar y nada declarado */
+function debeDeclararSinValoracion(f){
+  if(!f || (f.firma || {}).firmado) return false;
+  if(sinValoracion(f) && sinValoracion(f).motivo) return false;
+  return estadoPaso(f, 'preanestesia') === 'pend';
+}
+/* La deuda que sigue abierta, o null si ya se completo la valoracion */
+function deudaValoracion(f){
+  if(!motivoSinValoracion(f)) return null;
+  return estadoPaso(f, 'preanestesia') === 'ok' ? null : sinValoracion(f);
+}
+/* Fichas mias con la valoracion todavia debiendose.
+   -------------------------------------------------------------------------
+   El disparador NO puede ser la firma. La firma exige la preanestesia en
+   verde, asi que una ficha firmada nunca debe una valoracion: si esperaramos
+   a la firma, el recordatorio no sonaria jamas.
+
+   El disparador es haber CONCLUIDO EL ACTO: fecha de cirugia, tecnica y fin
+   de anestesia cargados. Ahi el paciente ya se anestesio, el anestesiologo ya
+   salio del quirofano y la valoracion sigue faltando. Es exactamente el
+   momento en que hay que reclamarla, y es lo que traba la firma.
+
+   Mientras el acto sigue abierto no se molesta a nadie: quien esta
+   anestesiando no necesita un cartel cada diez minutos. */
+function valoracionesAdeudadas(){
+  if(!SESION || !verDatosClinicos()) return [];
+  return lista('fichas').filter(f => {
+    if(!esActorFicha(f) || !deudaValoracion(f)) return false;
+    return (f.firma || {}).firmado || estadoPaso(f, 'anestesia') === 'ok';
+  });
+}
+/* =========================================================================
+   LA VALORACION TRABADA HASTA TOMAR EL ACTO
+   -------------------------------------------------------------------------
+   Una ficha abierta desde «Nueva ficha anestesica» queda marcada con
+   `viaActo`. Mientras el acto no tenga dueno, el paso Preanestesia no se
+   abre: primero se toma el acto -que es el momento en que alguien se hace
+   responsable- y recien ahi se decide que pasa con la valoracion.
+
+   La traba mira el DATO, no el modo de pantalla: cambiar de solapa no la
+   saltea. Y no toca el camino normal -«Nueva valoracion preanestesica»-,
+   donde no hay `viaActo` y el paso 2 se abre como siempre.
+   ========================================================================= */
+function valoracionTrabada(f){
+  if(!f || !f.viaActo) return false;
+  if((f.firma || {}).firmado) return false;
+  if(f.actoPorUid) return false;          /* ya lo tomó alguien: se destraba */
+  return !hayValoracion(f);               /* si ya tiene algo cargado, no se traba */
+}
+
+function adjuntosValoracion(f){
+  return ((f && f.sinValoracion) || {}).adjuntos || [];
+}
+
+/* Otras fichas del MISMO paciente que ya tienen valoracion cargada, de la mas
+   reciente a la mas vieja. Es lo que se ofrece en una reintervencion. */
+function fichasValoradasDe(pacienteId, exceptoId){
+  if(!pacienteId) return [];
+  return lista('fichas')
+    .filter(f => f.pacienteId === pacienteId && f.id !== exceptoId && hayValoracion(f))
+    .sort((a, b) => (fechaDeFicha(b) || '').localeCompare(fechaDeFicha(a) || ''));
+}
+
+/* Trae la valoracion de otra ficha del mismo paciente.
+   -------------------------------------------------------------------------
+   Se copian los antecedentes, el examen, el laboratorio, las escalas y el
+   plan. NO se copia el consentimiento: es de aquel procedimiento y de aquel
+   riesgo, y la Ley 26.529 lo pide para ESTA intervencion. Por eso la ficha
+   sigue sin poder firmarse hasta que se firme el punto 15 nuevo, que es
+   exactamente lo que corresponde.
+
+   Tampoco se copian los honorarios: son de aquel acto. */
+function copiarValoracionDesde(destino, origen){
+  if(!destino || !origen) return false;
+  const clon = o => JSON.parse(JSON.stringify(o || {}));
+  destino.v    = clon(origen.v);
+  destino.plan = clon(origen.plan);
+  destino.valoracionGuardada = true;
+  /* Queda dicho de donde salio: sin esto, dentro de un ano nadie sabe si esa
+     valoracion se hizo para esta cirugia o se trajo de otra. */
+  destino.v.riesgo = destino.v.riesgo || {};
+  const traida = 'Valoración traída de la ficha del ' +
+                 fFecha(fechaDeFicha(origen) || origen.fecha) +
+                 ' (' + (origen.cirugia || 'sin cirugía') + '). Revisar y actualizar lo que cambió.';
+  destino.v.riesgo.fundamento = (destino.v.riesgo.fundamento || '').indexOf('Valoración traída') >= 0
+    ? destino.v.riesgo.fundamento
+    : (destino.v.riesgo.fundamento ? destino.v.riesgo.fundamento + '\n' + traida : traida);
+  return true;
+}
+
+/* =========================================================================
+   LOS DOS CARACTERES: EL DE LA VALORACION Y EL DEL ACTO
+   -------------------------------------------------------------------------
+   Mismo problema que las dos fechas, y por la misma razon: el caracter recien
+   se sabe de verdad el dia del acto.
+
+     f.caracter            como se vio la cirugia en la consulta
+                           prequirurgica. Describe ESA consulta, y alimenta
+                           el ARISCAT que se imprime en la valoracion.
+
+     f.acto.caracterActo   en que condicion se anestesio realmente. Es lo que
+                           se informa en las estadisticas y lo que sostiene el
+                           adicional de urgencia del honorario del acto.
+
+   Con un solo campo, una valoracion hecha en consultorio como PROGRAMADA que
+   termina en una cirugia adelantada por una perforacion obligaba a volver al
+   paso 1 y corregirla: eso reescribia hacia atras el contexto de un documento
+   ya firmado y le cambiaba el ARISCAT. Son dos hechos distintos y los dos son
+   ciertos; la aplicacion los guarda por separado.
+
+   Mientras el acto no lo confirme, caracterActo() devuelve el de la
+   valoracion: es una propuesta, no una herencia fija. La confirmacion se hace
+   en el paso Anestesia, igual que la fecha de la cirugia.
+   ========================================================================= */
+function caracterValoracion(f){
+  return (f && f.caracter) || 'programada';
+}
+function caracterActo(f){
+  return ((f && f.acto) || {}).caracterActo || caracterValoracion(f);
+}
+/* ¿El anestesiologo ya lo confirmo en el paso 3, o sigue siendo la propuesta? */
+function caracterActoConfirmado(f){
+  return !!((f && f.acto) || {}).caracterActo;
+}
+function nombreCaracter(id){
+  const c = CARACTERES.find(x => x.id === id);
+  return c ? c.n : 'Programada';
+}
+function esNoProgramado(id){ return id === 'urgencia' || id === 'emergencia'; }
+/* ¿La valoracion y el acto discrepan? No es un error: es lo normal cuando una
+   programada se adelanta. Sirve para dejarlo dicho en el documento. */
+function caracterCambio(f){
+  return caracterActoConfirmado(f) && caracterActo(f) !== caracterValoracion(f);
+}
+
+/* -------------------------------------------------------------------------
+   El puente con la facturacion.
+   El adicional de urgencia NO se auto-tilda: depende del convenio, no solo
+   del caracter, y un recargo puesto por la maquina en una factura que firma
+   una persona es exactamente lo que no hay que hacer. Lo que si se puede es
+   avisar cuando el honorario y el registro del acto se contradicen, que hoy
+   no lo ve nadie: ni el anestesiologo, ni el contador -a su portal el
+   caracter no llega, por la lista blanca de prestacionesContables()-.
+   ------------------------------------------------------------------------- */
+function discordanciaUrgencia(f){
+  if(!f) return null;
+  const car = caracterActo(f);
+  const h = f.hon || {};
+  /* Sin modalidad cargada todavia no hay honorario que contradecir */
+  if(!h.modalidad || h.modalidad === 'sincargo' || h.modalidad === 'salario') return null;
+  const tildado = (h.adicionales || []).indexOf('urgencia') >= 0;
+  if(esNoProgramado(car) && !tildado) return { tipo:'falta', caracter:car };
+  if(!esNoProgramado(car) && tildado) return { tipo:'sobra', caracter:car };
+  return null;
+}
+
+/* =========================================================================
    LAS DOS FECHAS DE UNA FICHA
    -------------------------------------------------------------------------
    Una ficha tiene dos fechas y casi nunca coinciden:
