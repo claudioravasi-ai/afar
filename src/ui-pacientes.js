@@ -80,10 +80,11 @@ function vistaPacientes(){
 
   (enPadron
     ? '<div class="aviso info">'+ico('candado')+'<div><b>Padrón completo de la asociación.</b> '+
-      'Está para que antes de cargar un paciente puedas averiguar si ya existe y no duplicarlo. '+
-      'De los pacientes en los que <b>no</b> interviniste ves sólo lo necesario para '+
-      'reconocerlos: la historia clínica se abre cuando hacés su valoración o su acto '+
-      'anestésico.</div></div>'
+      'De los pacientes en los que <b>no</b> interviniste ves lo necesario para reconocerlos '+
+      '—apellido, nombre, documento, edad, sexo y localidad— y nada de su historia clínica.<br>'+
+      '<b>Tocá cualquiera para atenderlo:</b> se abre una ficha nueva con sus datos ya cargados, '+
+      'sin volver a tipearlos y sin duplicarlo. Desde ese momento su historia queda a tu '+
+      'alcance, porque pasás a ser uno de los que intervienen.</div></div>'
     : (todos.length ? '<div class="aviso info">'+ico('pacientes')+'<div>'+
       'Pacientes en los que interviniste, por la valoración prequirúrgica, por el acto '+
       'anestésico o por los dos. Los antecedentes que cargues los hereda cada ficha '+
@@ -104,7 +105,15 @@ function vistaPacientes(){
              cobertura, los antecedentes y las alergias son historia clínica. */
           (mio ? (ed!==null?' · '+ed+' años':'')+' · '+esc(p.obraSocial||'Sin cobertura')+
                  (nAnt ? ' · '+nAnt+' antecedente'+(nAnt===1?'':'s') : '')
-               : ' · no interviniste en este paciente')+'</span></div>'+
+          /* Del paciente ajeno salen los datos que sirven para RECONOCERLO y
+             no duplicarlo: edad, sexo y localidad son identificacion, no
+             historia clinica. Sin la edad, dos «Pérez, María» son
+             indistinguibles y el padron no cumple la unica funcion que
+             tiene. Lo clinico —antecedentes, alergias, cobertura, fichas—
+             sigue cerrado. */
+               : (ed!==null?' · '+ed+' años':'')+
+                 ({F:' · femenino',M:' · masculino',X:' · X'}[p.sexo] || '')+
+                 (p.localidad ? ' · '+esc(p.localidad) : ''))+'</span></div>'+
         '<div class="der">'+
           (mio
             ? (alergias.length ? '<span class="tag danger" title="'+esc(alergias.join(' · '))+'">Alergias</span> ' : '')+
@@ -129,12 +138,111 @@ function vistaPacientes(){
   $$('#vPacientes .item').forEach(it => {
     it.onclick = () => {
       const p = DB.pacientes[it.dataset.pac];
-      if(!intervineEn(p))
-        return toast('No interviniste en este paciente: su historia clínica no se abre. '+
-                     'Aparece en el padrón para que no lo cargues dos veces.', 'warn');
+      /* Antes esto era un toast que decia «no se abre» y nada mas: el padron
+         te avisaba que el paciente existia y ahi te dejaba. Ahora abre la
+         ficha de identificacion, que es de donde se lo puede atender. */
+      if(!intervineEn(p)) return abrirPacienteDelPadron(it.dataset.pac);
       abrirPaciente(it.dataset.pac);
     };
   });
+}
+
+/* =========================================================================
+   PACIENTE DEL PADRON EN EL QUE NO INTERVINE
+   -------------------------------------------------------------------------
+   El padron existe para no duplicar pacientes. Pero decir «este paciente ya
+   existe» y no dejar hacer nada con esa informacion no resuelve nada: el
+   anestesiologo terminaba cargandolo de nuevo igual, que es exactamente lo
+   que el padron venia a evitar.
+
+   Lo que hay que separar son dos cosas que no son lo mismo:
+
+     IDENTIFICACION   apellido, nombre, documento, fecha de nacimiento, sexo
+                      y localidad. Son datos personales, no datos de salud.
+                      Sirven para reconocer a la persona y para no cargarla
+                      dos veces, y se muestran.
+
+     HISTORIA CLINICA antecedentes, medicacion, alergias, cobertura y fichas.
+                      Son datos sensibles (Ley 25.326, art. 2 y 8) y solo los
+                      ve quien interviene en ese paciente. No se muestran.
+
+   Y despues hay que dar la puerta legitima: ATENDERLO. Al abrir una ficha
+   con ese paciente uno pasa a ser interviniente, y ahi el acceso a su
+   historia deja de ser curiosidad y pasa a tener causa. Queda auditado.
+
+   La otra puerta es preguntarle al colega que si intervino. Por eso se
+   nombra al profesional —no lo que hizo— y hay un boton para escribirle por
+   la mensajeria interna.
+   ========================================================================= */
+function colegasQueIntervinieron(pid){
+  const uids = {};
+  lista('fichas').forEach(f => {
+    if(f.pacienteId !== pid) return;
+    if(f.ownerUid) uids[f.ownerUid] = true;
+    const a = actorFicha(f);
+    if(a) uids[a] = true;
+  });
+  if(SESION) delete uids[SESION.uid];
+  return Object.keys(uids);
+}
+
+function abrirPacienteDelPadron(id){
+  const p = DB.pacientes[id];
+  if(!p) return toast('No se encontró el paciente.', 'err');
+  const ed = edadDe(p.fechaNac);
+  const colegas = colegasQueIntervinieron(id);
+
+  const dato = (et, v) => '<div class="res-fila"><span>'+esc(et)+'</span><b>'+
+    esc(v || '—')+'</b></div>';
+
+  abrirModal('Paciente del padrón',
+    '<div class="aviso info">'+ico('candado')+'<div><b>No interviniste en este paciente.</b><br>'+
+      'Ves sus datos de identificación, que son los que hacen falta para reconocerlo y no '+
+      'cargarlo dos veces. Sus antecedentes, alergias, medicación y fichas son historia clínica '+
+      'y no se abren hasta que lo atiendas.</div></div>'+
+
+    '<div class="card plano"><h3>'+ico('paciente')+'Identificación</h3>'+
+      dato('Apellido y nombre', (p.apellido||'')+', '+(p.nombre||''))+
+      dato('Documento', p.dni)+
+      dato('N.º de historia clínica', p.hc)+
+      dato('Fecha de nacimiento', p.fechaNac ? fFecha(p.fechaNac) : '')+
+      dato('Edad', ed !== null ? ed+' años' : '')+
+      dato('Sexo', {F:'Femenino',M:'Masculino',X:'X / No binario'}[p.sexo] || '')+
+      dato('Localidad', p.localidad)+
+    '</div>'+
+
+    (colegas.length
+      ? '<div class="aviso ok">'+ico('pacientes')+'<div><b>Ya fue atendido en la asociación por '+
+        esc(colegas.map(nombreUsuario).join(', '))+'.</b><br>'+
+        'Si necesitás sus antecedentes antes de atenderlo, podés pedírselos por la mensajería '+
+        'interna.</div></div>'
+      : '<div class="aviso warn">'+ico('info')+'<div>Está cargado en el padrón pero todavía '+
+        'no tiene ninguna intervención registrada.</div></div>')+
+
+    '<div class="aviso info">'+ico('valoracion')+'<div><b>Para acceder a su historia, atendelo.</b><br>'+
+      'Se abre una ficha nueva con este paciente ya seleccionado: no lo cargás de nuevo y no se '+
+      'duplica. Desde ahí ves y completás su historia, como en cualquier paciente tuyo.</div></div>',
+
+    '<button class="btn ghost" data-cerrar>Cerrar</button>'+
+    (colegas.length
+      ? '<button class="btn ghost" id="ppMensaje">'+ico('correo')+' Pedir antecedentes</button>'
+      : '')+
+    '<button class="btn pri" id="ppAtender">'+ico('mas')+' Atender a este paciente</button>');
+
+  $('#ppAtender').onclick = () => {
+    cerrarModal();
+    /* Queda asentado quien abrio la historia de un paciente que no era suyo y
+       por que: es el respaldo del acceso. */
+    auditar('padron-atender',
+      'Abre ficha desde el padrón — ' + (p.apellido||'') + ', ' + (p.nombre||''));
+    abrirFicha(null, id);
+  };
+  if($('#ppMensaje')) $('#ppMensaje').onclick = () => {
+    cerrarModal();
+    componerHilo(colegas[0],
+      'Antecedentes de ' + (p.apellido||'') + ', ' + (p.nombre||'') +
+      ' — DNI ' + (p.dni||''));
+  };
 }
 
 /* =========================================================================
