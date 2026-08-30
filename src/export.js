@@ -477,8 +477,9 @@ function documentoRecuperacion(f){
           : 'No alcanza el puntaje de alta (≥ 9).')+'</span></div>'
       : '')+
     par('Dolor (EVA)', r.eva !== '' && r.eva !== undefined ? r.eva + '/10' : '')+
+    par('Analgesia de rescate en la URPA', r.rescate)+
     par('Náuseas / vómitos', r.nauseas === 'si' ? 'Sí' : (r.nauseas === 'no' ? 'No' : ''))+
-    par('Rescate administrado', r.rescate)+
+    par('Antiemético de rescate', r.antiemetico)+
     par('Destino', r.destino) + par('Estado al egreso', r.estado)+
     /* La analgesia postoperatoria se indica al egreso de la URPA, no en la
        valoracion prequirurgica: se imprime aca, que es donde se decidio.

@@ -724,17 +724,54 @@ function cablearAvisosPanel(){
 }
 
 /* ------------------------- Banner de faltantes dentro de la ficha -----
-   Cada faltante es un BOTON: lleva al paso donde se carga, abre el punto
-   exacto y lo deja en pantalla. Y el cartel se recalcula solo mientras se
-   escribe —ver refrescarFaltantes()—, asi que en cuanto se completa algo
-   desaparece de la lista sin tener que guardar ni cambiar de paso.
-   Antes era texto muerto: decia «falta la conclusion de aptitud» y seguia
-   diciendolo despues de escribirla, porque solo se redibujaba al repintar
-   la ficha entera.                                                        */
-function bannerFaltantes(f){
-  const m = faltantesFicha(f);
-  if(!m.length) return '<div class="aviso ok no-print" id="fiFaltantes">'+ico('check')+
-    '<div><b>Ficha completa.</b> No falta ningún dato.</div></div>';
+   REGLA: el cartel muestra lo que quedo pendiente de los pasos ANTERIORES,
+   nunca lo del paso en el que se esta parado.
+
+   Antes listaba todo lo que faltaba en toda la ficha. El resultado era que al
+   entrar a Preanestesia —recien entrar, sin haber tocado nada— un cartel rojo
+   enumeraba ocho cosas de Preanestesia. Claro que faltaban: la persona acababa
+   de llegar. Eso no es informacion, es ruido, y ruido que ademas ensena a
+   ignorar el cartel.
+
+   Lo del paso actual se dice en el momento en que corresponde decirlo: cuando
+   se toca «Siguiente» y se sale del paso. Ver avisoAlSalirDelPaso() en
+   ui-ficha.js.
+
+   Y lo que quedo atras deja de ser un rotulo rojo sin explicacion en la barra
+   de pasos: es una lista de botones que llevan al lugar exacto donde se
+   completa. Antes el paso 1 decia FALTA en rojo desde el paso 2 y no habia
+   forma de saber que le faltaba sin volver a entrar a mirar.
+   ------------------------------------------------------------------------ */
+
+/* El orden del recorrido, para saber que es «anterior». Honorarios no es un
+   paso del recorrido: se reclama al final, junto con la firma, que es cuando
+   la ficha se cierra. */
+const ORDEN_PASO_FALTA = {
+  paciente:0, preanestesia:1, anestesia:2, recuperacion:3, hon:3.5, firma:4
+};
+
+function faltantesDePasosPrevios(f, pasoActual){
+  const hasta = ORDEN_PASO_FALTA[pasoActual];
+  if(hasta === undefined) return faltantesFicha(f);
+  return faltantesFicha(f).filter(x => {
+    const o = ORDEN_PASO_FALTA[x.s];
+    return o !== undefined && o < hasta;
+  });
+}
+
+function bannerFaltantes(f, pasoActual){
+  const m = faltantesDePasosPrevios(f, pasoActual);
+  const enFirma = pasoActual === 'firma';
+
+  if(!m.length){
+    /* En el paso de firmar, «no falta nada» es la informacion que se viene a
+       buscar y hay que darla. En los pasos del medio, un cartel verde que
+       dice que no falta nada de lo de atras es una linea mas para leer. */
+    if(!enFirma) return '';
+    return '<div class="aviso ok no-print" id="fiFaltantes">'+ico('check')+
+      '<div><b>Ficha completa.</b> No falta ningún dato de los pasos anteriores.</div></div>';
+  }
+
   const criticos = m.filter(x => x.critico), otros = m.filter(x => !x.critico);
   /* La urgencia se mide contra la fecha de la CIRUGÍA. Mientras no haya
      cirugía cargada no hay nada inminente: la ficha está en la etapa de
@@ -743,20 +780,35 @@ function bannerFaltantes(f){
   const cx = fechaCirugiaDe(f);
   const d = cx ? diasHasta(cx) : null;
   const inminente = d !== null && d >= 0 && d <= 1;
+
+  /* De que pasos viene lo que falta, para poder nombrarlos */
+  const pasos = [];
+  m.forEach(x => { if(pasos.indexOf(x.s) < 0) pasos.push(x.s); });
+  const nombrePaso = k => k === 'hon' ? 'Honorarios'
+    : ((PASOS_FICHA.find(p => p.k === k) || {}).t || k);
+  const deDonde = pasos.map(nombrePaso).join(' y ');
+
   const chip = (x, opc) => '<button type="button"'+(opc?' class="opc"':'')+
     ' data-falta-s="'+esc(x.s)+'"'+
     (x.anc ? ' data-falta-anc="'+esc(x.anc)+'"' : '')+
     (x.sol ? ' data-falta-sol="'+esc(x.sol)+'"' : '')+
-    '>'+esc(x.t)+'</button>';
+    ' title="Ir a completarlo en el paso '+esc(nombrePaso(x.s))+'">'+esc(x.t)+'</button>';
+
   return '<div class="aviso '+(criticos.length ? (inminente ? 'danger' : 'warn') : 'info')+
     ' no-print" id="fiFaltantes">'+
     ico(criticos.length ? 'alerta' : 'info')+
-    '<div><b>'+(criticos.length
-      ? (criticos.length===1 ? 'Falta 1 dato esencial'
-                             : 'Faltan ' + criticos.length + ' datos esenciales')
-      : 'Faltan datos opcionales')+
-      (inminente && criticos.length ? ' y la cirugía es ' + cuandoTexto(d).toLowerCase() : '')+'.</b> '+
-    '<span class="mini">Tocá cualquiera para ir a completarlo.</span>'+
+    '<div><b>'+
+      (enFirma
+        ? (criticos.length
+            ? 'No se puede firmar todavía: falta' + (criticos.length===1?'':'n') + ' ' +
+              (criticos.length===1 ? '1 dato esencial' : criticos.length + ' datos esenciales')
+            : 'Podés firmar, pero quedaron datos opcionales sin cargar')
+        : (criticos.length
+            ? 'Quedó sin completar en ' + esc(deDonde) + ': ' +
+              (criticos.length===1 ? '1 dato esencial' : criticos.length + ' datos esenciales')
+            : 'Quedaron datos opcionales sin cargar en ' + esc(deDonde)))+
+      (inminente && criticos.length ? ', y la cirugía es ' + cuandoTexto(d).toLowerCase() : '')+'.</b> '+
+    '<span class="mini">Tocá cualquiera para ir a completarlo y volver.</span>'+
     (criticos.length ? '<div class="falta-chips">'+criticos.map(x => chip(x,false)).join('')+'</div>' : '')+
     (otros.length ? '<div class="falta-chips">'+otros.map(x => chip(x,true)).join('')+'</div>' : '')+
     '</div></div>';

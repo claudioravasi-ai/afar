@@ -16,9 +16,9 @@
 
 const MANUAL_PDF = {
   general: { archivo:'./manual-afaar.pdf',
-             descarga:'AFAAR - Manual de uso.pdf', tam:'2,6 MB' },
+             descarga:'AFAAR - Manual de uso.pdf', tam:'1,6 MB' },
   coord:   { archivo:'./manual-afaar-completo.pdf',
-             descarga:'AFAAR - Manual completo (coordinacion).pdf', tam:'2,7 MB' }
+             descarga:'AFAAR - Manual completo (coordinacion).pdf', tam:'1,6 MB' }
 };
 
 let manualFiltro = '';

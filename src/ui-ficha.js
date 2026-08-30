@@ -16,6 +16,11 @@ let pasoFicha = 'paciente';
    leia esos campos. Ver procedimientosFacturables() en core.js. */
 let cxLista = [];
 
+/* Adonde volver despues de ir a completar un faltante de un paso anterior.
+   Sin esto, el usuario iba a completar el dato y quedaba varado tres pasos
+   atras, teniendo que rehacer el camino a mano. */
+let pasoDeVuelta = null;
+
 const PASOS_FICHA = [
   { k:'paciente',     ico:'paciente',   t:'Paciente',     sub:'Identificación y procedimiento' },
   { k:'preanestesia', ico:'valoracion', t:'Preanestesia', sub:'Valoración y plan' },
@@ -879,7 +884,7 @@ function pintarFicha(){
       '" data-paso="'+s.k+'"'+(trabado ? ' data-trabado="1"' : '')+
       ' title="'+esc(trabado
         ? s.t+' — '+motivoPasoCerrado(f, s.k)
-        : s.t+' — '+ROTULO_ESTADO[est])+'">'+
+        : s.t+' — '+ROTULO_ESTADO[est]+resumenFaltaPaso(f, s.k))+'">'+
       '<span class="dot">'+(est==='ok' ? ico('check') : est==='alerta' ? ico('alerta') : ico(s.ico))+'</span>'+
       '<span class="lbl">'+esc(s.t)+'</span>'+
       '<span class="est '+est+'">'+esc(ROTULO_ESTADO[est])+'</span>'+
@@ -909,7 +914,8 @@ function pintarFicha(){
      en cuanto el acto queda desbloqueado, que es cuando sirve. */
   (soloActo ? bannerFichaAjena(f)
             : '<div id="fiFaltantesBox">'+
-              (actoDesbloqueado(f) ? bannerFaltantes(f) : '')+'</div>' +
+              (actoDesbloqueado(f) ? bannerFaltantes(f, pasoFicha) : '')+'</div>' +
+              htmlVolverDeFaltante()+
               bannerSeccion(guardada || f))+
 
   /* «Tomar acto anestésico» vive FUERA del cuerpo del paso, a propósito.
@@ -1000,6 +1006,10 @@ function pintarFicha(){
   if(!miSeccion || !enFoco) cuerpo.classList.add('atenuado');
 
   cablearFaltantes();
+  if($('#fiVolverBtn')) $('#fiVolverBtn').onclick = () => {
+    const k = pasoDeVuelta; pasoDeVuelta = null;
+    if(k) irAPaso(k);
+  };
   /* El cartel se recalcula con lo que hay EN PANTALLA, no con lo ultimo
      guardado: apenas se escribe la conclusion de aptitud deja de figurar
      como faltante, sin guardar y sin cambiar de paso. */
@@ -1046,12 +1056,24 @@ function fichaEnPantalla(){
   return c;
 }
 
+/* La barra de vuelta: aparece SOLO cuando se llego a este paso tocando un
+   faltante desde otro. Dice de donde se vino y ofrece volver. */
+function htmlVolverDeFaltante(){
+  if(!pasoDeVuelta || pasoDeVuelta === pasoFicha) return '';
+  const p = PASOS_FICHA.find(x => x.k === pasoDeVuelta);
+  if(!p) return '';
+  return '<div class="aviso info no-print" id="fiVolverFalta">'+ico('atras')+
+    '<div><b>Viniste desde el paso '+esc(p.t)+' a completar esto.</b><br>'+
+    '<button type="button" class="btn ghost chico mt8" id="fiVolverBtn">'+ico('atras')+
+      ' Volver a '+esc(p.t)+'</button></div></div>';
+}
+
 function refrescarFaltantes(){
   const caja = $('#fiFaltantesBox');
   if(!caja) return;
   const f = fichaEnPantalla();
   if(!actoDesbloqueado(f)){ caja.innerHTML = ''; return; }
-  caja.innerHTML = bannerFaltantes(f);
+  caja.innerHTML = bannerFaltantes(f, pasoFicha);
   cablearFaltantes();
   pintarSemaforoPasos(f);
 }
@@ -1066,6 +1088,10 @@ function pintarSemaforoPasos(f){
     b.classList.add(e);
     const et = b.querySelector('.est');
     if(et){ et.className = 'est ' + e; et.textContent = ROTULO_ESTADO[e] || ''; }
+    if(!b.dataset.trabado){
+      const nom = (PASOS_FICHA.find(x => x.k === k) || {}).t || k;
+      b.title = nom + ' — ' + (ROTULO_ESTADO[e] || '') + resumenFaltaPaso(f, k);
+    }
     const dot = b.querySelector('.dot');
     const paso = PASOS_FICHA.find(x => x.k === k);
     if(dot && paso) dot.innerHTML = e === 'ok' ? ico('check')
@@ -1081,7 +1107,7 @@ function cablearFaltantes(){
     if(paso === 'hon') return abrirHonorarios(fichaActual);
 
     if(sol) solapaActo = sol;                 /* solapa del acto anestésico */
-    if(paso !== pasoFicha) irAPaso(paso);
+    if(paso !== pasoFicha){ pasoDeVuelta = pasoFicha; irAPaso(paso); }
     else guardarPasoActual();
     if(sol) pintarPasoAnestesia(fichaActual);
 
@@ -1211,6 +1237,16 @@ function avanzarPaso(){
   const avisoConsent = (pasoFicha === 'preanestesia' && mio && !consentimientoCompleto(f))
     ? 'Falta el consentimiento informado (punto 15). Sin él no vas a poder firmar la ficha.'
     : '';
+  /* Lo que falta del paso que se está DEJANDO se dice acá, que es el momento
+     en que corresponde decirlo: la persona ya trabajó en él y decide si lo
+     completa o sigue. En el paso siguiente lo va a seguir viendo, pero como
+     lista de botones que llevan a completarlo. */
+  const pendientes = faltantesDelPaso(f, pasoFicha);
+  /* El nombre del paso se toma AHORA. El aviso sale con retardo, y para
+     entonces irAPaso() ya movio pasoFicha al siguiente: leerlo dentro del
+     setTimeout hacia que el cartel dijera «salis de Preanestesia» cuando en
+     realidad se estaba saliendo de Paciente. */
+  const nombrePasoQueDeja = (PASOS_FICHA.find(x => x.k === pasoFicha) || {}).t || '';
   if(mio && !(f.firma || {}).firmado){
     guardarFicha(true, true);                        /* silencioso, sin repintar */
     toast(({ paciente:     'Datos del paciente y del procedimiento guardados.',
@@ -1218,8 +1254,35 @@ function avanzarPaso(){
              anestesia:    'Acto anestésico guardado.',
              recuperacion: 'Recuperación guardada.' })[pasoFicha] || 'Guardado.', 'ok');
   }
-  if(avisoConsent) setTimeout(() => toast(avisoConsent, 'warn'), 900);
+  if(mio && pendientes.length){
+    const crit = pendientes.filter(x => x.critico);
+    const lista = (crit.length ? crit : pendientes).map(x => x.t).join(', ');
+    setTimeout(() => toast('Salís de «'+nombrePasoQueDeja+'» sin '+lista+
+      '. Lo vas a ver arriba, en el paso siguiente, para completarlo cuando quieras.',
+      crit.length ? 'warn' : 'info'), 700);
+  }
+  if(avisoConsent) setTimeout(() => toast(avisoConsent, 'warn'), pendientes.length ? 1500 : 900);
+  /* Avanzar por el recorrido borra la vuelta pendiente: el usuario dejó de
+     estar «yendo a completar algo» y volvió a caminar hacia adelante. */
+  pasoDeVuelta = null;
   irAPaso(k);
+}
+
+/* Que le falta a un paso, en una linea, para el globito de la barra de pasos.
+   El rotulo «FALTA» en rojo decia que algo faltaba pero no que: habia que
+   entrar al paso a buscarlo. */
+function resumenFaltaPaso(f, paso){
+  const l = faltantesDelPaso(f, paso);
+  if(!l.length) return '';
+  const crit = l.filter(x => x.critico);
+  const m = (crit.length ? crit : l).map(x => x.t);
+  return '\nFalta: ' + m.slice(0,6).join(', ') +
+    (m.length > 6 ? ' y ' + (m.length - 6) + ' más' : '') + '.';
+}
+
+/* Lo que le falta a UN paso, para poder decirlo al salir de él */
+function faltantesDelPaso(f, paso){
+  return faltantesFicha(f).filter(x => x.s === paso);
 }
 
 /* =========================================================================
@@ -1993,21 +2056,34 @@ function htmlPasoRecuperacion(f){
     '<div id="aldOut"></div>'+
   '</div>'+
 
-  '<div class="card"><h3>'+ico('gota')+'Dolor y náuseas</h3>'+
-    '<div class="campo"><label>Dolor — escala visual analógica (0 a 10)</label>'+
+  /* Dolor y nauseas estaban en la misma tarjeta y no son lo mismo: el dolor
+     es lo que gobierna la analgesia postoperatoria y las nauseas son un
+     efecto adverso aparte. Juntas, poner «nauseas: no» se leia como si con
+     eso el punto quedara cerrado y no hubiera nada mas que indicar.
+     Ahora son dos tarjetas, y la del dolor desemboca en la de analgesia. */
+  '<div class="card"><h3>'+ico('gota')+'Dolor</h3>'+
+    '<div class="campo"><label>Escala visual analógica (0 a 10)</label>'+
       '<div class="eva">'+
         '<input type="range" id="reEva" min="0" max="10" step="1" value="'+esc(r.eva || 0)+'">'+
         '<output id="reEvaOut">'+esc(r.eva || 0)+'</output>'+
       '</div>'+
       '<div id="reEvaTxt"></div></div>'+
+    campoTxt('reRescate','Analgesia de rescate administrada en la URPA', r.rescate,
+      false)+
+    '<div class="ayuda">Lo que se dio <b>acá</b>, en recuperación. El esquema que se lleva el '+
+      'paciente se indica más abajo, en <b>Analgesia postoperatoria</b>.</div>'+
+  '</div>'+
+
+  '<div class="card"><h3>'+ico('estomago')+'Náuseas y vómitos</h3>'+
     '<div class="grid c2">'+
-      '<div class="campo"><label>Náuseas / vómitos</label>'+
+      '<div class="campo"><label>¿Presentó náuseas o vómitos?</label>'+
         '<div class="seg" id="reNauseas">'+
           [['no','No'],['si','Sí']].map(o => '<button type="button" data-v="'+o[0]+'"'+
             ((r.nauseas||'no')===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join('')+
         '</div></div>'+
-      campoTxt('reRescate','Analgesia / antiemético de rescate', r.rescate)+
+      campoTxt('reAntiemetico','Antiemético de rescate administrado', r.antiemetico)+
     '</div>'+
+    '<div id="reNauseasTxt"></div>'+
   '</div>'+
 
   '<div class="card"><h3>'+ico('hospital')+'Destino</h3>'+
@@ -2111,6 +2187,29 @@ function cablearPasoRecuperacion(f){
   });
   recalc();
 
+  /* Nauseas: si las tuvo, hay que decir que se hace. Y si el Apfel del punto 9
+     era alto, decirlo tambien cuando NO las tuvo sirve: confirma que la
+     profilaxis funciono, que es lo que despues explica por que se indicó. */
+  const pintarNauseas = () => {
+    const caja = $('#reNauseasTxt'); if(!caja) return;
+    const b = $('#reNauseas button.on');
+    const si = b && b.dataset.v === 'si';
+    const apv = ((f.v||{}).scores||{}).apfel || {};
+    const ap = calcApfel(apv);
+    caja.innerHTML = si
+      ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Presentó náuseas o vómitos.</b> '+
+        'Dejá asentado el antiemético que se dio y, si el paciente se va con opioides, revisá el '+
+        'esquema de abajo: es el momento de agregar un antiemético pautado a la indicación de '+
+        'alta.</div></div>'
+      : (ap.n >= 3
+        ? '<div class="aviso ok mt8">'+ico('check')+'<div><b>Sin náuseas, con Apfel '+ap.n+'/4 '+
+          '(riesgo alto).</b> La profilaxis del punto 13 cumplió. Si el paciente sigue con opioides '+
+          'en sala, conviene continuarla.</div></div>'
+        : '');
+  };
+  $$('#reNauseas button').forEach(b => b.addEventListener('click', () => setTimeout(pintarNauseas, 0)));
+  pintarNauseas();
+
   const eva = $('#reEva');
   const pintarEva = () => {
     const v = Number(eva.value);
@@ -2192,6 +2291,7 @@ function leerPasoRecuperacion(){
     aldrete, aldreteTotal: completo ? Object.values(aldrete).reduce((a,b)=>a+b,0) : 0,
     aldreteCompleto: completo,
     eva: val('reEva'), nauseas: seg('reNauseas'), rescate: val('reRescate'),
+    antiemetico: val('reAntiemetico'),
     destino: seg('reDestino'), estado: val('reEstado'), observaciones: val('reObs'),
     /* La analgesia postoperatoria se indica acá, después del destino */
     analgesia: leerChks('reAnalgesia'),
@@ -2220,7 +2320,13 @@ function htmlPasoFirma(f){
   const trabas = pasosPreviosPendientes(f);
   const disp = DISPOSITIVOS_FLUJO.find(d => d.k === a.dispositivo);
   const alertas = alertasVitales(a.controles || []);
-  const analgesia = (pl.analgesia || []).length || pl.analgesiaDetalle ? 'Planificada' : 'Sin planificar';
+  /* La analgesia se indica en Recuperacion, no en el plan prequirurgico. Este
+     resumen seguia mirando f.plan y por eso decia «Sin planificar» siempre,
+     aunque estuviera cargada. Mira los dos lugares: las fichas anteriores a
+     la mudanza la tienen en el plan. */
+  const hayAnalgesia = (r.analgesia || []).length || r.analgesiaDetalle ||
+                       (pl.analgesia || []).length || pl.analgesiaDetalle;
+  const analgesia = hayAnalgesia ? 'Indicada' : 'Sin indicar';
 
   const linea = (l, valor, cls) =>
     '<div class="res-fila"><span>'+esc(l)+'</span><b'+(cls?' class="'+cls+'"':'')+'>'+valor+'</b></div>';
@@ -2275,7 +2381,7 @@ function htmlPasoFirma(f){
       linea('Eventos adversos', eventos.length
         ? '<span class="danger">'+eventos.length+' evento'+(eventos.length===1?'':'s')+'</span>'
         : '<span class="ok">Sin eventos</span>')+
-      linea('Analgesia postoperatoria', '<span class="'+(analgesia==='Planificada'?'ok':'warn')+'">'+
+      linea('Analgesia postoperatoria', '<span class="'+(hayAnalgesia?'ok':'warn')+'">'+
         analgesia+'</span>')+
       linea('Aldrete al egreso', r.aldreteCompleto ? r.aldreteTotal+' / 10' : '—',
         r.aldreteCompleto && r.aldreteTotal >= 9 ? 'ok' : 'warn')+

@@ -120,6 +120,46 @@ def main():
     kb = os.path.getsize(out) / 1024.0
     print('OK  index.html  %.0f KB  (build %s, %s)' % (kb, version, stamp))
 
+    regenerar_manual_word()
+
+
+def regenerar_manual_word():
+    """Rehace los DOS manuales en Word del escritorio si el de la app cambio.
+
+    El manual vive en src/data-manual.js y se lee dentro de la aplicacion. La
+    copia en Word que se usa para imprimir y para circular por mail quedaba
+    desfasada a los pocos dias, y un manual desactualizado es peor que no
+    tenerlo: dice como funcionaba la app hace un mes y nadie sabe cual de los
+    dos vale.
+
+    Se rehace SOLO si data-manual.js es mas nuevo que el .docx, para no
+    reescribir un archivo que puede estar abierto en Word sin motivo.
+    """
+    fuente = os.path.join(SRC, 'data-manual.js')
+    carpeta = os.path.expanduser('~/Desktop/AFAAR')
+    # Son DOS: el de los socios y el completo de coordinacion. Ver SALIDAS en
+    # manual-a-word.py: los capitulos con coord:true no van en el de socios.
+    docs = [os.path.join(carpeta, 'AFAAR - Manual de uso (socios).docx'),
+            os.path.join(carpeta, 'AFAAR - Manual de uso, alcances y capacidad (ampliado).docx')]
+    script = os.path.join(BASE, 'manual-a-word.py')
+    if not (os.path.exists(fuente) and os.path.exists(script)):
+        return
+    if not os.path.isdir(carpeta):
+        return                      # otra computadora, sin la carpeta del escritorio
+    if all(os.path.exists(d) and os.path.getmtime(d) >= os.path.getmtime(fuente)
+           for d in docs):
+        return                      # los dos Word ya estan al dia
+    try:
+        import subprocess
+        r = subprocess.run([sys.executable, script], capture_output=True, text=True)
+        for l in (r.stdout or '').strip().splitlines():
+            print('    ' + l)
+        if r.returncode != 0:
+            print('    !! el manual en Word no se pudo regenerar:')
+            print('       ' + (r.stderr or '').strip().splitlines()[-1:][0] if r.stderr else '')
+    except Exception as e:
+        print('    !! el manual en Word no se pudo regenerar: %s' % e)
+
 
 if __name__ == '__main__':
     main()
