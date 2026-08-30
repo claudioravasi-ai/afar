@@ -1,0 +1,17 @@
+# Basura del sistema
+.DS_Store
+*.log
+
+# Respaldos con datos de pacientes: nunca al repositorio
+respaldos/
+afar-respaldo-*.json
+
+# Configuración local de herramientas
+.claude/
+
+# Archivos personales que viven en la carpeta pero no son del proyecto
+*.webarchive
+AFAAR by Yanina Andino.pdf
+
+# Bloqueos temporales de Word y Excel
+~$*
