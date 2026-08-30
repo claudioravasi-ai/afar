@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.30.1853";</script>
+<script>window.AFAR_BUILD = "2026.08.30.2043";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -10802,12 +10802,20 @@ function menuAjustes(){
   const nMsg = msg.noLeidos + msg.vencidos;
   const pend = esCoordinador() ? pendientes().length : 0;
   const filas = [
-    ['stats',       'stats',  'Estadísticas',       ''],
-    ['facturacion', 'dinero', 'Facturación',        ''],
-    ['guias',       'guias',  'Guías y protocolos', ''],
-    ['mensajes',    'correo', 'Mensajes',           nMsg ? String(nMsg) : ''],
-    ['coordinador', 'escudo', 'Coordinación',       pend ? String(pend) : ''],
-    ['contable',    'dinero', 'Portal contable',    '']
+    ['stats',       'stats',   'Estadísticas',       ''],
+    ['facturacion', 'dinero',  'Facturación',        ''],
+    ['guias',       'guias',   'Guías y protocolos', ''],
+    /* El manual TIENE que estar acá. Es la única puerta que tiene en el
+       teléfono: no está en la barra inferior (nav:false) y el lateral, que es
+       donde vivía, queda en display:none por debajo de 900 px. Sin este
+       renglón el manual era inalcanzable en el móvil para los tres roles
+       —socio, coordinación y contable—, que es como estuvo hasta el
+       30-08-2026. Lo ve todo el mundo, incluido el contable: le explica su
+       propio portal y por qué no ve datos clínicos. */
+    ['manual',      'archivo', 'Manual de uso',      ''],
+    ['mensajes',    'correo',  'Mensajes',           nMsg ? String(nMsg) : ''],
+    ['coordinador', 'escudo',  'Coordinación',       pend ? String(pend) : ''],
+    ['contable',    'dinero',  'Portal contable',    '']
   ].filter(f => puedeVerVista(f[0]));
   if(!filas.length) return '';
   return '<div class="filas-estado">'+ filas.map(f =>
