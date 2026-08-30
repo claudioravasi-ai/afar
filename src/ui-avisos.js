@@ -332,6 +332,21 @@ function calcularAvisos(){
       });
     });
 
+  /* --- 2 bis. Valoraciones mías empezadas y sin concluir ---
+     Mientras no estén cerradas, ningún colega puede tomar el acto: la ficha
+     queda bloqueando a otro sin que su autor se entere. */
+  fichas.filter(f => f.ownerUid === SESION.uid && !(f.firma||{}).firmado &&
+                     hayValoracion(f) && !valoracionConcluida(f))
+    .forEach(f => {
+      const p = DB.pacientes[f.pacienteId] || {};
+      av.push({ nivel:'warn', icono:'valoracion', orden:6,
+        titulo:'Valoración sin concluir — ' + (p.apellido ? p.apellido+', '+p.nombre : 'sin paciente'),
+        detalle:'Falta ' + faltaDeLaValoracion(f) + '.' +
+                '\nHasta que esté completa, ningún colega puede tomar el acto de esta ficha.',
+        fichaId:f.id,
+        solapa: estadoPaso(f,'paciente') !== 'ok' ? 'paciente' : 'preanestesia' });
+    });
+
   /* --- 3. Cirugías ya realizadas sin registro del acto --- */
   fichas.filter(f => { const cx = fechaCirugiaDe(f);
       return cx && cx < hoy && !(f.acto || {}).finAnestesia; })

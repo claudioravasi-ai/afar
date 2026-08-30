@@ -200,7 +200,12 @@ function vistaFichas(){
         '</span></div>'+
       '<div class="der">'+
         (mio || actor ? '' : '<span class="tag info">de colega</span> ')+
-        (actoLibre(f) && !mio ? '<span class="tag warn">libre</span> ' : '')+
+        (actoLibre(f) && !mio
+          ? (valoracionConcluida(f)
+              ? '<span class="tag warn">libre</span> '
+              : '<span class="tag danger" title="No se puede tomar el acto: falta '+
+                esc(faltaDeLaValoracion(f))+'">valoración sin concluir</span> ')
+          : '')+
         (valoracionVencida(f) ? '<span class="tag danger" title="Más de '+
           DIAS_VIGENCIA_VALORACION+' días entre la valoración y la cirugía">valoración vencida</span> ' : '')+
         etiquetaEstadoFicha(f)+
@@ -599,8 +604,6 @@ function pedirFichaDeOrigen(f){
         '<span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);'+
         'color:var(--texto-3)">'+ico('buscar')+'</span></div></div>')+
     '<div class="hon-pend-lista" id="svLista2">'+ filas() +'</div>'+
-    '<label class="chk sel" id="svCopiar" style="width:100%;margin-top:12px">'+
-      '<input type="checkbox" checked>Traer esa valoración a esta ficha</label>'+
     '<p class="mini mt8">El <b>consentimiento informado no se copia</b>: es de aquel procedimiento '+
       'y de aquel riesgo. Hay que firmar el del punto 15 para esta intervención.</p>',
     '<button class="btn ghost" id="svVolver">Volver</button>', '640px');
@@ -622,8 +625,7 @@ function pedirFichaDeOrigen(f){
 
 function elegirOrigen(f, id){
   const g = DB.fichas[id];
-  const cx = $('#svCopiar') ? $('#svCopiar').querySelector('input') : null;
-  const copiar = cx ? cx.checked : true;
+  const copiar = true;     /* elegir la intervencion ES importarla */
   /* Sin paciente propio, el de la ficha elegida es el de ésta: es la misma
      persona, por definición de reintervención. */
   const trajoPaciente = !f.pacienteId && g && g.pacienteId;
@@ -849,6 +851,12 @@ function pintarFicha(){
       '<p>'+(p && p.dni ? 'DNI/HC '+esc(p.hc || p.dni)+' · ' : '')+
         (p ? (edadDe(p.fechaNac, f.fecha) !== null ? edadDe(p.fechaNac, f.fecha)+' años · ' : '') : '')+
         esc(nombreInstitucion(f.institucion).split('"')[0].trim() || 'sin institución')+'</p>'+
+      /* Cuando el paciente tiene mas de una, decir cual es esta y cuando fue
+         la anterior: es lo primero que uno quiere saber al abrirla. */
+      (rotuloIntervencion(f)
+        ? '<p class="mini" style="opacity:.75;margin-top:2px">'+ico('ficha')
+            .replace('<svg','<svg style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"')+
+          esc(rotuloIntervencion(f))+'</p>' : '')+
     '</div>'+
     etiquetaEstadoFicha(f)+
   '</div>'+
@@ -1660,6 +1668,21 @@ function tomarActo(f){
   const deColega = g && !esAutorFicha(g);
   const otro = actorFicha(g || f);
   const pisando = otro && SESION && otro !== SESION.uid;
+
+  /* La valoración de un colega tiene que estar CONCLUIDA para poder anestesiar
+     sobre ella. Media valoración no sostiene un acto: quien anestesia se apoya
+     en el ASA, en la vía aérea, en el plan y en el consentimiento.
+     No aplica a la ficha propia que nace por el acto —ahí la valoración se
+     resuelve después, y lo que la exige es la firma—. */
+  if(g && deColega && hayValoracion(g) && !valoracionConcluida(g))
+    return confirmar('La valoración todavía no está concluida',
+      'La hizo <b>'+esc(autorFicha(g))+'</b> y le falta <b>'+esc(faltaDeLaValoracion(g))+'</b>.'+
+      '<br><br>No se puede tomar el acto sobre una valoración a medias: lo que se firma después '+
+      'es una historia clínica incompleta. Avisale para que la termine, o abrí una consulta '+
+      'interna dejando constancia.',
+      () => componerHilo(g.ownerUid, 'Valoración sin concluir — ' +
+        ((DB.pacientes[g.pacienteId]||{}).apellido || 'paciente')),
+      'Avisarle');
 
   confirmar('Tomar el acto anestésico',
     '<b>'+esc((USUARIO ? USUARIO.apellido+', '+USUARIO.nombre : 'Vos'))+'</b> queda registrado como '+

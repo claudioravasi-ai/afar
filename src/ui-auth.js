@@ -23,7 +23,11 @@ function htmlIngresar(){
   '<div class="campo"><label>Contraseña</label>'+
     '<input type="password" id="inClave" autocomplete="current-password" placeholder="••••••••"></div>'+
   '<button class="btn pri full grande" id="btnIngresar">'+ico('candado')+' Ingresar al portal</button>'+
-  '<p class="mini txt-c mt14" style="line-height:1.6">El ingreso de cada socio debe estar aprobado por el anestesiólogo coordinador de la AFAAR.</p>';
+  '<p class="mini txt-c mt14" style="line-height:1.6">El ingreso de cada socio debe estar aprobado por el anestesiólogo coordinador de la AFAAR.</p>'+
+  /* La version, al pie y en chico: al abrir la app se ve de un vistazo si el
+     navegador esta sirviendo la ultima o una copia vieja de su cache. */
+  '<p class="mini txt-c" style="opacity:.55;margin-top:6px">Versión '+
+    esc(window.AFAR_BUILD || '—')+'</p>';
 }
 
 /* ------------------------------------------------------------ Registro */

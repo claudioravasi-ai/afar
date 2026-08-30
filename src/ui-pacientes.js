@@ -805,7 +805,11 @@ function abrirPaciente(id){
       '<div class="item" data-ficha="'+f.id+'">'+
         '<div class="avatar" style="background:'+(esNoProgramado(caracterActo(f))?'var(--danger-bg);color:var(--danger)':'var(--aqua-200);color:var(--aqua-600)')+'">'+
           ico('ficha')+'</div>'+
-        '<div class="txt"><b>'+esc(f.cirugia||'Sin cirugía cargada')+'</b>'+
+        '<div class="txt"><b>'+
+          (fichas.length > 1
+            ? '<span class="tag aqua" style="margin-right:6px">'+
+              esc(ordinalFem(numeroDeIntervencion(f)))+'</span>' : '')+
+          esc(f.cirugia||'Sin cirugía cargada')+'</b>'+
           '<span>'+(fechaCirugiaDe(f)
             ? 'cirugía '+fFecha(fechaCirugiaDe(f))
             : 'valoración '+fFecha(fechaValoracionDe(f)))+

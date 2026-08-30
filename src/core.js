@@ -1859,9 +1859,26 @@ function fichasValoradasDe(pacienteId, exceptoId){
 
    El criterio es el del propio semaforo, no uno paralelo: si la ficha de
    origen no se podria haber firmado, tampoco sirve para sostener otra. */
-function valoracionImportable(f){
+function valoracionImportable(f){ return valoracionConcluida(f); }
+
+/* Una valoracion esta CONCLUIDA cuando sus dos pasos estan en verde: paciente,
+   cirugia, institucion y diagnostico, mas ASA, conclusion de aptitud, plan
+   anestesico y consentimiento.
+
+   Es el mismo criterio para las dos cosas que dependen de el: importarla en
+   una reintervencion, y tomar el acto de una ficha ajena. Una valoracion a
+   medias no sostiene un acto anestesico: quien anestesia se apoya en ella. */
+function valoracionConcluida(f){
   if(!f || !f.pacienteId) return false;
   return estadoPaso(f, 'paciente') === 'ok' && estadoPaso(f, 'preanestesia') === 'ok';
+}
+
+/* Que le falta, en palabras, para poder decirlo en vez de solo bloquear */
+function faltaDeLaValoracion(f){
+  const l = [];
+  if(estadoPaso(f, 'paciente') !== 'ok')     l.push('los datos del paciente y de la cirugía');
+  if(estadoPaso(f, 'preanestesia') !== 'ok') l.push('la valoración prequirúrgica');
+  return l.join(' y ');
 }
 
 /* Trae la valoracion de otra ficha del mismo paciente.
@@ -1889,6 +1906,50 @@ function copiarValoracionDesde(destino, origen){
     ? destino.v.riesgo.fundamento
     : (destino.v.riesgo.fundamento ? destino.v.riesgo.fundamento + '\n' + traida : traida);
   return true;
+}
+
+/* =========================================================================
+   LAS INTERVENCIONES DE UN PACIENTE, NUMERADAS
+   -------------------------------------------------------------------------
+   Cada intervencion es una ficha aparte, con su valoracion, su acto y su
+   consentimiento. No se anidan ni se numeran solas: se ordenan por fecha y
+   nada mas, y eso obliga a mirar fechas para saber cual vino primero.
+
+   Estas funciones ponen el numero. Es un dato derivado, no guardado: si una
+   ficha se borra o se corrige la fecha, la numeracion se recalcula sola y no
+   queda un contador viejo mintiendo.
+   ========================================================================= */
+function intervencionesDe(pacienteId){
+  if(!pacienteId) return [];
+  return lista('fichas').filter(x => x.pacienteId === pacienteId)
+    .sort((a, b) => (fechaDeFicha(a) || '').localeCompare(fechaDeFicha(b) || ''));
+}
+function numeroDeIntervencion(f){
+  if(!f || !f.pacienteId) return 0;
+  const l = intervencionesDe(f.pacienteId);
+  const i = l.findIndex(x => x.id === f.id);
+  return i < 0 ? l.length + 1 : i + 1;
+}
+function intervencionAnterior(f){
+  if(!f || !f.pacienteId) return null;
+  const l = intervencionesDe(f.pacienteId);
+  const i = l.findIndex(x => x.id === f.id);
+  return i > 0 ? l[i - 1] : null;
+}
+/* «1.ª», «2.ª», «3.ª»… en femenino, que es como se dice intervencion */
+function ordinalFem(n){ return n + '.ª'; }
+
+/* El rotulo listo para pintar, o '' si el paciente tiene una sola.
+   Con una sola intervencion decir «1.ª intervencion» no informa nada. */
+function rotuloIntervencion(f){
+  if(!f || !f.pacienteId) return '';
+  const total = intervencionesDe(f.pacienteId).length;
+  if(total < 2) return '';
+  const n = numeroDeIntervencion(f);
+  const ant = intervencionAnterior(f);
+  const fe = ant ? fechaDeFicha(ant) : '';
+  return ordinalFem(n) + ' intervención de ' + total +
+         (fe ? ' · la anterior fue el ' + fFecha(fe) : '');
 }
 
 /* =========================================================================

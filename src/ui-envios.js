@@ -221,14 +221,15 @@ function htmlValoracionExterna(f){
           const hayOrigen = s.fichaOrigen && DB.fichas[s.fichaOrigen];
           const listoParaFirmar = !!(f.cirugia && f.diagnostico);
           const yaFirmado = consentimientoCompleto(f);
+          /* Ya no hay «volver a traer»: la valoracion se importa al elegir la
+             intervencion, en el paso anterior. Repetir el boton invita a
+             pisar lo que uno acaba de corregir a mano. */
           return '<div class="btn-row mt8">'+
             (yaFirmado ? '' :
               '<button class="btn pri chico" id="svConsent"'+(listoParaFirmar?'':' disabled')+'>'+
                 ico('firma')+' Completar y firmar el consentimiento de esta intervención</button>')+
             (hayOrigen
-              ? '<button class="btn ghost chico" id="svTraer">'+ico('valoracion')+
-                  ' Volver a traer la valoración</button>'+
-                '<button class="btn ghost chico" id="svVerOrigen">'+ico('ojo')+
+              ? '<button class="btn ghost chico" id="svVerOrigen">'+ico('ojo')+
                   ' Ver aquella ficha</button>'
               : '')+
           '</div>'+
@@ -274,22 +275,7 @@ function htmlValoracionExterna(f){
 
 function cablearValoracionExterna(f){
   const s = sinValoracion(f) || {};
-  if($('#svTraer')) $('#svTraer').onclick = () => {
-    const g = DB.fichas[s.fichaOrigen];
-    if(!g) return toast('Aquella ficha ya no está disponible.', 'err');
-    confirmar('Traer la valoración',
-      'Se copian antecedentes, examen, laboratorio, escalas y plan de la ficha del '+
-      esc(fFecha(fechaDeFicha(g) || g.fecha))+'. Lo que ya tengas cargado en este paso se '+
-      'reemplaza. El consentimiento no se toca.',
-      () => {
-        copiarValoracionDesde(f, g);
-        guardarFicha(true, true);
-        auditar('valoracion-copiada', 'de la ficha ' + s.fichaOrigen + ' a ' + f.id);
-        pintarFicha();
-        toast('Valoración traída. Revisala y firmá el consentimiento de esta intervención.', 'ok');
-      }, 'Traer');
-  };
-  if($('#svVerOrigen')) $('#svVerOrigen').onclick = () => abrirFicha(s.fichaOrigen);
+  if($('#svVerOrigen')) $('#svVerOrigen').onclick = () => verFichaSoloLectura(s.fichaOrigen);
   /* Atajo directo al punto 15, sin vueltas: abre el consentimiento ya
      desplegado y con el paciente y la cirugía de esta ficha adentro. */
   if($('#svConsent')) $('#svConsent').onclick = () => abrirConsentimientoModal(f);
@@ -316,6 +302,36 @@ function refrescarValoracionExterna(){
   cablearValoracionExterna(f);
   if(m && my) m.scrollTop = my;
   if(y) window.scrollTo({ top:y, behavior:'auto' });
+}
+
+/* =========================================================================
+   VER UNA FICHA ANTERIOR SIN SALIR DE LA QUE SE ESTA CARGANDO
+   -------------------------------------------------------------------------
+   Antes «Ver aquella ficha» navegaba: uno se iba de la ficha que estaba
+   cargando para leer otra, y volver era su problema. Ahora se abre el
+   documento en una ventana, de solo lectura, y se cierra.
+
+   Va dentro de un iframe a proposito: el documento trae su propio CSS de
+   impresion -reglas sobre body, tablas y tipografia- que fuera del marco se
+   derramaria sobre la aplicacion entera.
+   ========================================================================= */
+function verFichaSoloLectura(fichaId){
+  const g = DB.fichas[fichaId];
+  if(!g) return toast('Aquella ficha ya no está disponible.', 'err');
+  const p = DB.pacientes[g.pacienteId] || {};
+  abrirModal('Ficha anterior — sólo lectura',
+    '<div class="aviso info">'+ico('candado')+'<div><b>'+
+      esc((p.apellido||'—')+', '+(p.nombre||''))+'</b> · '+esc(g.cirugia || 'sin cirugía')+' · '+
+      esc(fFecha(fechaDeFicha(g) || g.fecha))+'<br>'+
+      'Se muestra tal como quedó. Nada de lo que veas acá se puede editar desde esta ventana.'+
+    '</div></div>'+
+    '<iframe id="verFichaDoc" title="Ficha anterior" style="width:100%;height:60vh;border:1px '+
+      'solid var(--borde);border-radius:10px;background:#fff"></iframe>',
+    '<button class="btn pri" data-cerrar>Cerrar</button>', '900px');
+  const marco = $('#verFichaDoc');
+  if(marco) marco.srcdoc = '<!DOCTYPE html><html lang="es-AR"><head><meta charset="utf-8">'+
+    '<style>'+CSS_DOC+'body{padding:16px}</style></head><body>'+
+    documentoFicha(g, {})+'</body></html>';
 }
 
 function quitarParteQuirurgico(f, id){
