@@ -111,7 +111,23 @@ function pintarPasoAnestesia(f){
      ventana, sin abrir nada ajeno. */
   const tarjetaVal = deudaValoracion(f) ? htmlValoracionExterna(f) : '';
 
-  $('#fiCuerpo').innerHTML = tarjetaVal +
+  /* Mientras el punto 15 esté pendiente, el acto lo recuerda. Es el paso donde
+     se pasa el tiempo, y el que no lo vea acá se entera recién en Firmar, con
+     el paciente ya en recuperación. El botón abre el consentimiento en su
+     ventana, sin obligar a entrar a la valoración. */
+  const faltaConsent = !consentimientoCompleto(f) && !(f.firma || {}).firmado &&
+                       puedeEditarSeccion(DB.fichas[f.id] || f, 'valoracion');
+  const avisoConsent = !faltaConsent ? '' :
+    '<div class="aviso warn no-print">'+ico('firma')+'<div>'+
+      '<b>Falta el consentimiento informado.</b> Sin él no se puede firmar la ficha, y sin firma '+
+      'no hay registro cerrado.'+
+      (f.cirugia && f.diagnostico
+        ? '<div class="btn-row mt8"><button class="btn pri chico" id="acConsentAhora">'+ico('firma')+
+          ' Completar y firmar el consentimiento</button></div>'
+        : '<br><span class="mini">Cargá antes la cirugía y el diagnóstico en el paso Paciente.</span>')+
+    '</div></div>';
+
+  $('#fiCuerpo').innerHTML = tarjetaVal + avisoConsent +
     '<div class="acto-solapas no-print">'+ SOLAPAS_ACTO.map(s =>
       '<button type="button" class="'+(solapaActo===s[0]?'on':'')+'" data-asolapa="'+s[0]+'">'+
         ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
@@ -135,6 +151,7 @@ function pintarPasoAnestesia(f){
   else { c.innerHTML = htmlActoEventos(f); cablearActoEventos(f); }
 
   if(tarjetaVal) cablearValoracionExterna(f);
+  if($('#acConsentAhora')) $('#acConsentAhora').onclick = () => abrirConsentimientoModal(f);
   if(!sinDueno) cablearAutoguardadoActo();
 }
 

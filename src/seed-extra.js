@@ -673,7 +673,7 @@ function sembrarReintervencionDemo(){
            cuelloMov:'Conservada', dentadura:'Completa, sin piezas flojas' },
       lab:{ hb:'13.2', hto:'39', plaquetas:'244000', creatinina:'0.8', glucemia:'92',
             fecha:diaRel(-6) },
-      ayuno:{ tipo:'Solidos 8 h / liquidos claros 2 h', cumple:'Si' },
+      ayuno:{ tipo:'Líquidos claros', hora:'22:00' },
       scores:{ asa:'II', asaE:false },
       riesgo:{ aptitud:'apto',
         fundamento:'Paciente ASA II, hipotiroidea compensada, sin antecedentes cardiovasculares '+
@@ -681,11 +681,20 @@ function sembrarReintervencionDemo(){
           'parametros. Apta para anestesia general.' ,
         interconsultas:'' }
     },
-    plan:{ tecnica:['General balanceada'], viaAerea:'Tubo endotraqueal',
-      monitoreo:['ECG','Oximetria de pulso','Presion arterial no invasiva','Capnografia'],
-      accesos:'Via periferica 18 G en antebrazo derecho',
-      profilaxisAtb:'Cefazolina 2 g EV en la induccion',
-      ponv:'Dexametasona 4 mg + ondansetron 4 mg', destino:'Sala de recuperacion' },
+    /* Los valores tienen que ser EXACTAMENTE los del catalogo: las casillas se
+       marcan por coincidencia de texto, y una que no coincide se pierde al
+       releer el paso. Ver TECNICAS_ANESTESICAS, DISPOSITIVOS_VA y
+       MONITOREO_ESTANDAR en data-catalogos.js. */
+    plan:{
+      tecnica:['Anestesia general balanceada'],
+      dispositivosVA:['Tubo endotraqueal (laringoscopía directa)'],
+      monitoreoEstandar:['Oximetría de pulso (SpO₂)','ECG continuo',
+                         'Presión arterial no invasiva (PANI)','Capnografía (EtCO₂)','Temperatura'],
+      monitoreoAvanzado:[],
+      accesos:'Vía periférica 18 G en antebrazo derecho',
+      atb:'Cefazolina 2 g EV en la inducción',
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      analgesia:[], destino:'Sala de recuperación' },
     consent:{ quien:'El paciente',
       firmante:'Ledesma, Ana Clara — DNI 27655310',
       items:['Acepta transfusion de hemoderivados si fuera indispensable',

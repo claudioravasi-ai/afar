@@ -401,6 +401,14 @@ function abrirFicha(id, pacienteId){
 function irAPaso(k){
   guardarPasoActual();
   pasoFicha = k;
+  /* Ir a un paso es querer trabajar en él. Si su sección no era la que estaba
+     en foco, se cambia el foco sola: pedir además un clic en «Trabajar en la
+     valoración» era un trámite entre la persona y lo que venía a hacer.
+     Sólo cuando esa sección es suya: la de un colega sigue en sólo lectura,
+     y de eso avisa el otro cartel. */
+  const g = DB.fichas[fichaActual.id] || fichaActual;
+  if(!pasoEnFoco(k) && puedeEditarSeccion(g, seccionDePaso(k)))
+    modoFicha = seccionDePaso(k) === 'acto' ? 'acto' : 'valoracion';
   pintarFicha();
   const m = $('main'); if(m) m.scrollTop = 0;
   window.scrollTo({ top:0, behavior:'auto' });
@@ -919,7 +927,9 @@ function pintarFicha(){
     (pasoVecino(-1) && pasoHabilitado(f, pasoVecino(-1))
       ? '<button class="btn ghost" id="fiAtras">'+ico('atras')+' Anterior</button>'
       : '<span></span>')+
-    (PASO_GUARDA[pasoFicha]
+    /* Un botón de guardar sobre una sección que no se puede tocar no guarda
+       nada: es un botón muerto en el medio de la pantalla. */
+    (PASO_GUARDA[pasoFicha] && puedeEditarSeccion(guardada || f, seccionDePaso(pasoFicha))
       ? '<button class="btn pri grande" id="fiGuardar">'+ico('check')+' Guardar '+
         (pasoFicha === 'preanestesia' ? 'valoración' : 'y cerrar')+'</button>'
       : '<span></span>')+
@@ -1089,6 +1099,11 @@ function avanzarPaso(){
   }
 
   const mio = puedeEditarSeccion(DB.fichas[f.id] || f, seccionDePaso(pasoFicha));
+  /* Salir de la valoración sin el punto 15 no se impide —el acto puede estar
+     empezando— pero se dice, y se dice dónde va a doler: en Firmar. */
+  const avisoConsent = (pasoFicha === 'preanestesia' && mio && !consentimientoCompleto(f))
+    ? 'Falta el consentimiento informado (punto 15). Sin él no vas a poder firmar la ficha.'
+    : '';
   if(mio && !(f.firma || {}).firmado){
     guardarFicha(true, true);                        /* silencioso, sin repintar */
     toast(({ paciente:     'Datos del paciente y del procedimiento guardados.',
@@ -1096,6 +1111,7 @@ function avanzarPaso(){
              anestesia:    'Acto anestésico guardado.',
              recuperacion: 'Recuperación guardada.' })[pasoFicha] || 'Guardado.', 'ok');
   }
+  if(avisoConsent) setTimeout(() => toast(avisoConsent, 'warn'), 900);
   irAPaso(k);
 }
 
