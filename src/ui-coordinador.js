@@ -250,8 +250,18 @@ function seccionCatalogos(c){
         '<div>Falta lo último que se agregó: los <b>envíos a contaduría</b>. Son diecisiete '+
         'ejemplos —valoraciones y fichas anestésicas con su parte quirúrgico adjunto— para que '+
         'el contador vea sus dos bandejas funcionando.</div></div>' : '')+
+    /* La ficha de reintervencion se agrego despues que todo lo demas: en una
+       instalacion que ya tenia la demostracion completa hay que poder pedirla
+       aparte, y hay que decir para que sirve. */
+    (!faltaEquipoDemo() && !faltanEnviosDemo() && faltaReintervencionDemo() && hayDemo()
+      ? '<div class="aviso info" style="margin-bottom:11px">'+ico('info')+
+        '<div>Falta la paciente <b>Ledesma, Ana Clara</b>, con una colecistectomía ya valorada '+
+        'por una colega y con el <b>consentimiento firmado</b>. Es la única valoración completa '+
+        'de la demostración, y es la que permite probar el circuito de <b>reintervención</b>: '+
+        'importar la valoración de una intervención anterior y firmar el consentimiento nuevo.'+
+        '</div></div>' : '')+
     '<div class="btn-row">'+
-      (faltaEquipoDemo() || faltanEnviosDemo()
+      (faltaEquipoDemo() || faltanEnviosDemo() || faltaReintervencionDemo()
         ? '<button class="btn pri" id="coCargarDemo">'+ico('mas')+
           (hayDemo() ? ' Completar la demostración' : ' Cargar datos de demostración')+'</button>' : '')+
       (hayDemo()
