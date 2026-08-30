@@ -186,11 +186,89 @@ function colegasQueIntervinieron(pid){
   return Object.keys(uids);
 }
 
+/* =========================================================================
+   EN QUE ESTADO ESTA ESTE PACIENTE DENTRO DE LA ASOCIACION
+   -------------------------------------------------------------------------
+   La pregunta que se hace el que mira el padron es: «existe, pero por que no
+   me aparece en Fichas > Disponibles». Las respuestas posibles son cuatro y
+   hasta ahora habia que deducirlas:
+
+     SIN FICHA     esta cargado como persona y nada mas. Todavia nadie le
+                   hizo una valoracion.
+     ACTO LIBRE    tiene valoracion de un colega y el acto no lo tomo nadie.
+                   ESTA en Disponibles y se puede tomar.
+     DESIGNADA     el acto ya tiene anestesiologo designado. No esta libre
+                   porque es el trabajo de otro.
+     RESUELTA      la valoracion y el acto ya se hicieron, o la ficha se
+                   firmo y cerro.
+
+   Se dice el ESTADO y el PROFESIONAL, no lo que se le hizo: el diagnostico y
+   la cirugia son historia clinica y siguen cerrados. La excepcion es el acto
+   libre, donde la cirugia ya figura en Disponibles a la vista de todos, asi
+   que nombrarla aca no agrega ninguna exposicion.
+   ========================================================================= */
+function estadoPadronDe(pid){
+  const fichas = lista('fichas').filter(f => f.pacienteId === pid);
+  const libres = [], designadas = [], resueltas = [];
+  fichas.forEach(f => {
+    if((f.firma || {}).firmado || f.actoPorUid || f.actorExterno) resueltas.push(f);
+    else if(actoLibre(f)) libres.push(f);
+    else designadas.push(f);
+  });
+  return { fichas, libres, designadas, resueltas };
+}
+
+function htmlEstadoPadron(e){
+  const n = e.fichas.length;
+  if(!n) return '<div class="aviso warn">'+ico('info')+'<div><b>Está cargado en el padrón pero '+
+    'todavía no tiene ninguna valoración ni acto registrado.</b><br>Por eso no figura en '+
+    '<b>Fichas → Disponibles</b>: ahí sólo aparecen actos anestésicos esperando quién los tome.'+
+    '</div></div>';
+
+  const l = [];
+
+  if(e.libres.length)
+    l.push('<div class="aviso ok">'+ico('jeringa')+'<div><b>'+e.libres.length+
+      (e.libres.length === 1 ? ' acto anestésico libre' : ' actos anestésicos libres')+
+      ', esperando quién lo tome.</b><br>'+
+      e.libres.map(f => '· '+esc(f.cirugia || 'sin cirugía cargada')+
+        ' — valoró '+esc(autorFicha(f))).join('<br>')+
+      '<br><span class="mini">Aparece en <b>Fichas → Disponibles</b>. Si tomás el acto, la '+
+      'valoración del colega se abre entera.</span>'+
+      '<div class="btn-row mt8"><button type="button" class="btn ghost chico" id="ppDisponibles">'+
+      ico('lista')+' Ver en Disponibles</button></div></div></div>');
+
+  if(e.designadas.length)
+    l.push('<div class="aviso info">'+ico('candado')+'<div><b>'+e.designadas.length+
+      (e.designadas.length === 1 ? ' intervención con el acto ya designado'
+                                 : ' intervenciones con el acto ya designado')+'.</b><br>'+
+      e.designadas.map(f => {
+        const a = f.asignadoUid && f.asignadoUid !== 'sinasignar'
+          ? nombreUsuario(f.asignadoUid) : null;
+        return '· valoró '+esc(autorFicha(f))+
+               (a ? ' · anestesia a cargo de '+esc(a) : ' · acto todavía sin designar');
+      }).join('<br>')+
+      '<br><span class="mini"><b>Por eso no figura en Disponibles:</b> ese acto no está libre, '+
+      'es el trabajo de otro colega.</span></div></div>');
+
+  if(e.resueltas.length)
+    l.push('<div class="aviso info">'+ico('check')+'<div><b>'+e.resueltas.length+
+      (e.resueltas.length === 1 ? ' intervención ya realizada' : ' intervenciones ya realizadas')+
+      '.</b><br>'+
+      e.resueltas.map(f => '· valoró '+esc(autorFicha(f))+' · anestesió '+esc(nombreActor(f))+
+        ((f.firma||{}).firmado ? ' · ficha firmada' : '')).join('<br>')+
+      '<br><span class="mini">Valoración y acto ya hechos: no queda nada por tomar.</span>'+
+      '</div></div>');
+
+  return l.join('');
+}
+
 function abrirPacienteDelPadron(id){
   const p = DB.pacientes[id];
   if(!p) return toast('No se encontró el paciente.', 'err');
   const ed = edadDe(p.fechaNac);
   const colegas = colegasQueIntervinieron(id);
+  const estado = estadoPadronDe(id);
 
   const dato = (et, v) => '<div class="res-fila"><span>'+esc(et)+'</span><b>'+
     esc(v || '—')+'</b></div>';
@@ -211,13 +289,13 @@ function abrirPacienteDelPadron(id){
       dato('Localidad', p.localidad)+
     '</div>'+
 
+    htmlEstadoPadron(estado)+
+
     (colegas.length
-      ? '<div class="aviso ok">'+ico('pacientes')+'<div><b>Ya fue atendido en la asociación por '+
-        esc(colegas.map(nombreUsuario).join(', '))+'.</b><br>'+
-        'Si necesitás sus antecedentes antes de atenderlo, podés pedírselos por la mensajería '+
-        'interna.</div></div>'
-      : '<div class="aviso warn">'+ico('info')+'<div>Está cargado en el padrón pero todavía '+
-        'no tiene ninguna intervención registrada.</div></div>')+
+      ? '<div class="ayuda">Intervinieron en este paciente: <b>'+
+        esc(colegas.map(nombreUsuario).join(', '))+'</b>. Si necesitás sus antecedentes antes de '+
+        'atenderlo, podés pedírselos por la mensajería interna con el botón de abajo.</div>'
+      : '')+
 
     '<div class="aviso info">'+ico('valoracion')+'<div><b>Para acceder a su historia, atendelo.</b><br>'+
       'Se abre una ficha nueva con este paciente ya seleccionado: no lo cargás de nuevo y no se '+
@@ -236,6 +314,12 @@ function abrirPacienteDelPadron(id){
     auditar('padron-atender',
       'Abre ficha desde el padrón — ' + (p.apellido||'') + ', ' + (p.nombre||''));
     abrirFicha(null, id);
+  };
+  if($('#ppDisponibles')) $('#ppDisponibles').onclick = () => {
+    cerrarModal();
+    filtroFichas.alcance = 'disponibles';
+    filtroFichas.texto = p.apellido || '';
+    irA('fichas'); vistaFichas();
   };
   if($('#ppMensaje')) $('#ppMensaje').onclick = () => {
     cerrarModal();
