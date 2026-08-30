@@ -1135,3 +1135,24 @@ html[data-tema="oscuro"] .tomar-acto{background:linear-gradient(135deg,var(--azu
   min-width:17px;height:17px;padding:0 5px;margin-left:6px;border-radius:999px;
   background:var(--bg-2);color:var(--texto-2);font-size:10.5px;font-weight:800}
 .seg button.on .badge{background:rgba(255,255,255,.28);color:#fff}
+
+/* ================= MANUAL DE USO =================
+   Tipografía de lectura, no de formulario: renglón más alto y medida de línea
+   corta. Un manual se lee de corrido; una ficha se completa de a campos. */
+.man-cap > .cuerpo{ line-height:1.75; font-size:14px }
+.man-h2{ font-size:15.5px; font-weight:800; color:var(--azul-700);
+         margin:20px 0 8px; padding-bottom:5px; border-bottom:1px solid var(--borde) }
+.man-h3{ font-size:14px; font-weight:700; color:var(--aqua-600); margin:16px 0 6px }
+.man-p{ margin:0 0 11px }
+.man-lista{ margin:0 0 12px; padding-left:20px }
+.man-lista li{ margin-bottom:6px }
+.man-aviso{ margin:12px 0 }
+.man-tabla{ margin:12px 0 }
+.man-tabla table{ font-size:12.5px }
+.man-img{ display:block; width:100%; height:auto; margin:14px 0;
+          border:1px solid var(--borde); border-radius:10px }
+.man-cap mark{ background:var(--aqua-200); color:inherit; border-radius:3px; padding:0 2px }
+@media (max-width:640px){
+  .man-cap > .cuerpo{ font-size:14.5px }     /* en el teléfono, un punto más */
+  .man-tabla table{ font-size:12px }
+}

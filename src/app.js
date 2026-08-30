@@ -26,6 +26,9 @@ const NAV = [
   { id:'mensajes',    ico:'correo',      txt:'Mensajes',      nav:false },
   { id:'facturacion', ico:'dinero',      txt:'Facturación',   nav:false, clinico:true },
   { id:'guias',       ico:'guias',       txt:'Guías',         nav:false, clinico:true },
+  /* El manual lo ve todo el mundo, tambien el contable: explica su propio
+     portal y el porque de lo que no puede ver. */
+  { id:'manual',      ico:'archivo',     txt:'Manual de uso', nav:false },
   { id:'perfil',      ico:'ajustes',     txt:'Mi perfil',     navTxt:'Ajustes', nav:true }
 ];
 
@@ -71,7 +74,7 @@ function pintarNavegacion(){
   $('#sidebar').innerHTML =
     grupo('Portal',    ['panel','pacientes','fichas','contable'])+
     grupo('Documentación', ['envValoracion','envFicha'])+
-    grupo('Gestión',   ['stats','facturacion','guias'])+
+    grupo('Gestión',   ['stats','facturacion','guias','manual'])+
     grupo('Asociación',['coordinador','mensajes'])+
     grupo('Cuenta',    ['perfil']);
 
@@ -109,6 +112,7 @@ function refrescarVistaActual(){
     case 'stats':       vistaStats(); break;
     case 'facturacion': vistaFacturacion(); break;
     case 'guias':       vistaGuias(); break;
+    case 'manual':      vistaManual(); break;
     case 'coordinador': vistaCoordinador(); break;
     case 'perfil':      vistaPerfil(); break;
   }
