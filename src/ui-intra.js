@@ -884,15 +884,19 @@ function abrirTablaDosis(){
 /* =========================================================================
    SOLAPA 3 - SIGNOS VITALES
    ========================================================================= */
+/* Cada columna lleva su nombre completo debajo de la sigla. Las abreviaturas
+   son transparentes para el anestesiologo y opacas para todos los demas: la
+   ficha la leen ademas el paciente, la auditoria del financiador, el
+   cirujano y el residente que recien empieza. */
 const COLS_VITALES = [
-  { k:'ta',    t:'TA',    um:'mmHg' },
-  { k:'pam',   t:'PAM',   um:'mmHg' },
-  { k:'fc',    t:'FC',    um:'lpm' },
-  { k:'fr',    t:'FR',    um:'rpm' },
-  { k:'spo2',  t:'SpO₂',  um:'%' },
-  { k:'etco2', t:'EtCO₂', um:'mmHg' },
-  { k:'temp',  t:'Temp',  um:'°C' },
-  { k:'tof',   t:'TOF',   um:'' }
+  { k:'ta',    t:'TA',    um:'mmHg', d:'presión arterial' },
+  { k:'pam',   t:'PAM',   um:'mmHg', d:'presión arterial media' },
+  { k:'fc',    t:'FC',    um:'lpm',  d:'frecuencia cardíaca' },
+  { k:'fr',    t:'FR',    um:'rpm',  d:'frecuencia respiratoria' },
+  { k:'spo2',  t:'SpO₂',  um:'%',    d:'saturación de oxígeno' },
+  { k:'etco2', t:'EtCO₂', um:'mmHg', d:'CO₂ espirado final' },
+  { k:'temp',  t:'Temp',  um:'°C',   d:'temperatura' },
+  { k:'tof',   t:'TOF',   um:'',     d:'tren de cuatro' }
 ];
 
 /* Texto del TOF a partir del recuento y el cociente */
@@ -933,6 +937,7 @@ function htmlActoVitales(f){
   (ult ? '<div class="card ultimo-control"><h3>'+ico('monitor')+'Último control · '+esc(ult.hora||'')+'</h3>'+
     '<div class="vitales-grid">'+ COLS_VITALES.map(c =>
       '<div class="vital"><span class="t">'+c.t+'</span>'+
+        '<span class="d">'+esc(c.d)+'</span>'+
         '<span class="v">'+esc(valorVital(ult, c.k) || '—')+'</span>'+
         '<span class="u">'+esc(c.um)+'</span></div>').join('') +'</div>'+
   '</div>' : '')+
@@ -941,7 +946,9 @@ function htmlActoVitales(f){
     '<span class="tag" style="margin-left:auto">'+ctrls.length+'</span></h3>'+
     (ctrls.length
       ? '<div class="tabla-wrap"><table class="vitales-tabla"><thead><tr><th>Hora</th>'+
-        COLS_VITALES.map(c => '<th class="num">'+c.t+(c.um?'<br><span class="mini">'+c.um+'</span>':'')+'</th>').join('')+
+        COLS_VITALES.map(c => '<th class="num">'+c.t+
+          '<br><span class="col-def">'+esc(c.d)+'</span>'+
+          (c.um?'<br><span class="mini">'+c.um+'</span>':'')+'</th>').join('')+
         '<th></th></tr></thead><tbody>'+
         ctrls.map(c => '<tr data-ctrl="'+esc(c.id)+'"'+(c.preset?' class="auto"':'')+'>'+
           '<td><b>'+esc(c.hora||'—')+'</b>'+
@@ -1514,10 +1521,87 @@ function abrirGraficoVitales(){
 /* =========================================================================
    SOLAPA 4 - BALANCE HIDRICO
    ========================================================================= */
+/* =========================================================================
+   EL PLAN DE FLUIDOS PROPUESTO
+   -------------------------------------------------------------------------
+   La cuenta que todo el mundo hace de cabeza —Holliday-Segar, deficit de
+   ayuno, perdidas por trauma quirurgico— con los datos que la ficha ya tiene
+   cargados: sexo, peso, talla, IMC, edad, antecedentes, medicacion y la
+   cirugia prevista con su via de abordaje. La logica vive en acto-auto.js.
+
+   Se muestra ANTES de los campos y no los toca hasta que alguien aprieta el
+   boton. Volcada, sigue siendo un numero editable como cualquier otro: es un
+   punto de partida calculado, no una indicacion.
+   ========================================================================= */
+function htmlPlanFluidos(f){
+  const pl = (typeof planDeFluidos === 'function') ? planDeFluidos(f) : null;
+  if(!pl) return '<div class="aviso warn">'+ico('alerta')+'<div><b>Sin peso no hay plan de '+
+    'fluidos.</b> Cargá el peso del paciente en el paso <b>Paciente</b> y acá aparece la '+
+    'reposición calculada para esta cirugía.</div></div>';
+
+  return '<details class="card plan-fluidos" id="balPlan" open><summary>'+ico('calculadora')+
+    '<b>Plan de fluidos propuesto</b><span class="tag">'+pl.cristaloides+' mL</span></summary>'+
+
+    '<div class="aviso info">'+ico('info')+'<div>Calculado con lo que ya está cargado en la '+
+      'ficha. Es una <b>propuesta</b>: se vuelca a los campos de abajo y desde ahí se edita '+
+      'como cualquier otro número.</div></div>'+
+
+    '<div class="tabla-wrap"><table><tbody>'+
+      '<tr><td>Mantenimiento — '+pl.mantHora+' mL/h × '+fNum(pl.horas,1)+' h</td>'+
+        '<td class="num">'+pl.mantenimiento+' mL</td></tr>'+
+      '<tr><td>Déficit de ayuno — '+fNum(pl.ayuno.h,1)+' h'+
+        '<br><span class="mini">déficit total '+pl.deficit+' mL; se propone reponer la mitad</span></td>'+
+        '<td class="num">'+pl.deficitPropuesto+' mL</td></tr>'+
+      '<tr><td>Pérdidas por trauma quirúrgico — '+esc(pl.trauma.n)+', '+pl.trauma.mlkgh+' mL/kg/h</td>'+
+        '<td class="num">'+pl.tercerEspacio+' mL</td></tr>'+
+      (pl.factor < 1
+        ? '<tr><td><b>Corrección restrictiva</b> — × '+fNum(pl.factor,2)+
+          '<br><span class="mini">por los antecedentes de más abajo</span></td>'+
+          '<td class="num">−'+Math.round((pl.mantenimiento+pl.deficitPropuesto+pl.tercerEspacio) *
+            (1-pl.factor))+' mL</td></tr>' : '')+
+      '<tr style="font-weight:800"><td>CRISTALOIDES PROPUESTOS</td>'+
+        '<td class="num">'+pl.cristaloides+' mL</td></tr>'+
+    '</tbody></table></div>'+
+
+    '<div class="grid c3 mt14">'+
+      kpi('Diuresis esperable', pl.diuresis+' mL', 'aqua', ico('gota'),
+          (pl.pedia?'1':'0,5')+' mL/kg/h en '+fNum(pl.horas,1)+' h')+
+      kpi('Volemia estimada', pl.volemia+' mL', 'azul', ico('vena'),
+          (pl.pedia?'80':'70')+' mL/kg sobre '+pl.pesoReal+' kg')+
+      (pl.perdidaAdmisible !== null
+        ? kpi('Pérdida admisible', pl.perdidaAdmisible+' mL', 'warn', ico('alerta'),
+              'hasta Hto '+pl.htoMin+' % desde '+pl.hto+' %')
+        : kpi('Pérdida admisible', '—', '', ico('alerta'),
+              'falta el hematocrito en el punto 8'))+
+    '</div>'+
+
+    '<div class="resumen mt14">'+ pl.motivos.map(m =>
+      '<div class="res-fila"><span>'+esc(m.t)+'</span><b>'+esc(m.v)+'</b></div>'+
+      '<div class="res-por">'+esc(m.d)+'</div>').join('') +'</div>'+
+
+    (pl.advertencias.length
+      ? '<div class="mt14">'+ pl.advertencias.map(a =>
+          '<div class="aviso '+a.c+'">'+ico(a.c === 'danger' ? 'alerta' : 'info')+
+          '<div><b>'+esc(a.n)+'.</b> '+esc(a.d)+'</div></div>').join('') +'</div>'
+      : '')+
+
+    '<div class="aviso warn mt8">'+ico('alerta')+'<div>La cifra clásica del tercer espacio '+
+      '(2 · 4 · 6 mL/kg/h) sobreestima la reposición según las guías de recuperación acelerada, '+
+      'que trabajan con esquemas <b>restrictivos y guiados por objetivos</b>. Tomá el número como '+
+      'techo, no como meta.</div></div>'+
+
+    '<button class="btn pri mt14" id="balAplicar">'+ico('check')+
+      ' Volcar al balance ('+pl.cristaloides+' mL de cristaloides)</button>'+
+    '<div class="ayuda">Escribe los cristaloides y la diuresis esperable en los campos de abajo. '+
+      'No pisa nada que ya tenga un valor cargado.</div>'+
+  '</details>';
+}
+
 function htmlActoBalance(f){
   const a = f.acto || {};
   const b = a.balance || {};
   return ''+
+  htmlPlanFluidos(f)+
   '<div class="card"><h3>'+ico('gota')+'Balance hídrico</h3>'+
     '<div class="balance">'+
       '<div class="bal-col"><h4>Ingresos</h4>'+
@@ -1579,6 +1663,27 @@ function cablearActoBalance(f){
       (r.balance < -1000 ? '<div class="aviso warn">'+ico('alerta')+
         '<div>Balance negativo mayor a 1000 mL. Revisar la reposición antes del pase a recuperación.</div></div>' : '');
   };
+  /* Volcar el plan propuesto. No pisa lo cargado: si ya hay cristaloides
+     escritos, ese número es el que vio pasar por la vía una persona. */
+  if($('#balAplicar')) $('#balAplicar').onclick = () => {
+    const pl = planDeFluidos(f);
+    if(!pl) return;
+    const puestos = [];
+    Object.keys(pl.campos).forEach(k => {
+      const e = $('#bal_' + k);
+      if(!e) return;
+      if(String(e.value || '').trim() !== '') return;
+      e.value = pl.campos[k];
+      puestos.push(k);
+    });
+    recalc();
+    autoguardarActo(true);
+    toast(puestos.length
+      ? 'Plan volcado al balance. Los campos siguen siendo editables.'
+      : 'Los campos ya tenían valores cargados: no se pisó ninguno.',
+      puestos.length ? 'ok' : 'warn');
+  };
+
   $('#actoCuerpo').addEventListener('input', debounce(recalc, 200));
   $('#actoCuerpo').addEventListener('change', recalc);
   recalc();
@@ -1587,11 +1692,45 @@ function cablearActoBalance(f){
 /* =========================================================================
    SOLAPA 5 - EVENTOS
    ========================================================================= */
+/* =========================================================================
+   LOS EVENTOS MAS PROBABLES DE ESTE PACIENTE
+   -------------------------------------------------------------------------
+   El desplegable de tipos tiene veinticinco entradas, todas iguales, en orden
+   alfabetico de nadie. Cuando el evento esta pasando —el paciente desaturando
+   y una mano libre— buscar «Broncoespasmo» entre veinticinco es tiempo que no
+   hay.
+
+   Asi que arriba van los cinco o seis que este paciente y esta cirugia hacen
+   probables, cada uno con el motivo por el que subio: el asma del punto 1, el
+   IMC, la anticoagulacion, la via de abordaje. Un toque abre el evento con el
+   tipo ya elegido.
+
+   No registra nada solo. No predice: ordena. Ver eventosProbables() en
+   acto-auto.js.
+   ========================================================================= */
+function htmlEventosProbables(f){
+  const l = (typeof eventosProbables === 'function') ? eventosProbables(f, 8) : [];
+  if(!l.length) return '';
+  const ya = (x) => ((f.acto || {}).eventos2 || []).some(e => e.tipo === x.tipo);
+  return '<div class="card"><h3>'+ico('alerta')+'Más probables en este paciente</h3>'+
+    '<p class="mini">Ordenados por lo que ya está cargado en la ficha: antecedentes, medicación, '+
+      'alergias, IMC, edad, técnica y vía de abordaje. Tocá uno para registrarlo con el tipo ya '+
+      'elegido. <b>No son un pronóstico</b>: son los que conviene tener a mano.</p>'+
+    '<div class="ev-probables">'+ l.map(x =>
+      '<button type="button" class="ev-prob'+(ya(x)?' ya':'')+'" data-evtipo="'+esc(x.tipo)+'">'+
+        ico(ya(x) ? 'check' : 'mas')+
+        '<span class="tx"><b>'+esc(x.tipo)+'</b>'+
+        '<i>'+esc(x.motivos.slice(0,3).join(' · '))+'</i></span>'+
+      '</button>').join('') +'</div>'+
+  '</div>';
+}
+
 function htmlActoEventos(f){
   const a = f.acto || {};
   const evs = a.eventos2 || [];
   const sin = !!a.sinEventos && !evs.length;
   return ''+
+  (sin ? '' : htmlEventosProbables(f))+
   '<div class="card"><h3>'+ico('alerta')+'Eventos adversos</h3>'+
     '<label class="toggle-verde'+(sin?' on':'')+'" id="evSinL">'+
       '<input type="checkbox" id="evSin"'+(sin?' checked':'')+(evs.length?' disabled':'')+'>'+
@@ -1621,6 +1760,7 @@ function cablearActoEventos(f){
     $('#evSinL').classList.toggle('on', chk('evSin'));
   }, 0);
   $('#evNuevo').onclick = () => abrirEvento(null);
+  $$('#actoCuerpo [data-evtipo]').forEach(b => b.onclick = () => abrirEvento(null, b.dataset.evtipo));
   $$('#actoCuerpo .evento').forEach(el => el.onclick = e => {
     if(e.target.closest('[data-evdel]')) return;
     abrirEvento(el.dataset.ev);
@@ -1633,11 +1773,17 @@ function cablearActoEventos(f){
   });
 }
 
-function abrirEvento(id){
+function abrirEvento(id, tipoSugerido){
   const f = fichaActual;
   const e = id ? (f.acto.eventos2 || []).find(x => x.id === id) || {} : {};
+  /* El motivo por el que este tipo estaba propuesto viaja al modal: la
+     descripcion del evento se escribe mejor sabiendo por que era esperable. */
+  const sug = tipoSugerido && typeof eventosProbables === 'function'
+    ? (eventosProbables(f, 12).find(x => x.tipo === tipoSugerido) || null) : null;
   abrirModal(id ? 'Editar evento' : 'Agregar evento',
-    campoSel('evTipo','Tipo de evento', TIPOS_EVENTO, e.tipo)+
+    (sug ? '<div class="aviso info">'+ico('info')+'<div><b>'+esc(sug.tipo)+'</b> figuraba entre los '+
+      'más probables por: '+esc(sug.motivos.join(' · '))+'.</div></div>' : '')+
+    campoSel('evTipo','Tipo de evento', TIPOS_EVENTO, e.tipo || tipoSugerido || '')+
     '<div class="campo"><label>Hora</label>'+
       '<div class="hora-campo"><input type="time" id="evHora" value="'+esc(e.hora || ahoraHora())+'">'+
       '<button type="button" class="btn ghost chico" id="evAhora">Ahora</button></div></div>'+

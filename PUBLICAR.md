@@ -235,19 +235,22 @@ subís la versión vieja. El comando tiene que responder `OK  index.html …`.
 | `manifest.webmanifest` | Nombre, colores e íconos para instalarla como app |
 | `sw.js` | Service worker: la hace andar sin conexión |
 | `icons/` (carpeta, 3 PNG) | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` |
+| `manual/` (carpeta, 11 JPG) | Las fotos del manual de uso. **No van adentro de `index.html`**: se cargan por ruta relativa, así que sin esta carpeta el manual se ve con las imágenes rotas |
+| `manual-afaar.pdf` | El manual en PDF que **la propia app ofrece descargar** desde la vista Manual. Sin él, ese botón da error 404 |
+| `manual-afaar-completo.pdf` | Lo mismo, la versión con el anexo de coordinación. El botón sólo lo ve el coordinador |
 | `.nojekyll` | Archivo **vacío**. Evita que GitHub procese la carpeta a su manera |
 
-Con esos cinco la app ya abre y funciona.
+Con esos ocho la app ya abre y funciona completa.
 
 ### El código fuente — **muy recomendable**
 
 | | Por qué conviene |
 |---|---|
-| `src/` (carpeta, 34 archivos) | Es de donde sale `index.html`. Sin esto no se puede volver a modificar la app desde otra computadora |
+| `src/` (carpeta, 37 archivos) | Es de donde sale `index.html`. Sin esto no se puede volver a modificar la app desde otra computadora |
 | `build.py` | El armador |
 | `apps-script/Codigo.gs` | El programa de los correos |
 | `README.md`, `PUBLICAR.md`, `ENVIO-DE-MAILS.md`, `reglas-firebase.txt` | La documentación |
-| `make-icons.py`, `abrir-afar.command` | Utilidades |
+| `make-icons.py`, `manual-a-word.py`, `abrir-afar.command` | Utilidades |
 
 ### Lo que **no** hay que subir
 
@@ -257,6 +260,8 @@ Con esos cinco la app ya abre y funciona.
   clínicas**. No van a un repositorio público, nunca.
 - `GUÍA COMPLETA: AFAR en GitHub y Firebase.webarchive` — pesa 1,6 MB y no
   sirve para nada en línea.
+- `manual-word/` — es la plantilla y la salida intermedia de
+  `manual-a-word.py`. No la usa la app.
 
 ## 3. Ver los archivos ocultos en el Finder
 
@@ -273,11 +278,12 @@ Aparecen en gris. Con la misma combinación se vuelven a ocultar.
 2. Botón **`Add file`** (arriba a la derecha) → **`Upload files`**.
 3. Abrí el Finder en `~/Desktop/Claude/afar` y **arrastrá al navegador**:
    - los archivos sueltos: `index.html`, `manifest.webmanifest`, `sw.js`,
-     `build.py`, `.nojekyll`, y los `.md`;
-   - **las carpetas enteras** `icons`, `src` y `apps-script`. Arrastrando la
-     carpeta, GitHub respeta la estructura de adentro. No las abras ni subas
-     los archivos sueltos: quedarían todos en la raíz y la app no los
-     encontraría.
+     `.nojekyll`, `manual-afaar.pdf`, `manual-afaar-completo.pdf`, `build.py`
+     y los `.md`;
+   - **las carpetas enteras** `icons`, `manual`, `src` y `apps-script`.
+     Arrastrando la carpeta, GitHub respeta la estructura de adentro. No las
+     abras ni subas los archivos sueltos: quedarían todos en la raíz y la app
+     no los encontraría.
 4. Abajo, en **Commit changes**, escribí qué cambiaste. Por ejemplo:
    `Flujo de cinco pasos, consentimiento como punto 15 y PDF al paciente`.
 5. Dejá marcado **«Commit directly to the `main` branch»**.

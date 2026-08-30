@@ -549,6 +549,15 @@ function abrirEnvioContaduria(f, tipo){
         filaEnv('Financiador', esc(f.obraSocial || 'Sin cobertura')+
                 (f.nroAfiliado ? ' · afiliado '+esc(f.nroAfiliado) : ''))+
         filaEnv('Cirugía', esc(f.cirugia || '—'))+
+        /* El caracter va DELANTE del honorario, no escondido en el documento:
+           es de donde sale el adicional de urgencia, y es lo primero que
+           mira una auditoria que discute el recargo. */
+        (function(){
+          const car = tipo === 'acto' ? caracterActo(f) : caracterValoracion(f);
+          const txt = esc(nombreCaracter(car).toUpperCase());
+          return filaEnv('Carácter '+(tipo === 'acto' ? 'del acto' : 'de la consulta'),
+            esNoProgramado(car) ? '<span class="warn">'+txt+' · con adicional</span>' : txt);
+        })()+
         (tipo === 'acto'
           ? filaEnv('Parte quirúrgico', adj.length
               ? adj.length+' archivo'+(adj.length===1?'':'s')
@@ -739,6 +748,83 @@ function cablearEnvioValoracion(f){
   };
 }
 
+/* =========================================================================
+   ENVIAR EL ACTO SOLO, O LOS DOS JUNTOS
+   -------------------------------------------------------------------------
+   Al firmar la ficha, lo que hay para mandar puede ser una cosa o dos:
+
+     - Sólo el acto. Es lo normal cuando la valoración la hizo un colega y ya
+       la mandó él, o cuando se mandó el día de la consulta.
+     - El acto Y la valoración. Es lo normal cuando los dos actos son de la
+       misma persona y el prequirúrgico nunca llegó a contaduría.
+
+   «Los dos» NO es un envío que contenga dos cosas: son DOS envíos, uno por
+   bandeja, cada uno con su honorario discriminado y su propio titular. Al
+   contador le llegan separados porque separados se facturan, aunque los haya
+   hecho el mismo profesional. Eso no se toca.
+   ========================================================================= */
+function abrirEnvioAmbos(f){
+  if(!puedeEnviar(f, 'acto') || !puedeEnviar(f, 'valoracion'))
+    return toast('Los dos envíos tienen que ser tuyos para mandarlos juntos.', 'err');
+
+  const p = DB.pacientes[f.pacienteId] || {};
+  const hv = honorarioDeEnvio(f, 'valoracion');
+  const ha = honorarioDeEnvio(f, 'acto');
+  const faltanV = faltantesDeEnvio(f, 'valoracion');
+  const faltanA = faltantesDeEnvio(f, 'acto');
+  const previoV = enviosDeFicha(f.id, 'valoracion')[0];
+
+  abrirModal('Envío a contaduría — valoración y acto',
+    '<div class="aviso info">'+ico('enviar')+'<div><b>Van como dos envíos, no como uno.</b> '+
+      'La consulta prequirúrgica entra en la bandeja de valoraciones y el acto en la de fichas, '+
+      'cada uno con su honorario discriminado. Es como se facturan, aunque los dos sean '+
+      'tuyos.</div></div>'+
+
+    (previoV ? '<div class="aviso warn">'+ico('alerta')+'<div>La valoración <b>ya se envió</b> el '+
+      fFechaLarga((previoV.enviado||'').slice(0,10))+'. Si seguís, contaduría recibe una versión '+
+      'nueva y conserva la anterior.</div></div>' : '')+
+
+    '<div class="card"><h3>'+ico('paciente')+'Paciente</h3><div class="resumen">'+
+      filaEnv('Paciente', esc((p.apellido||'—')+', '+(p.nombre||''))+
+              (p.dni ? ' · DNI '+esc(p.dni) : ''))+
+      filaEnv('Cirugía', esc(f.cirugia || '—'))+
+      filaEnv('Financiador', esc(f.obraSocial || 'Sin cobertura'))+
+    '</div></div>'+
+
+    '<div class="card"><h3>'+ico('valoracion')+'1 · Consulta prequirúrgica</h3>'+
+      htmlHonorarioDiscriminado(hv, titularDeEnvio(f, 'valoracion'))+
+      (faltanV.length ? '<div class="aviso warn mt8">'+ico('alerta')+'<div>Falta cargar '+
+        esc(faltanV.join(', '))+'.</div></div>' : '')+
+    '</div>'+
+
+    '<div class="card"><h3>'+ico('jeringa')+'2 · Acto anestésico</h3>'+
+      htmlHonorarioDiscriminado(ha, titularDeEnvio(f, 'acto'))+
+      (faltanA.length ? '<div class="aviso warn mt8">'+ico('alerta')+'<div>Falta cargar '+
+        esc(faltanA.join(', '))+'.</div></div>' : '')+
+      (partesQuirurgicos(f).length ? '' : '<div class="aviso warn mt8">'+ico('alerta')+
+        '<div>Sin parte quirúrgico adjunto.</div></div>')+
+    '</div>'+
+
+    campoArea('envNota','Nota para contaduría (opcional)', '',
+      'Se copia en los dos envíos')+
+
+    '<div class="aviso info">'+ico('candado')+'<div>Le estás cediendo al contador de la '+
+      'asociación documentación clínica de un paciente, con la finalidad de facturar y responder '+
+      'auditorías médicas (Ley 25.326, art. 11, y Ley 26.529). Los dos envíos quedan registrados '+
+      'a tu nombre en la auditoría.</div></div>',
+    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+    '<button class="btn pri" id="envAmbos">'+ico('enviar')+' Enviar los dos</button>', '820px');
+
+  $('#envAmbos').onclick = () => {
+    const nota = val('envNota');
+    cerrarModal();
+    registrarEnvio(f, 'valoracion', nota);
+    /* El segundo va con un respiro: registrarEnvio guarda un archivo y
+       repinta la ficha, y los dos a la vez se pisaban el repintado. */
+    setTimeout(() => registrarEnvio(f, 'acto', nota), 900);
+  };
+}
+
 /* Al final de la ficha anestesica (paso Firmar) */
 function htmlEnvioFicha(f){
   const env = enviosDeFicha(f.id, 'acto')[0];
@@ -758,8 +844,28 @@ function htmlEnvioFicha(f){
         '</div></div>'
       : '')+
     (puede
-      ? '<button class="btn pri mt8" id="evEnviarActo" data-lectura>'+ico('enviar')+
-        (env ? ' Volver a enviar' : ' Enviar ficha y parte quirúrgico')+'</button>'
+      ? (function(){
+          /* El segundo botón sólo aparece cuando la valoración también es
+             mía: si es de un colega, la manda él y ofrecerlo sería ofrecer
+             un envío que va a rebotar. */
+          const tambienVal = puedeEnviar(f, 'valoracion');
+          const envV = enviosDeFicha(f.id, 'valoracion')[0];
+          return '<div class="btn-row mt8">'+
+            '<button class="btn pri" id="evEnviarActo" data-lectura>'+ico('enviar')+
+              (env ? ' Volver a enviar el acto' : ' Enviar sólo el acto')+'</button>'+
+            (tambienVal
+              ? '<button class="btn ghost" id="evEnviarAmbos" data-lectura>'+ico('enviar')+
+                ' Enviar valoración + acto</button>'
+              : '')+
+          '</div>'+
+          (tambienVal
+            ? '<div class="ayuda">Los dos actos son tuyos. «Valoración + acto» manda <b>dos '+
+              'envíos separados</b>, uno a cada bandeja, con su honorario discriminado en cada '+
+              'uno: es como se facturan.'+
+              (envV ? ' La valoración ya se envió una vez.' : '')+'</div>'
+            : '<div class="ayuda">La consulta prequirúrgica la envía '+esc(autorFicha(f))+
+              ', que es quien la factura.</div>');
+        })()
       : '<div class="aviso info mt8">'+ico('info')+'<div>El acto lo factura '+
         esc(nombreActor(f))+', que es quien lo envía.</div></div>')+
   '</div>';
@@ -767,6 +873,9 @@ function htmlEnvioFicha(f){
 function cablearEnvioFicha(f){
   if($('#evEnviarActo')) $('#evEnviarActo').onclick = () => {
     guardarPasoActual(); abrirEnvioContaduria(fichaActual, 'acto');
+  };
+  if($('#evEnviarAmbos')) $('#evEnviarAmbos').onclick = () => {
+    guardarPasoActual(); abrirEnvioAmbos(fichaActual);
   };
 }
 

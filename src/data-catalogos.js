@@ -419,8 +419,14 @@ const MOTIVOS_SIN_VALORACION = [
     d:'Riesgo vital inmediato, sin demora posible. El carácter de la cirugía queda cargado solo.' },
   { id:'externa',  deuda:true,  n:'La valoración se hizo fuera de la aplicación',
     d:'En papel, en otra institución o por un profesional que no es socio. Se asienta quién la hizo y cuándo, y se adjunta la foto.' },
+  /* Es para el paciente INTERNADO, en evolucion de una cirugia reciente y sin
+     alta medica: ahi la valoracion anterior sigue describiendo a este
+     paciente y se la puede traer para actualizarla. Un paciente que se fue de
+     alta y vuelve meses despues no entra por aca —de aquella ficha solo
+     quedan sus datos filiatorios, para no duplicarlo—: ese lleva valoracion
+     nueva y entra por «la cargo ahora». */
   { id:'reintervencion', deuda:true, n:'Ya fue valorado para una intervención anterior',
-    d:'Reintervención o segundo acto del mismo paciente. Se importa la valoración de aquella ficha, sea propia o de un colega.' },
+    d:'Paciente internado, en evolución de una cirugía reciente y sin alta médica. Se importa la valoración de aquella ficha, propia o de un colega, para actualizarla.' },
   { id:'ahora',    deuda:false, n:'La cargo ahora',
     d:'Lleva al paso 2 para completarla antes de anestesiar. No queda nada declarado.' },
   /* Retirado: una sedacion para endoscopia o una cardioversion SI llevan

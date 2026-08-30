@@ -499,16 +499,80 @@ function pedirMotivoSinValoracion(f, forzar){
        ahora es anestesiar. La valoración se reclama después. */
     const m = MOTIVOS_SIN_VALORACION.find(x => x.id === id) || {};
     guardarMotivoSinValoracion(f, id, {});
-    cerrarModal();
     if(m.caracter){
       f.caracter = m.caracter;
       f.acto = f.acto || {};
       f.acto.caracterActo = m.caracter;
+      /* Urgencia y emergencia no siguen el camino de los demas motivos: se
+         pregunta por donde entrar, porque el apuro puede no dar ni para
+         escribir un apellido. */
+      elegirEntradaDeUrgencia(f, m);
+      return;
     }
-    seguirTrasElMotivo(f, null,
-      'Declarado como ' + nombreCaracter(m.caracter || 'urgencia').toLowerCase() +
-      '. Queda pendiente completar la valoración.');
+    cerrarModal();
+    seguirTrasElMotivo(f, null, 'Declarado. Queda pendiente completar la valoración.');
   });
+}
+
+/* =========================================================================
+   URGENCIA Y EMERGENCIA: POR DONDE SE ENTRA
+   -------------------------------------------------------------------------
+   Declarada la urgencia, quedan dos situaciones distintas y las dos son
+   reales:
+
+     - El paciente esta identificado y elegirlo cuesta diez segundos.
+     - El paciente entro por la guardia, no se sabe quien es, y lo que hay que
+       hacer ahora es anestesiar.
+
+   Antes habia un solo camino —al paso Paciente— y en el segundo caso eso
+   significaba registrar el acto de memoria despues. Ahora se pregunta, y la
+   entrada directa abre un NN provisional para que el registro arranque ya.
+
+   Lo que NO cambia: sin identidad cargada el paso Paciente no llega a verde y
+   la ficha no se puede firmar. La deuda queda a la vista en cada pantalla.
+   ========================================================================= */
+function elegirEntradaDeUrgencia(f, m){
+  const car = nombreCaracter(m.caracter || 'urgencia').toLowerCase();
+  const yaTiene = !!f.pacienteId;
+
+  abrirModal('Declarado como ' + car,
+    '<div class="aviso warn">'+ico('alerta')+'<div>El carácter de la cirugía y el del acto '+
+      'quedan cargados como <b>'+esc(car)+'</b>, y no se vuelven a preguntar. '+
+      'La valoración prequirúrgica queda pendiente.</div></div>'+
+    (yaTiene
+      ? '<p class="mini strong mt14">El paciente ya está identificado. ¿Por dónde seguís?</p>'
+      : '<p class="mini strong mt14">¿Tenés tiempo de identificar al paciente ahora?</p>')+
+    '<div class="opciones-cierre">'+
+      '<button type="button" class="op-cierre" id="urActo">'+ico('jeringa')+
+        '<b>Entrar directo al acto anestésico</b><span>'+
+        (yaTiene
+          ? 'Va derecho al registro: drogas, signos vitales, balance y eventos.'
+          : 'Abre un NN provisional y va derecho al registro. Los datos del paciente se '+
+            'cargan después, y sin ellos la ficha no se puede firmar.')+
+        '</span></button>'+
+      '<button type="button" class="op-cierre" id="urPac">'+ico('pacientes')+
+        '<b>'+(yaTiene ? 'Revisar los datos del paciente' : 'Elegir el paciente primero')+'</b>'+
+        '<span>Va al paso Paciente, como hasta ahora.</span></button>'+
+    '</div>'+
+    '<div class="aviso info mt14">'+ico('candado')+'<div><b>La ficha no se cierra a medias.</b> '+
+      'Para firmar hacen falta los datos del paciente y la valoración prequirúrgica completa, '+
+      'aunque se carguen al terminar. Sin peso, talla y sexo el vademécum tampoco propone '+
+      'ninguna dosis.</div></div>', '', '640px');
+  modalSinSalida();
+
+  $('#urPac').onclick = () => {
+    cerrarModal();
+    seguirTrasElMotivo(f, 'paciente',
+      'Declarado como ' + car + '. Queda pendiente completar la valoración.');
+  };
+
+  $('#urActo').onclick = () => {
+    cerrarModal();
+    if(!f.pacienteId) f.pacienteId = crearPacienteProvisional();
+    guardarFicha(true, true);
+    irAPaso('anestesia');
+    toast('Registrá el acto. Los datos del paciente y la valoración quedan pendientes.', 'warn');
+  };
 }
 
 /* Segundo paso, solo para la valoracion hecha fuera de la app */
@@ -731,6 +795,10 @@ function estadoPaso(f, k){
     /* Las fichas viejas guardaban el diagnóstico codificado en dxQuirurgico.
        Sigue valiendo: es el mismo dato con otro nombre. */
     const dx = f.diagnostico || (f.dxQuirurgico || {}).d || f.dxQuirurgico;
+    /* Un NN de urgencia nunca llega a verde por mucha cirugía que tenga
+       cargada: falta la persona. Y sin este paso en verde no hay firma, que
+       es la traba que se buscaba. */
+    if(pacienteProvisional(f)) return 'alerta';
     return (f.cirugia && f.institucion && dx) ? 'ok'
          : (f.cirugia || f.institucion) ? 'alerta' : 'medio';
   }
@@ -907,6 +975,17 @@ function pintarFicha(){
 
   (firmada ? '<div class="aviso ok no-print">'+ico('candado')+'<div><b>Registro finalizado y firmado.</b> '+
     'Queda en sólo lectura. Si hay que corregir algo, reabrilo desde el paso «Firmar».</div></div>' : '')+
+
+  /* El NN de la urgencia se recuerda en TODOS los pasos, no solo en el
+     Paciente: quien esta anestesiando no va a volver al paso 1 a mirar si
+     falta algo, y esta es la deuda que traba la firma. */
+  (pacienteProvisional(f) && !firmada
+    ? '<div class="aviso danger no-print">'+ico('alerta')+'<div><b>Paciente sin identificar.</b> '+
+      'Este acto se está registrando sobre un <b>NN provisional</b> abierto por la urgencia. '+
+      'La ficha <b>no se puede firmar</b> hasta cargar apellido, nombre y documento, y sin peso, '+
+      'talla y sexo el vademécum no propone dosis.'+
+      '<div class="btn-row mt8"><button class="btn pri chico" id="fiIdentificar">'+ico('pacientes')+
+      ' Identificar al paciente</button></div></div></div>' : '')+
   /* En una ficha ajena el banner de arriba ya explica de quién es cada
      sección: repetirlo con bannerSeccion() sería decir dos veces lo mismo. */
   /* Durante el recorrido guiado el cartel de faltantes es ruido: enumera ocho
@@ -958,15 +1037,17 @@ function pintarFicha(){
 
   htmlExtrasDePaso(f, soloActo)+
 
-  (DB.fichas[f.id] && !soloActo && pasoFicha === 'firma'
-    ? '<div class="btn-row mt14 no-print"><button class="btn danger chico" id="fiBorrar">'+
-      ico('borrar')+' Eliminar ficha</button></div>' : '');
+  (DB.fichas[f.id] && pasoFicha === 'firma' ? htmlBajaDeFicha(guardada || f) : '');
 
   $('#fiVolver').onclick = () => { guardarPasoActual(); irA('fichas'); vistaFichas(); };
   /* El banner de ficha ajena vive fuera del cuerpo del paso: su botón se
      cablea acá para que funcione en los cinco pasos, no sólo en el primero. */
   if($('#fiTomar')) $('#fiTomar').onclick = () => tomarActo(f);
   if($('#acTomar')) $('#acTomar').onclick = () => tomarActo(f);
+  if($('#fiIdentificar')) $('#fiIdentificar').onclick = () => {
+    guardarPasoActual();
+    editarPaciente(fichaActual.pacienteId, () => pintarFicha());
+  };
   $$('#vFicha [data-paso]').forEach(b => b.onclick = () => {
     if(b.dataset.trabado){
       toast(motivoPasoCerrado(f, b.dataset.paso), 'warn');
@@ -982,10 +1063,7 @@ function pintarFicha(){
   if($('#fiSiguiente')) $('#fiSiguiente').onclick = () => avanzarPaso();
   if($('#fiGuardar'))   $('#fiGuardar').onclick = () => guardarPasoConCierre();
   cablearExtrasDePaso();
-  if($('#fiBorrar')) $('#fiBorrar').onclick = () => confirmar('Eliminar ficha',
-    'Se elimina de forma permanente en todos los dispositivos. Esta acción no se puede deshacer.',
-    () => { eliminar('fichas', f.id); auditar('ficha-borrar', f.id);
-            toast('Ficha eliminada.', 'ok'); irA('fichas'); vistaFichas(); }, 'Eliminar', true);
+  cablearBajaDeFicha(guardada || f);
 
   const cuerpo = $('#fiCuerpo');
   if(pasoFicha === 'paciente')          { cuerpo.innerHTML = htmlPasoPaciente(f);     cablearPasoPaciente(f); }
@@ -1162,8 +1240,13 @@ function htmlExtrasDePaso(f, soloActo){
         : '<div class="aviso warn mt8">'+ico('candado')+'<div><b>Todavía no se puede documentar.</b> '+
           'Completá la valoración —incluido el punto 15, el consentimiento informado— y tocá '+
           '<b>«Guardar valoración»</b>. Recién ahí se habilitan estos cuatro botones.</div></div>')+
+      /* Los dos botones de descarga bajan SOLO la valoracion: datos del
+         paciente, los quince puntos y el consentimiento. El registro del
+         acto no entra —el dia de la consulta todavia no existe— y el
+         honorario que se abre es el de la consulta, sin el del acto. */
       '<div class="btn-row mt8 fi-extras">'+
-        '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+' Honorarios</button>'+
+        '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+
+          ' Honorarios de la consulta</button>'+
         '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+' Word</button>'+
         '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+' PDF</button>'+
         '<button class="btn pri chico" id="fiMail"'+(lista && !sinMail ? '' : ' disabled')+'>'+
@@ -1173,10 +1256,14 @@ function htmlExtrasDePaso(f, soloActo){
         ? '<div class="ayuda">El paciente no tiene correo cargado: agregalo en su historia '+
           'para poder enviarle la documentación.</div>' : '')+
       (lista
-        ? '<div class="ayuda">Al paciente le llegan <b>dos PDF por separado</b>: la valoración '+
-          'pre-anestésica y el consentimiento informado firmado'+
-          (INDICACIONES_AL_PACIENTE ? ', más la hoja de indicaciones' : '')+
+        ? '<div class="ayuda"><b>Word</b> y <b>PDF</b> bajan los datos del paciente y la '+
+          'valoración pre-anestésica con su consentimiento, <b>sin el acto anestésico</b>: es el '+
+          'documento del día de la consulta y se guarda por separado.<br>'+
+          'Al paciente le llegan <b>dos PDF por separado</b>: la valoración pre-anestésica y el '+
+          'consentimiento informado firmado'+
+          (INDICACIONES_AL_PACIENTE ? ', más la hoja de indicaciones de ayuno' : '')+
           '. Sin ningún dato de facturación.</div>' : '')+
+      (lista ? htmlAvisoHonorario(f, 'consulta') : '')+
     '</div>';
   }
 
@@ -1188,23 +1275,61 @@ function htmlExtrasDePaso(f, soloActo){
     (enBase ? '' : '<div class="aviso warn mt8">'+ico('candado')+
       '<div>Guardá el registro para poder exportarlo.</div></div>')+
     '<div class="btn-row mt8 fi-extras">'+
-      '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+' Honorarios</button>'+
+      '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+
+        ' Honorarios del acto</button>'+
       '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+' Word</button>'+
       '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+' PDF</button>'+
+      '<button class="btn ghost chico" id="fiWordTodo"'+off+'>'+ico('word')+
+        ' Word · ficha completa</button>'+
     '</div>'+
     /* El consentimiento NO vuelve a aparecer acá: se firmó en el punto 15 de
        la Preanestesia y ya se le entregó al paciente con su valoración.
        Repetirlo en el cierre no agrega nada y confunde sobre cuál es el que
        vale. */
-    '<div class="ayuda">El consentimiento informado ya se firmó y se entregó con la valoración '+
-      'prequirúrgica (punto 15). Sale impreso dentro de estos documentos.</div>'+
+    '<div class="ayuda"><b>Word</b> y <b>PDF</b> bajan el registro del acto y la recuperación, '+
+      'sin repetir la valoración: son dos documentos y dos honorarios distintos. '+
+      '«Ficha completa» baja los dos juntos, para el legajo.<br>'+
+      'El consentimiento informado ya se firmó y se entregó con la valoración prequirúrgica '+
+      '(punto 15).</div>'+
+    (enBase ? htmlAvisoHonorario(f, 'acto') : '')+
   '</div>';
 }
 
+/* =========================================================================
+   EL HONORARIO QUE QUEDO SIN CARGAR, DICHO EN LA MISMA PANTALLA
+   -------------------------------------------------------------------------
+   El recordatorio de cada tres horas existe, pero llega despues y a otra
+   pantalla. Acá, al pie del documento que se acaba de emitir, es donde la
+   persona todavía tiene el caso en la cabeza. Y son DOS honorarios: el de la
+   consulta lo carga quien valoró, el del acto quien anestesió, y al contador
+   le llegan por separado aunque sea la misma persona.
+   ========================================================================= */
+function htmlAvisoHonorario(f, alcance){
+  const g = DB.fichas[f.id] || f;
+  const esConsulta = alcance === 'consulta';
+  const h = esConsulta ? (g.honConsulta || {}) : (g.hon || {});
+  const mio = esConsulta ? (esAutorFicha(g) || esCoordinador())
+                         : (esActorFicha(g) || esCoordinador());
+  if(!mio || h.modalidad) return '';
+  return '<div class="aviso warn mt8" id="fiHonPend">'+ico('dinero')+'<div>'+
+    '<b>Falta cargar el honorario de '+(esConsulta ? 'la consulta prequirúrgica' : 'este acto')+
+    '.</b> Mientras no esté, no entra en tu facturación del mes, no viaja a contaduría y te lo '+
+    'voy a seguir recordando —con aviso sonoro— cada tres horas.'+
+    '<div class="btn-row mt8"><button class="btn warn chico" id="fiHonAhora">'+ico('dinero')+
+    ' Cargarlo ahora</button></div></div></div>';
+}
+
 function cablearExtrasDePaso(){
-  if($('#fiHon'))  $('#fiHon').onclick  = () => { guardarPasoActual(); abrirHonorarios(fichaActual); };
-  if($('#fiWord')) $('#fiWord').onclick = () => { guardarPasoActual(); exportarFichaWord(fichaActual); };
-  if($('#fiPdf'))  $('#fiPdf').onclick  = () => { guardarPasoActual(); imprimirFicha(fichaActual); };
+  /* El alcance del botón depende del paso: en la valoración se abre el
+     honorario de la consulta y en el acto el del acto. Son dos actos
+     médicos y se facturan por separado, aunque sea el mismo profesional. */
+  const alcance = PASO_EXTRAS[pasoFicha] === 'valoracion' ? 'consulta' : 'acto';
+  const parte   = alcance === 'consulta' ? 'valoracion' : 'acto';
+  if($('#fiHon'))  $('#fiHon').onclick  = () => { guardarPasoActual(); abrirHonorarios(fichaActual, alcance); };
+  if($('#fiHonAhora')) $('#fiHonAhora').onclick = () => { guardarPasoActual(); abrirHonorarios(fichaActual, alcance); };
+  if($('#fiWord')) $('#fiWord').onclick = () => { guardarPasoActual(); exportarDocWord(fichaActual, parte); };
+  if($('#fiPdf'))  $('#fiPdf').onclick  = () => { guardarPasoActual(); imprimirDoc(fichaActual, parte); };
+  if($('#fiWordTodo')) $('#fiWordTodo').onclick = () => { guardarPasoActual(); exportarFichaWord(fichaActual); };
   if($('#fiMail')) $('#fiMail').onclick = () => { guardarPasoActual(); enviarDocumentacionPaciente(fichaActual); };
 }
 
@@ -1378,7 +1503,7 @@ function preguntarHonorarios(f){
       '<button type="button" class="op-cierre" id="hoDespues">'+ico('reloj')+
         '<b>Dejarlo para después</b><span>Te lo recuerdo cada 3 horas hasta que lo cargues</span></button>'+
     '</div>', '');
-  $('#hoAhora').onclick = () => { cerrarModal(); abrirHonorarios(fichaActual); };
+  $('#hoAhora').onclick = () => { cerrarModal(); abrirHonorarios(fichaActual, 'acto'); };
   $('#hoDespues').onclick = () => {
     cerrarModal();
     diferirHonorarios(fichaActual);
@@ -1550,15 +1675,44 @@ function htmlPasoPaciente(f){
      el momento en que la persona tiene la hoja en la mano. */
   (deudaValoracion(f) ? htmlValoracionExterna(f) : '')+
   '<div class="card"><h3>'+ico('paciente')+'Identificación del paciente</h3>'+
-    '<div class="campo"><label>Paciente <span class="req">*</span></label>'+
-      '<select id="qxPaciente"><option value="">— Seleccionar paciente del padrón —</option>'+
-      pacs.map(x => '<option value="'+x.id+'"'+(f.pacienteId===x.id?' selected':'')+'>'+
-        esc(x.apellido+', '+x.nombre)+' — DNI '+esc(x.dni||'')+'</option>').join('')+
-      '</select></div>'+
-    '<div class="btn-row">'+
-      '<button class="btn ghost chico" id="qxNuevoPac">'+ico('mas')+' Crear paciente nuevo</button>'+
-      (p ? '<button class="btn ghost chico" id="qxEditarPac">'+ico('editar')+' Editar historia</button>' : '')+
-    '</div>'+
+    /* =====================================================================
+       PACIENTE FIJADO POR LA FICHA DE ORIGEN
+       ---------------------------------------------------------------------
+       Cuando se declaro «ya fue valorado para una intervencion anterior», el
+       paciente NO se elige aca: salio de la ficha que se acaba de importar,
+       y por definicion de reintervencion es la misma persona. Dejar el
+       desplegable abierto invitaba a cambiarlo, y cambiarlo dejaba una ficha
+       con la valoracion de un paciente y los datos de otro.
+
+       Lo que si se puede seguir haciendo es EDITAR SU HISTORIA: la
+       reintervencion ocurre con el paciente todavia internado y en evolucion,
+       asi que el peso, la medicacion y los antecedentes cambiaron desde
+       aquella valoracion y hay que poder actualizarlos.
+       ===================================================================== */
+    (pacienteFijado(f)
+      ? '<div class="campo"><label>Paciente</label>'+
+          '<div class="pac-fijo">'+ico('candado')+
+            '<div><b>'+esc((p.apellido||'—')+', '+(p.nombre||''))+'</b>'+
+            (p.dni ? '<span class="mini">DNI '+esc(p.dni)+(p.hc ? ' · HC '+esc(p.hc) : '')+'</span>' : '')+
+            '<span class="mini">Viene de la intervención anterior que elegiste: '+
+              esc((sinValoracion(f)||{}).origenTxt || 'ficha importada')+'.</span></div>'+
+          '</div>'+
+          '<div class="ayuda">El paciente de una reintervención no se cambia: es el de la ficha '+
+            'de origen. Si te equivocaste de ficha, volvé al paso <b>Anestesia</b> y elegí otra '+
+            'intervención de origen.</div></div>'+
+        '<div class="btn-row">'+
+          '<button class="btn ghost chico" id="qxEditarPac">'+ico('editar')+
+            ' Editar historia clínica</button>'+
+        '</div>'
+      : '<div class="campo"><label>Paciente <span class="req">*</span></label>'+
+          '<select id="qxPaciente"><option value="">— Seleccionar paciente del padrón —</option>'+
+          pacs.map(x => '<option value="'+x.id+'"'+(f.pacienteId===x.id?' selected':'')+'>'+
+            esc(x.apellido+', '+x.nombre)+' — DNI '+esc(x.dni||'')+'</option>').join('')+
+          '</select></div>'+
+        '<div class="btn-row">'+
+          '<button class="btn ghost chico" id="qxNuevoPac">'+ico('mas')+' Crear paciente nuevo</button>'+
+          (p ? '<button class="btn ghost chico" id="qxEditarPac">'+ico('editar')+' Editar historia</button>' : '')+
+        '</div>')+
 
     (p ? '<div class="ficha-pac mt14">'+
       '<div class="grid c3">'+
@@ -1596,8 +1750,14 @@ function htmlPasoPaciente(f){
             'declarado al tomar el acto anestésico.<br>'+
             'Si hace falta corregirlo, se hace en el paso <b>Anestesia</b>, que es el carácter que '+
             'se informa y se factura.</div></div></div>';
+      /* El rotulo decia «carácter de la cirugía» y la ayuda de abajo decia
+         «este es el carácter de la consulta»: dos nombres para el mismo
+         campo, y ninguno de los dos exacto. Es una sola cosa: con qué
+         carácter se plantea la cirugía EN ESTA CONSULTA. Habla de la
+         cirugía, pero la fotografía en el día de la valoración; el carácter
+         con el que finalmente se anestesia es otro campo, el del paso 3. */
       return ''+
-      '<div class="campo"><label>Carácter de la cirugía, tal como se la ve hoy '+
+      '<div class="campo"><label>Carácter con el que se plantea la cirugía en esta consulta '+
         '<span class="req">*</span></label>'+
         '<div class="seg" id="qxCaracter">'+
           CARACTERES.map(c => '<button type="button" data-v="'+c.id+'"'+
@@ -1608,10 +1768,12 @@ function htmlPasoPaciente(f){
         /* El caracter del ACTO se confirma en el paso 3: una programada que se
            adelanta se anestesia de urgencia, y de ese dato -no de este- dependen
            las estadisticas y el adicional del honorario. */
-        '<div class="aviso info mt8">'+ico('info')+'<div>Este es el carácter de <b>la consulta</b>. '+
-          'El del acto anestésico se confirma el día de la cirugía, en el paso <b>Anestesia</b>: '+
-          'una programada que se adelanta se anestesia de urgencia, y es ese el que se informa y '+
-          'se factura.</div></div></div>';
+        '<div class="aviso info mt8">'+ico('info')+'<div><b>Hay dos carácteres y los dos son de '+
+          'la cirugía.</b> Éste es cómo se la ve <b>hoy, en la consulta</b>: alimenta el ARISCAT '+
+          'y queda impreso en la valoración. El otro es cómo se la <b>terminó anestesiando</b>, y '+
+          'se confirma el día del acto en el paso <b>Anestesia</b>. Una programada que se adelanta '+
+          'se anestesia de urgencia: ese segundo es el que se informa y el que se factura.'+
+          '</div></div></div>';
     })()+
     /* Fecha, hora y turno NO se piden acá: cuando el anestesiólogo hace la
        valoración prequirúrgica todavía no los sabe —la cirugía se programa
@@ -1659,13 +1821,26 @@ function htmlPasoPaciente(f){
 
 function cablearPasoPaciente(f){
   cablearValoracionExterna(f);
-  $('#qxPaciente').onchange = e => {
+  /* Con el paciente fijado por la reintervencion, ni el desplegable ni el
+     alta de paciente nuevo existen en pantalla: solo se cablean si estan. */
+  if($('#qxPaciente')) $('#qxPaciente').onchange = e => {
+    /* Si el que se deja atrás era el NN provisional de esta misma urgencia y
+       no lo usa ninguna otra ficha, se borra: se abrió para poder registrar,
+       la identidad resultó ser un paciente que ya estaba en el padrón, y
+       dejarlo suelto ensucia el padrón con NN huérfanos. */
+    const previo = DB.pacientes[fichaActual.pacienteId];
     fichaActual.pacienteId = e.target.value;
+    if(esPacienteProvisional(previo) && previo.id !== e.target.value &&
+       !lista('fichas').some(g => g.pacienteId === previo.id && g.id !== fichaActual.id)){
+      eliminar('pacientes', previo.id);
+      auditar('paciente-provisional-baja',
+        'NN de urgencia descartado: el paciente ya estaba en el padrón');
+    }
     const p = DB.pacientes[e.target.value];
     if(p && p.obraSocial && !$('#qxOS').value) $('#qxOS').value = p.obraSocial;
     guardarPasoActual(); pintarFicha();
   };
-  $('#qxNuevoPac').onclick = () => editarPaciente(null, nid => {
+  if($('#qxNuevoPac')) $('#qxNuevoPac').onclick = () => editarPaciente(null, nid => {
     fichaActual.pacienteId = nid; pintarFicha();
   });
   if($('#qxEditarPac')) $('#qxEditarPac').onclick = () => editarPaciente(f.pacienteId, () => pintarFicha());
@@ -1918,7 +2093,10 @@ function leerPasoPaciente(){
   const carDeclarado = !$('#qxCaracter') ? caracterValoracion(fichaActual) : null;
   /* el peso y la talla se guardan en la historia del paciente, que es donde
      viven: la ficha no lleva su propia copia que después queda vieja */
-  const pid = val('qxPaciente');
+  /* Sin desplegable —paciente fijado por la reintervencion— el que vale es el
+     que ya tiene la ficha. Leer del DOM devolveria vacio y borraria el
+     paciente al guardar el paso. */
+  const pid = $('#qxPaciente') ? val('qxPaciente') : (fichaActual.pacienteId || '');
   if(pid && DB.pacientes[pid] && $('#qxPeso')){
     const p = JSON.parse(JSON.stringify(DB.pacientes[pid]));
     const peso = val('qxPeso'), talla = val('qxTalla');
@@ -2034,6 +2212,10 @@ function htmlPasoRecuperacion(f){
   const a = f.acto || {};
   return ''+
   '<div class="card"><h3>'+ico('reloj')+'Ingreso a recuperación</h3>'+
+    /* La sigla se usa cinco veces en este paso y sale impresa en la ficha.
+       Se aclara una vez, arriba, y despues se la deja sola. */
+    '<p class="mini">URPA: <b>Unidad de Recuperación Post-Anestésica</b>, la sala de '+
+      'recuperación postanestésica.</p>'+
     '<div class="grid c2">'+
       '<div class="campo"><label>Hora de ingreso a la URPA</label>'+
         '<input type="time" id="reHora" value="'+esc(r.hora || a.salida || '')+'"></div>'+
@@ -2540,14 +2722,40 @@ function cablearPasoFirma(f){
 /* =========================================================================
    HONORARIOS - fuera del flujo clinico, en su propia ventana
    ========================================================================= */
-function abrirHonorarios(f){
-  abrirModal('Honorarios', '<div id="honCuerpo">'+htmlHonorarios(f)+'</div>',
+/* =========================================================================
+   HONORARIOS, CON ALCANCE
+   -------------------------------------------------------------------------
+   `alcance` dice CUAL de los dos honorarios se está cargando:
+
+     'consulta'  el de la valoración prequirúrgica. Se abre al pie de la
+                 valoración, el día de la consulta, cuando el acto todavía no
+                 existe: mostrarle ahí las unidades anestésicas del acto era
+                 pedirle un dato que nadie tiene.
+     'acto'      el del acto anestésico. Se abre al firmar, que es cuando el
+                 acto terminó y las unidades ya se saben.
+     sin alcance los dos, como siempre. Lo usan la coordinación, los avisos y
+                 el listado, que miran la ficha entera.
+
+   Son dos actos médicos y se facturan por separado aunque los haya hecho la
+   misma persona: al contador le llegan en dos envíos y se discriminan en
+   cada uno. Por eso también se guardan por separado: cargar el de la consulta
+   no debe escribir un honorario de acto vacío encima del que ya estaba.
+   ========================================================================= */
+function abrirHonorarios(f, alcance){
+  const al = alcance || '';
+  const tit = al === 'consulta' ? 'Honorario de la consulta prequirúrgica'
+            : al === 'acto'     ? 'Honorario del acto anestésico'
+                                : 'Honorarios';
+  abrirModal(tit, '<div id="honCuerpo" data-alcance="'+esc(al)+'">'+
+      htmlHonorarios(f, al)+'</div>',
     '<button class="btn ghost" data-cerrar>Cerrar</button>'+
-    '<button class="btn pri" id="honGuardar">'+ico('check')+' Guardar honorarios</button>', '860px');
-  cablearHonorariosModal(f);
+    '<button class="btn pri" id="honGuardar">'+ico('check')+' Guardar '+
+      (al === 'consulta' ? 'el honorario de la consulta'
+       : al === 'acto'   ? 'el honorario del acto' : 'honorarios')+'</button>', '860px');
+  cablearHonorariosModal(f, al);
   $('#honGuardar').onclick = () => {
-    fichaActual.hon = leerHonorarios();
-    fichaActual.honConsulta = leerHonorariosConsulta();
+    if(al !== 'consulta') fichaActual.hon = leerHonorarios();
+    if(al !== 'acto')     fichaActual.honConsulta = leerHonorariosConsulta();
     /* Cargado el honorario, se apaga el recordatorio de cada tres horas: la
        razón por la que existía dejó de estar. */
     if(fichaActual.hon && fichaActual.hon.modalidad) fichaActual.honDiferido = null;
@@ -2568,7 +2776,10 @@ function valorUnidadDe(obraSocial){
   const c = DB.config.valoresUnidad || {};
   return Number(c[obraSocial] || c._default || 0);
 }
-function htmlHonorarios(f){
+function htmlHonorarios(f, alcance){
+  const al = alcance || '';
+  const verConsulta = al !== 'acto';
+  const verActo     = al !== 'consulta';
   const h = f.hon || {}, hc = f.honConsulta || {};
   const ua = h.ua !== undefined && h.ua !== '' ? h.ua : (f.cirugiaUA || 0);
   const vu = h.valorUnidad || valorUnidadDe(f.obraSocial);
@@ -2578,8 +2789,13 @@ function htmlHonorarios(f){
   return ''+
   '<div class="aviso info">'+ico('dinero')+'<div><b>Son dos actos médicos distintos.</b><br>'+
     'La <b>consulta prequirúrgica</b> la factura quien hizo la valoración ('+esc(autorFicha(f))+'). '+
-    'El <b>acto anestésico</b> lo factura quien opera ('+esc(nombreActor(f))+').</div></div>'+
+    'El <b>acto anestésico</b> lo factura quien opera ('+esc(nombreActor(f))+').'+
+    (al ? '<br>Acá estás cargando <b>'+(al === 'consulta' ? 'sólo el de la consulta'
+            : 'sólo el del acto')+'</b>. El otro se carga en su propio momento y viaja a '+
+          'contaduría en su propio envío, aunque sean de la misma persona.' : '')+
+    '</div></div>'+
 
+  (!verConsulta ? '' :
   '<div class="card"'+(soyAutor?'':' style="opacity:.72"')+'><h3>'+ico('valoracion')+
     'Consulta prequirúrgica — '+esc(autorFicha(f))+
     (soyAutor?'':' <span class="tag" style="margin-left:auto">no es tuya</span>')+'</h3>'+
@@ -2596,8 +2812,9 @@ function htmlHonorarios(f){
       campoTxt('hcComprobante','N.º de comprobante', hc.comprobante)+
     '</div>'+
     campoNum('hcCobrado','Monto cobrado', hc.cobrado, 'step="0.01"')+
-  '</div>'+
+  '</div>')+
 
+  (!verActo ? '' :
   '<div class="card"'+(soyActor?'':' style="opacity:.72"')+'><h3>'+ico('jeringa')+
     'Acto anestésico — '+esc(nombreActor(f))+
     (soyActor?'':' <span class="tag" style="margin-left:auto">no es tuyo</span>')+'</h3></div>'+
@@ -2637,11 +2854,37 @@ function htmlHonorarios(f){
           campoNum('hoVU','Valor de la unidad', vu, 'step="0.01"')+
         '</div>';
     })()+
-    '<label class="mini strong" style="display:block;margin-bottom:6px">Adicionales del nomenclador</label>'+
-    '<div class="chks" id="hoAdic">'+ ADICIONALES_HONORARIOS.map(a =>
-      '<label class="chk'+((h.adicionales||[]).indexOf(a.id)>=0?' sel':'')+'">'+
-      '<input type="checkbox" value="'+a.id+'"'+((h.adicionales||[]).indexOf(a.id)>=0?' checked':'')+'>'+
-      esc(a.n)+' <b style="opacity:.6">+'+a.pct+'%</b></label>').join('') +'</div>'+
+    /* =================================================================
+       EL ADICIONAL DE URGENCIA VIENE PROPUESTO
+       -----------------------------------------------------------------
+       Un acto de urgencia o emergencia se factura con recargo, y el que se
+       perdia era siempre el mismo: el que se registro a las cuatro de la
+       manana y se facturo a fin de mes sin acordarse del caracter.
+
+       Asi que cuando el acto esta registrado como urgencia o emergencia, la
+       casilla llega TILDADA la primera vez que se abre la ventana. Sigue
+       siendo una propuesta y no una decision de la maquina: se destilda con
+       un clic si el convenio no lo reconoce, y a partir de que el honorario
+       se guarda una vez, manda lo guardado y esto no vuelve a tocar nada.
+       ================================================================= */
+    (function(){
+      const car = caracterActo(f);
+      const propuesto = !h.modalidad && esNoProgramado(car) ? ['urgencia'] : [];
+      const marcados = h.modalidad ? (h.adicionales || [])
+                                   : (h.adicionales || []).concat(propuesto);
+      return (propuesto.length
+        ? '<div class="aviso warn">'+ico('alerta')+'<div><b>Acto registrado como '+
+          esc(nombreCaracter(car).toLowerCase())+'.</b> El adicional de urgencia del nomenclador '+
+          'viene <b>tildado por eso</b>, para que no se facture de menos. Si tu convenio no lo '+
+          'reconoce, destildalo: la decisión sigue siendo tuya.</div></div>'
+        : '')+
+      '<label class="mini strong" style="display:block;margin-bottom:6px">Adicionales del nomenclador</label>'+
+      '<div class="chks" id="hoAdic">'+ ADICIONALES_HONORARIOS.map(a =>
+        '<label class="chk'+(marcados.indexOf(a.id)>=0?' sel':'')+
+        (a.id === 'urgencia' && propuesto.length ? ' propuesto' : '')+'">'+
+        '<input type="checkbox" value="'+a.id+'"'+(marcados.indexOf(a.id)>=0?' checked':'')+'>'+
+        esc(a.n)+' <b style="opacity:.6">+'+a.pct+'%</b></label>').join('') +'</div>';
+    })()+
     '<div id="hoCalculo" class="mt14"></div>'+
   '</div>'+
 
@@ -2661,13 +2904,18 @@ function htmlHonorarios(f){
     '</div>'+
     campoArea('hoObs','Observaciones administrativas', h.observaciones,
       'Débitos, reclamos, auditoría del financiador, número de expediente')+
-  '</div>'+
+  '</div>')+
 
   '<div id="hoCaracterAviso"></div>'+
   '<div id="hoResumen"></div>';
 }
-function cablearHonorariosModal(f){
+function cablearHonorariosModal(f, alcance){
   cablearGenerico();
+  /* Con alcance, la ventana dibuja un solo bloque: el otro no esta en
+     pantalla y todo lo que lo mire tiene que preguntar antes si existe. */
+  const al = alcance || '';
+  const hayConsulta = !!$('#hcModalidad');
+  const hayActo     = !!$('#hoModalidad');
   /* La consulta la edita quien hizo la valoración; el acto, quien opera. */
   const puedeConsulta = esAutorFicha(f) || esCoordinador();
   const puedeActoHon  = esActorFicha(f) || esCoordinador();
@@ -2680,15 +2928,18 @@ function cablearHonorariosModal(f){
     const a = $('#hoAdic'); if(a) a.style.pointerEvents = 'none';
   }
   const recalc = () => {
-    const mod = val('hoModalidad');
+    const mod = hayActo ? val('hoModalidad') : ((f.hon || {}).modalidad || '');
     const m = MODALIDADES_HONORARIOS.find(x => x.id === mod);
-    $('#hoModDesc').textContent = m ? m.d : '';
-    const porUnidades = mod === 'abierto';
-    const fijo = (mod === 'cerrado' || mod === 'particular');
-    $('#hoAbierto').style.display = porUnidades ? '' : 'none';
-    $('#hoFijo').style.display    = fijo ? '' : 'none';
+    if($('#hoModDesc')) $('#hoModDesc').textContent = m ? m.d : '';
+    const porUnidades = hayActo && mod === 'abierto';
+    const fijo = hayActo && (mod === 'cerrado' || mod === 'particular');
+    if($('#hoAbierto')) $('#hoAbierto').style.display = porUnidades ? '' : 'none';
+    if($('#hoFijo'))    $('#hoFijo').style.display    = fijo ? '' : 'none';
 
-    let total = 0, detalle = '', base = 0;
+    /* Sin el bloque del acto en pantalla, el total del acto es el que ya
+       estaba guardado: sirve para el resumen de abajo y no se reescribe. */
+    let total = hayActo ? 0 : (Number((f.hon || {}).total) || 0);
+    let detalle = '', base = 0;
     if(porUnidades){
       const vu = Number(val('hoVU')) || 0;
       /* Con un solo procedimiento es el campo de siempre. Con varios, la suma
@@ -2724,11 +2975,13 @@ function cablearHonorariosModal(f){
     } else if(fijo){
       total = Number(val('hoMontoFijo')) || 0;
     }
-    const mc = MODALIDADES_CONSULTA.find(x => x.id === val('hcModalidad'));
+    const modC = hayConsulta ? val('hcModalidad') : ((f.honConsulta || {}).modalidad || '');
+    const mc = MODALIDADES_CONSULTA.find(x => x.id === modC);
     if($('#hcDesc')) $('#hcDesc').textContent = mc ? mc.d : '';
-    const sinConsulta = val('hcModalidad') === 'incluida' || val('hcModalidad') === 'sincargo';
+    const sinConsulta = modC === 'incluida' || modC === 'sincargo';
     if($('#hcMontoBox')) $('#hcMontoBox').style.display = sinConsulta ? 'none' : '';
-    const consulta = sinConsulta ? 0 : (Number(val('hcMonto')) || 0);
+    const consulta = !hayConsulta ? (Number((f.honConsulta || {}).total) || 0)
+                   : sinConsulta  ? 0 : (Number(val('hcMonto')) || 0);
 
     /* Cruce entre lo que dice el registro del acto y lo que se esta
        facturando. NO auto-tilda nada: el adicional depende del convenio y no
@@ -2754,20 +3007,24 @@ function cablearHonorariosModal(f){
       avCar.innerHTML = aviso;
     }
 
+    const pieOtro = t => t ? 'cargado aparte' : 'todavía sin cargar';
     $('#hoResumen').innerHTML = '<div class="grid c3">'+
       '<div class="kpi aqua"><div class="lbl">'+ico('valoracion')+' Consulta</div>'+
         '<div class="val">'+fMoneda(consulta)+'</div>'+
-        '<div class="pie">'+esc(autorFicha(fichaActual))+'</div></div>'+
+        '<div class="pie">'+esc(autorFicha(fichaActual))+
+          (hayConsulta ? '' : ' · '+pieOtro(consulta))+'</div></div>'+
       '<div class="kpi azul"><div class="lbl">'+ico('jeringa')+' Acto anestésico</div>'+
         '<div class="val">'+fMoneda(total)+'</div>'+
-        '<div class="pie">'+esc(nombreActor(fichaActual))+'</div></div>'+
+        '<div class="pie">'+esc(nombreActor(fichaActual))+
+          (hayActo ? '' : ' · '+pieOtro(total))+'</div></div>'+
       '<div class="kpi ok"><div class="lbl">'+ico('dinero')+' Total de la ficha</div>'+
         '<div class="val">'+fMoneda(consulta + total)+'</div>'+
         '<div class="pie">'+(esAutorFicha(fichaActual) && esActorFicha(fichaActual)
           ? 'todo tuyo' : 'repartido entre dos profesionales')+'</div></div>'+
     '</div>';
-    fichaActual.hon = Object.assign(fichaActual.hon || {}, { total });
-    fichaActual.honConsulta = Object.assign(fichaActual.honConsulta || {}, { total:consulta });
+    if(hayActo)     fichaActual.hon = Object.assign(fichaActual.hon || {}, { total });
+    if(hayConsulta) fichaActual.honConsulta =
+      Object.assign(fichaActual.honConsulta || {}, { total:consulta });
   };
   $('#honCuerpo').addEventListener('change', recalc);
   $('#honCuerpo').addEventListener('input', debounce(recalc, 220));
@@ -2885,4 +3142,215 @@ function abrirConsentimiento(f){
     const acc = $('#acConsent');
     if(acc){ acc.open = true; acc.scrollIntoView({ behavior:'smooth', block:'center' }); }
   }, 120);
+}
+
+/* =========================================================================
+   BAJA DE UNA FICHA — LA TARJETA DEL PIE
+   -------------------------------------------------------------------------
+   Tres estados posibles y los tres se dicen en voz alta:
+
+     - Hay una baja programada: se ve cuanto falta y el boton para detenerla.
+     - Se puede pedir la baja: se dice QUE se va a borrar, y se abre la
+       ventana con la advertencia completa.
+     - No se puede: se dice por que, con nombre y apellido de quien si puede.
+
+   Ver alcanceDeBaja() y motivoSinBaja() en core.js.
+   ========================================================================= */
+function htmlBajaDeFicha(f){
+  const b = bajaProgramada(f);
+  if(b){
+    const min = minutosParaLaBaja(b);
+    const puedeParar = esCoordinador() || (SESION && b.pedidaPor === SESION.uid);
+    return '<div class="card baja-card no-print"><h3>'+ico('alerta')+
+      'Eliminación programada</h3>'+
+      '<div class="aviso danger">'+ico('reloj')+'<div><b>Esta ficha se va a eliminar sola'+
+        (min !== null && min > 0 ? ' en <span id="bjReloj">'+textoCuentaBaja(min)+'</span>'
+                                 : ' en cualquier momento')+'.</b><br>'+
+        'La pidió '+esc(b.pedidaPorNombre || nombreUsuario(b.pedidaPor))+' el '+
+        esc(cuandoLocal(b.pedida))+'. '+
+        'Se borra '+(b.alcance === 'acto' ? 'el registro del acto anestésico y su honorario'
+                                          : 'la ficha completa, con sus honorarios')+
+        '.<br>A los '+MINUTOS_ALARMA_BAJA+' minutos del final suena la alarma.</div></div>'+
+      (puedeParar
+        ? '<button class="btn pri grande" id="bjDetener">'+ico('check')+
+          ' Detener la eliminación</button>'
+        : '<div class="ayuda">La detiene quien la pidió, o la coordinación.</div>')+
+    '</div>';
+  }
+
+  const al = alcanceDeBaja(f);
+  if(!al) return '<div class="ayuda mt14 no-print">'+esc(motivoSinBaja(f))+'</div>';
+  return '<div class="btn-row mt14 no-print"><button class="btn danger chico" id="fiBorrar">'+
+    ico('borrar')+' Eliminar '+(al === 'acto' ? 'mi acto anestésico' : 'esta ficha')+
+    '</button></div>'+
+    (al === 'acto'
+      ? '<div class="ayuda">Sólo se elimina lo que registraste vos: el acto, la recuperación, '+
+        'la firma y tu honorario. La valoración de '+esc(autorFicha(f))+' queda intacta.</div>'
+      : '');
+}
+
+function textoCuentaBaja(min){
+  if(min === null || min <= 0) return 'menos de un minuto';
+  /* Se redondea PRIMERO y despues se parte en horas y minutos: al reves,
+     119,9 minutos salia «1 h 60 min». */
+  const t = Math.max(1, Math.round(min));
+  const h = Math.floor(t / 60), m = t % 60;
+  if(h) return h + ' h ' + String(m).padStart(2,'0') + ' min';
+  return m + ' min';
+}
+
+/* Fecha y hora de un sello ISO en la hora del reloj de quien mira, no en UTC.
+   Un cartel que dice «la pediste a las 21:29» cuando el reloj marca 18:29
+   hace dudar de todo lo demas que dice el cartel. */
+function cuandoLocal(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d)) return '—';
+  const iso10 = [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'),
+                 String(d.getDate()).padStart(2,'0')].join('-');
+  return fFechaLarga(iso10) + ' a las ' +
+    String(d.getHours()).padStart(2,'0') + ':' +
+    String(d.getMinutes()).padStart(2,'0') + ' h';
+}
+
+function cablearBajaDeFicha(f){
+  if($('#bjDetener')) $('#bjDetener').onclick = () => detenerBaja(f.id);
+  if($('#fiBorrar'))  $('#fiBorrar').onclick  = () => pedirBajaDeFicha(f);
+}
+
+/* -------------------------------------------------------------------------
+   LA VENTANA DE ADVERTENCIA
+   Dice las cuatro consecuencias reales, sin suavizarlas: que es definitivo,
+   que se lleva los honorarios y la facturacion, que el contador no se entera,
+   y que la auditoria si lo registra. Y explica por que hay dos horas de
+   espera: para que un error de dedo tenga arreglo.
+   ------------------------------------------------------------------------- */
+function pedirBajaDeFicha(f){
+  const al = alcanceDeBaja(f);
+  if(!al) return toast(motivoSinBaja(f), 'err');
+  const p = DB.pacientes[f.pacienteId] || {};
+  const quien = (p.apellido || '—') + ', ' + (p.nombre || '');
+  const envios = (enviosDeFicha(f.id, 'valoracion') || [])
+    .concat(enviosDeFicha(f.id, 'acto') || []);
+
+  abrirModal(al === 'acto' ? 'Eliminar el acto anestésico' : 'Eliminar la ficha',
+    '<div class="aviso danger">'+ico('alerta')+'<div>'+
+      '<b>Va a eliminar definitivamente '+
+      (al === 'acto' ? 'el acto anestésico y su actuación' : 'la ficha y su actuación')+
+      '.</b><br>'+esc(quien)+' · '+esc(f.cirugia || 'sin cirugía')+' · '+
+      fFecha(fechaCirugiaDe(f) || f.fecha)+'<br><br>'+
+      'También se eliminan <b>sus honorarios y su facturación</b>. '+
+      'El contador <b>no va a tener constancia de este evento</b>'+
+      (envios.length
+        ? ' —lo que ya se le envió queda en su bandeja, pero la ficha de la que salió deja de '+
+          'existir: hay '+envios.length+' envío'+(envios.length===1?'':'s')+' hecho'+
+          (envios.length===1?'':'s')+'—'
+        : '')+
+      '. Sí queda grabado en <b>auditoría</b>.</div></div>'+
+
+    '<div class="aviso warn">'+ico('reloj')+'<div><b>Para darle mayor seguridad al sistema y que '+
+      'usted no se equivoque, esta eliminación queda en cuenta regresiva por las próximas '+
+      HORAS_BAJA_PROGRAMADA+' horas.</b><br>Durante ese tiempo la puede detener desde esta misma '+
+      'ficha o desde la campana de avisos. A los <b>'+MINUTOS_ALARMA_BAJA+' minutos</b> del final '+
+      'se avisa con alarma sonora de que la ficha se va a autoborrar. Si no la detiene, o hace '+
+      'caso omiso del aviso, se elimina.</div></div>'+
+
+    (al === 'acto'
+      ? '<div class="aviso info">'+ico('info')+'<div>Se elimina <b>sólo lo tuyo</b>: el registro '+
+        'del acto, la recuperación, la firma y tu honorario. La valoración prequirúrgica de '+
+        esc(autorFicha(f))+' y el paciente quedan como están.</div></div>'
+      : '')+
+
+    '<div class="campo mt14"><label>Motivo de la baja <span class="req">*</span></label>'+
+      '<input type="text" id="bjMotivo" placeholder="Ficha duplicada, cargada en el paciente '+
+      'equivocado, etc." autocomplete="off">'+
+      '<div class="ayuda">Queda en la auditoría. Es lo único que va a quedar de esta ficha.</div>'+
+    '</div>',
+
+    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+    '<button class="btn danger" id="bjProgramar">'+ico('reloj')+' Programar la eliminación en '+
+      HORAS_BAJA_PROGRAMADA+' h</button>', '660px');
+
+  $('#bjProgramar').onclick = () => {
+    const motivo = val('bjMotivo').trim();
+    if(!motivo) return toast('Escribí el motivo de la baja: queda en la auditoría.', 'err');
+    programarBaja(f, al, motivo);
+    cerrarModal();
+  };
+}
+
+function programarBaja(f, alcance, motivo){
+  const base = JSON.parse(JSON.stringify(DB.fichas[f.id] || f));
+  const ahora = new Date();
+  base.bajaProgramada = {
+    alcance, motivo,
+    pedida: ahora.toISOString(),
+    cuando: new Date(ahora.getTime() + HORAS_BAJA_PROGRAMADA * 3600000).toISOString(),
+    pedidaPor: SESION.uid,
+    pedidaPorNombre: USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '',
+    avisado: ''
+  };
+  escribir('fichas', base.id, base);
+  if(fichaActual && fichaActual.id === base.id) fichaActual.bajaProgramada = base.bajaProgramada;
+  auditar('ficha-baja-programada',
+    'Baja de ' + (alcance === 'acto' ? 'el acto anestésico' : 'la ficha') + ' ' + base.id +
+    ' programada para dentro de ' + HORAS_BAJA_PROGRAMADA + ' h. Motivo: ' + motivo);
+  toast('Eliminación programada. Tenés ' + HORAS_BAJA_PROGRAMADA +
+        ' horas para detenerla.', 'warn');
+  pintarFicha();
+}
+
+function detenerBaja(fichaId){
+  const g = DB.fichas[fichaId];
+  if(!g || !g.bajaProgramada) return;
+  const base = JSON.parse(JSON.stringify(g));
+  delete base.bajaProgramada;
+  escribir('fichas', fichaId, base);
+  if(fichaActual && fichaActual.id === fichaId) delete fichaActual.bajaProgramada;
+  auditar('ficha-baja-detenida', 'Eliminación de la ficha ' + fichaId + ' detenida');
+  toast('Eliminación detenida. La ficha queda como estaba.', 'ok');
+  if(vistaActual === 'ficha') pintarFicha();
+  else if(vistaActual === 'fichas') vistaFichas();
+}
+
+/* -------------------------------------------------------------------------
+   LA EJECUCION
+   Con alcance 'acto' no se borra la ficha: se borra lo que registro quien
+   pidio la baja y la valoracion del colega queda en pie, disponible para que
+   otro tome el acto. Es lo que se pidio y ademas es lo correcto: una
+   valoracion prequirurgica firmada es un acto medico de otra persona.
+   ------------------------------------------------------------------------- */
+function ejecutarBaja(fichaId){
+  const g = DB.fichas[fichaId];
+  if(!g || !g.bajaProgramada) return;
+  const b = g.bajaProgramada;
+  const p = DB.pacientes[g.pacienteId] || {};
+  const quien = (p.apellido || '—') + ', ' + (p.nombre || '');
+
+  if(b.alcance === 'acto'){
+    const base = migrarFicha(JSON.parse(JSON.stringify(g)));
+    delete base.bajaProgramada;
+    base.acto = {}; base.recup = {}; base.firma = {}; base.hon = {};
+    base.honDiferido = null;
+    base.actoPorUid = ''; base.actoPorNombre = ''; base.actoTomado = '';
+    base.asignadoUid = ''; base.actorExterno = '';
+    if((base.enviosContaduria || {}).acto) delete base.enviosContaduria.acto;
+    if(base.estado === 'cerrada') base.estado = 'realizada';
+    base.modificado = new Date().toISOString();
+    escribir('fichas', fichaId, base);
+    auditar('acto-borrar',
+      'Acto anestésico de ' + quien + ' eliminado por cuenta regresiva. Motivo: ' + (b.motivo||'—'));
+  } else {
+    eliminar('fichas', fichaId);
+    auditar('ficha-borrar',
+      'Ficha de ' + quien + ' (' + fichaId + ') eliminada por cuenta regresiva. Motivo: ' +
+      (b.motivo || '—'));
+  }
+
+  if(fichaActual && fichaActual.id === fichaId){
+    if(b.alcance === 'acto'){ fichaActual = DB.fichas[fichaId]; pintarFicha(); }
+    else { irA('fichas'); vistaFichas(); }
+  } else if(vistaActual === 'fichas') vistaFichas();
+
+  toast(b.alcance === 'acto' ? 'El acto anestésico se eliminó.' : 'La ficha se eliminó.', 'warn');
 }

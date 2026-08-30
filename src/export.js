@@ -466,7 +466,7 @@ function documentoRecuperacion(f){
   const r = f.recup || {};
   if(!r.aldreteTotal && !r.destino && !r.observaciones && !(r.analgesia||[]).length) return '';
   return seccion('Recuperación postanestésica',
-    par('Hora de ingreso a la URPA', r.hora)+
+    par('Hora de ingreso a la URPA (Unidad de Recuperación Post-Anestésica)', r.hora)+
     par('Oxigenoterapia', r.oxigeno)+
     (r.aldreteCompleto
       ? '<table><tr>'+ALDRETE.map(i => '<th>'+esc(i.t)+'</th>').join('')+'<th>Total</th></tr><tr>'+
@@ -706,20 +706,55 @@ function docPacienteIndicaciones(f){
     pieLegalPaciente(f));
 }
 
-function exportarFichaWord(f){
+/* =========================================================================
+   LAS TRES DESCARGAS, NO UNA
+   -------------------------------------------------------------------------
+   Son dos actos medicos distintos y hasta ahora se bajaban siempre juntos:
+   el boton «Word» del final de la valoracion emitia la ficha entera, con el
+   acto adentro —que en ese momento todavia no existe— y con la valoracion de
+   un colega si el acto era de otro.
+
+   Ahora hay tres salidas:
+     'valoracion'  el prequirurgico solo: datos del paciente, los quince
+                   puntos y el consentimiento. Es lo que se firma el dia de
+                   la consulta y lo que respalda el honorario de la consulta.
+     'acto'        el registro intraoperatorio y la recuperacion. Es lo que
+                   se firma el dia de la cirugia.
+     ''            los dos juntos, como siempre, para el legajo completo.
+   ========================================================================= */
+const NOMBRE_PARTE = { valoracion:'Valoracion', acto:'Acto-anestesico', '':'Ficha' };
+const TITULO_PARTE = { valoracion:'Valoración pre-anestésica',
+                       acto:'Registro del acto anestésico', '':'Ficha anestésica' };
+
+function exportarDocWord(f, parte){
   const p = DB.pacientes[f.pacienteId] || {};
+  const pt = parte || '';
   const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" '+
     'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'+
-    '<head><meta charset="utf-8"><title>Ficha anestésica</title>'+
+    '<head><meta charset="utf-8"><title>'+esc(TITULO_PARTE[pt])+'</title>'+
     '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View>'+
     '<w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->'+
     '<style>@page{size:A4;margin:1.6cm}'+CSS_DOC+'</style></head><body>'+
-    documentoFicha(f) + '</body></html>';
-  const nombre = 'Ficha-' + (p.apellido||'paciente').replace(/\s+/g,'') + '-' + (f.fecha||hoyISO()) + '.doc';
+    documentoFicha(f, pt ? { parte:pt } : undefined) + '</body></html>';
+  const nombre = NOMBRE_PARTE[pt] + '-' + (p.apellido||'paciente').replace(/\s+/g,'') +
+    '-' + (f.fecha||hoyISO()) + '.doc';
   descargar(nombre, '﻿' + html, 'application/msword;charset=utf-8');
   auditar('export-word', nombre);
-  toast('Documento Word descargado.', 'ok');
+  toast(TITULO_PARTE[pt] + ': documento Word descargado.', 'ok');
 }
+function imprimirDoc(f, parte){
+  const pt = parte || '';
+  imprimir(documentoFicha(f, pt ? { parte:pt } : undefined));
+  auditar('export-pdf', (pt || 'ficha') + ' ' + f.id);
+}
+
+/* Los nombres viejos siguen valiendo: los usan el cierre de ficha, la
+   pantalla de ficha completa y los avisos. */
+function exportarFichaWord(f){ exportarDocWord(f, ''); }
+function exportarValoracionWord(f){ exportarDocWord(f, 'valoracion'); }
+function exportarActoWord(f){ exportarDocWord(f, 'acto'); }
+function imprimirValoracion(f){ imprimirDoc(f, 'valoracion'); }
+function imprimirActo(f){ imprimirDoc(f, 'acto'); }
 
 /* ---------------------------------------------------------------- PDF */
 function imprimir(html){

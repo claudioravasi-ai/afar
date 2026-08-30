@@ -842,7 +842,13 @@ table tr.alto td{background:var(--warn-bg)}
 .vital .v{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;margin:3px 0 1px;
   font-variant-numeric:tabular-nums}
 .vital .u{display:block;font-size:10.5px;color:var(--texto-3)}
+/* Que significa la sigla. Chico, para que no compita con el numero, pero
+   presente: la ficha la leen tambien el paciente y la auditoria. */
+.vital .d{display:block;font-size:9.5px;line-height:1.2;color:var(--texto-3);
+  margin-top:2px;text-transform:none;letter-spacing:0}
 .vitales-tabla th{font-size:11px}
+.vitales-tabla th .col-def{display:block;font-size:9px;line-height:1.15;font-weight:500;
+  color:var(--texto-3);text-transform:none;letter-spacing:0;max-width:74px;margin-left:auto}
 .vitales-tabla td{font-variant-numeric:tabular-nums}
 .vitales-tabla tbody tr{cursor:pointer}
 .vitales-tabla tbody tr:hover td{background:var(--panel-2)}
@@ -1239,3 +1245,52 @@ html[data-tema="oscuro"] .falta-chips button:hover{background:rgba(255,255,255,.
 .expres .it .t{flex:1;min-width:0}
 .expres .it .v{font-size:12.5px;color:var(--texto-2);text-align:right}
 .expres .it button{flex:none}
+
+/* ------------------------------------- paciente fijado (reintervencion) --
+   El paciente de una reintervencion no se elige: viene de la ficha de
+   origen. Se lo muestra como dato cerrado, con candado, en vez de como un
+   desplegable que invita a cambiarlo. */
+.pac-fijo{display:flex;gap:11px;align-items:flex-start;background:var(--bg-2);
+  border:1px solid var(--borde);border-radius:var(--radio-sm);padding:12px 13px}
+.pac-fijo svg{width:18px;height:18px;flex:0 0 auto;margin-top:1px;color:var(--texto-3)}
+.pac-fijo b{display:block;font-size:15px}
+.pac-fijo .mini{display:block;color:var(--texto-2);margin-top:2px}
+/* La casilla que la app propuso sola se distingue de las que tildo la
+   persona: es una sugerencia con fundamento, no un dato ya decidido. */
+.chk.propuesto{border-color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn)}
+
+/* ------------------------------------------ plan de fluidos propuesto --
+   Va plegable y abierto: quien ya sabe lo que va a poner lo cierra de un
+   toque, y quien quiere ver de donde sale cada renglon lo tiene delante. */
+.plan-fluidos > summary{display:flex;align-items:center;gap:9px;cursor:pointer;
+  list-style:none;font-size:14.5px;padding:2px 0 10px}
+.plan-fluidos > summary::-webkit-details-marker{display:none}
+.plan-fluidos > summary svg{width:17px;height:17px;color:var(--azul-600);flex:none}
+.plan-fluidos > summary .tag{margin-left:auto}
+/* El fundamento de cada renglon, debajo del renglon */
+.res-por{font-size:11.5px;line-height:1.45;color:var(--texto-2);
+  padding:0 2px 9px;margin-top:-4px}
+
+/* ---------------------------------------- eventos probables del acto ---
+   Botones anchos, para el dedo, con el motivo debajo: es una pantalla que se
+   usa con una mano mientras pasa otra cosa. */
+.ev-probables{display:grid;gap:8px}
+.ev-prob{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;
+  background:var(--panel);border:1px solid var(--borde);border-radius:var(--radio-sm);
+  padding:11px 12px;cursor:pointer;transition:.16s}
+.ev-prob:hover{border-color:var(--azul-600);background:var(--panel-2)}
+.ev-prob svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--azul-600)}
+.ev-prob .tx{display:block;min-width:0}
+.ev-prob .tx b{display:block;font-size:13.5px}
+.ev-prob .tx i{display:block;font-style:normal;font-size:11.5px;line-height:1.4;
+  color:var(--texto-2);margin-top:2px}
+.ev-prob.ya{opacity:.6}
+.ev-prob.ya svg{color:var(--ok)}
+
+/* -------------------------------------------- baja en cuenta regresiva --
+   La tarjeta del pie de la ficha cuando hay una eliminacion programada. Se
+   distingue del resto: lo que esta pasando ahi es que unos datos se van a
+   destruir solos. */
+.baja-card{border-color:var(--danger)}
+.baja-card h3{color:var(--danger)}
+.baja-card #bjReloj{font-variant-numeric:tabular-nums;white-space:nowrap}

@@ -894,6 +894,15 @@ function guardarPacienteEditado(){
     creado: p.creado || new Date().toISOString(),
     modificado: new Date().toISOString(), modificadoPor: SESION.uid
   });
+  /* El NN de una urgencia deja de ser provisional en cuanto tiene identidad:
+     apellido de verdad y documento. Recien ahi el paso Paciente de su ficha
+     puede llegar a verde y la ficha se puede firmar. Ver
+     crearPacienteProvisional() en core.js. */
+  if(reg.provisional && reg.dni && norm(reg.apellido) !== 'nn'){
+    delete reg.provisional;
+    auditar('paciente-identificado',
+      'NN de urgencia identificado como ' + reg.apellido + ', ' + reg.nombre);
+  }
   escribir('pacientes', nid, reg);
   auditar(id?'paciente-editar':'paciente-alta', reg.apellido+', '+reg.nombre);
   cerrarModal();
@@ -1055,6 +1064,15 @@ function fila(l, v){
    ambigua: puede ser una valoración cerrada esperando la cirugía o un acto
    registrado sin firmar. Se dice cuál de las dos es. */
 function etiquetaEstadoFicha(f){
+  /* Una ficha con la eliminación en cuenta regresiva se anuncia ANTES que su
+     estado: en el listado se veía igual que cualquier otra, y lo que le está
+     por pasar importa más que si está firmada o en borrador. Se detiene desde
+     la propia ficha, en el paso Firmar, o desde la campana. */
+  const b = typeof bajaProgramada === 'function' ? bajaProgramada(f) : null;
+  if(b) return '<span class="tag danger" title="'+
+    esc((b.alcance === 'acto' ? 'El acto anestésico' : 'La ficha completa')+
+        ' se elimina sola. Motivo: '+(b.motivo || '—'))+'">'+ico('alerta')+
+    'Se borra en '+esc(textoCuentaBaja(minutosParaLaBaja(b)))+'</span>';
   if(f.estado === 'cerrada')   return '<span class="tag ok">'+ico('check')+'Finalizada</span>';
   if(f.estado === 'realizada'){
     if(!fechaCirugiaDe(f))     return '<span class="tag info">Valoración cerrada</span>';

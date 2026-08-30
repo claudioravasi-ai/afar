@@ -1739,6 +1739,148 @@ function debeDeclararSinValoracion(f){
   if(sinValoracion(f) && sinValoracion(f).motivo) return false;
   return estadoPaso(f, 'preanestesia') === 'pend';
 }
+/* =========================================================================
+   QUIEN PUEDE ELIMINAR, Y QUE
+   -------------------------------------------------------------------------
+   Hasta ahora el boton «Eliminar ficha» lo veia cualquiera que pudiera editar
+   la ficha, y borraba todo. En una ficha compartida —uno valoro, otro
+   anestesio— eso significaba que uno de los dos podia hacer desaparecer el
+   acto medico del otro, con sus honorarios y su facturacion.
+
+   La regla es simple y sale de quien firma cada cosa: cada uno elimina lo
+   que hizo, y nadie elimina lo que no actuo.
+
+     'ficha'   se borra entera. Solo cuando los dos actos medicos son de la
+               misma persona, o cuando todavia no hay acto de nadie.
+     'acto'    se borra el registro del acto, la recuperacion, la firma y el
+               honorario del acto. La valoracion del colega queda intacta.
+     ''        no se puede eliminar nada: lo que hay es de otro.
+
+   La coordinacion puede eliminar la ficha entera: es la que resuelve los
+   errores de carga y responde por el archivo de la asociacion.
+   ========================================================================= */
+function actoRegistrado(f){
+  if(!f) return false;
+  const a = f.acto || {};
+  return !!(f.actoPorUid || (f.firma || {}).firmado || (a.drogas || []).length ||
+            (a.controles || []).length || (a.tecnicas || []).length || a.fechaCirugia);
+}
+function alcanceDeBaja(f){
+  if(!f || !SESION) return '';
+  if(esCoordinador()) return 'ficha';
+  const mioVal  = esAutorFicha(f);
+  const mioActo = esActorFicha(f);
+  /* Los dos actos medicos son mios: la ficha es mia entera. */
+  if(mioVal && mioActo) return 'ficha';
+  /* Valore yo y nadie registro todavia ningun acto: no hay nada de nadie. */
+  if(mioVal && !actoRegistrado(f)) return 'ficha';
+  /* Anestesie yo sobre la valoracion de un colega: borro lo mio y nada mas. */
+  if(mioActo) return 'acto';
+  return '';
+}
+function motivoSinBaja(f){
+  if(!f || !SESION) return 'No hay sesión iniciada.';
+  if(esAutorFicha(f) && actoRegistrado(f))
+    return 'Esta valoración sostiene el acto anestésico de ' + nombreActor(f) +
+           '. Eliminarla borraría el registro de un acto médico que no hiciste vos. ' +
+           'Si hay que darla de baja, la elimina quien la realizó, o la coordinación.';
+  return 'Ni la valoración ni el acto de esta ficha son tuyos: sólo la podés leer.';
+}
+
+/* =========================================================================
+   LA BAJA EN CUENTA REGRESIVA
+   -------------------------------------------------------------------------
+   Eliminar una ficha borra tambien su honorario y su facturacion, y el
+   contador no se entera: lo que le llego por un envio queda en su bandeja,
+   pero la ficha de la que salio deja de existir. Es una accion sin vuelta
+   atras tomada casi siempre a las apuradas y casi siempre por error.
+
+   Por eso no se ejecuta en el momento: queda programada dos horas. Durante
+   esas dos horas se detiene con un boton, desde la propia ficha o desde la
+   campana. A los cinco minutos del final suena la alarma. Si nadie la
+   detiene, se borra.
+
+   La baja vive EN la ficha, no en este dispositivo: asi sobrevive a cerrar la
+   aplicacion y se ve desde cualquier equipo del profesional.
+   ========================================================================= */
+const HORAS_BAJA_PROGRAMADA = 2;
+const MINUTOS_ALARMA_BAJA   = 5;
+
+function bajaProgramada(f){
+  const b = f && f.bajaProgramada;
+  return (b && b.cuando) ? b : null;
+}
+function minutosParaLaBaja(b){
+  if(!b || !b.cuando) return null;
+  return (new Date(b.cuando).getTime() - Date.now()) / 60000;
+}
+
+/* =========================================================================
+   PACIENTE FIJADO POR LA FICHA DE ORIGEN
+   -------------------------------------------------------------------------
+   En la reintervencion el paciente no se elige: sale de la ficha anterior que
+   se importo. Es la misma persona por definicion —esta internada, en
+   evolucion de una cirugia reciente y sin alta medica—, asi que el
+   desplegable del paso 1 no tiene nada que ofrecer y si mucho que romper.
+
+   Solo se fija cuando las tres cosas estan: el motivo declarado, la ficha de
+   origen enlazada y el paciente ya resuelto. Si falta alguna, el desplegable
+   vuelve, porque entonces si hay algo que elegir.
+   ========================================================================= */
+function pacienteFijado(f){
+  const s = sinValoracion(f);
+  return !!(s && s.motivo === 'reintervencion' && s.fichaOrigen && f && f.pacienteId);
+}
+
+/* =========================================================================
+   EL PACIENTE PROVISIONAL DE LA URGENCIA
+   -------------------------------------------------------------------------
+   En una emergencia el orden real de los hechos es: entra el paciente, se
+   anestesia, y la identidad aparece despues —la trae la familia, el DNI, el
+   sistema del sanatorio—. Pedir el nombre antes de dejar registrar el acto
+   invierte ese orden y consigue una sola cosa: que el acto se registre de
+   memoria, dos horas mas tarde y peor.
+
+   Asi que se abre un paciente provisional, un NN con hora de apertura, y el
+   registro del acto arranca en el segundo cero. Ese NN no es una salida: es
+   una DEUDA visible. Mientras el paciente siga provisional:
+
+     - el paso Paciente nunca llega a verde,
+     - y sin los cuatro pasos en verde no hay firma (pasosPreviosPendientes),
+
+   asi que la ficha no se puede cerrar hasta que la identidad este cargada, ni
+   la valoracion prequirurgica se pueda dar por saldada. Que es exactamente
+   lo que se pidio: dejar trabajar primero, cobrar los datos despues.
+   ========================================================================= */
+function esPacienteProvisional(p){
+  return !!(p && p.provisional);
+}
+function pacienteProvisional(f){
+  const p = f ? DB.pacientes[f.pacienteId] : null;
+  return esPacienteProvisional(p) ? p : null;
+}
+/* Crea el NN y devuelve su id. El apellido lleva la hora de apertura para
+   poder distinguir dos urgencias de la misma guardia. */
+function crearPacienteProvisional(){
+  const id = uid('pac');
+  const ahora = new Date();
+  const hh = String(ahora.getHours()).padStart(2,'0') + ':' +
+             String(ahora.getMinutes()).padStart(2,'0');
+  const reg = {
+    id, provisional:true,
+    apellido:'NN', nombre:'sin identificar ' + hh + ' h',
+    dni:'', hc:'', sexo:'', fechaNac:'', peso:'', talla:'',
+    ownerUid: SESION ? SESION.uid : '',
+    creado: ahora.toISOString(),
+    modificado: ahora.toISOString(),
+    modificadoPor: SESION ? SESION.uid : ''
+  };
+  escribir('pacientes', id, reg);
+  auditar('paciente-provisional',
+    'NN abierto para registrar un acto de urgencia; queda pendiente identificarlo');
+  return id;
+}
+
 /* La deuda que sigue abierta, o null si ya se completo la valoracion */
 function deudaValoracion(f){
   if(!motivoSinValoracion(f)) return null;

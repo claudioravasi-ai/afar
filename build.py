@@ -35,6 +35,7 @@ JS_FILES = [
     'ui-auth.js',
     'ui-pacientes.js',
     'valoracion-auto.js',
+    'acto-auto.js',
     'ui-valoracion.js',
     'ui-ficha.js',
     'ui-intra.js',

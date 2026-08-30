@@ -29,6 +29,40 @@ function honorariosDiferidos(){
     esActorFicha(f));
 }
 
+/* =========================================================================
+   LOS DOS HONORARIOS SIN CARGAR
+   -------------------------------------------------------------------------
+   El recordatorio miraba un solo honorario -el del acto- y solo si la persona
+   habia apretado «lo dejo para despues». Se escapaban dos casos enteros:
+
+     - La VALORACION cerrada y firmada sin cargar el honorario de la consulta.
+       Es un acto medico facturable y no lo reclamaba nadie.
+     - El acto cerrado sin honorario cuando NO se habia diferido a proposito
+       -por ejemplo, porque se cerro la ventana del final-.
+
+   Ahora se reclaman los dos, con el mismo criterio: si el acto medico esta
+   concluido y su honorario no tiene modalidad, hay una deuda. Y no se va
+   sola: el cartel vuelve cada tres horas, con aviso sonoro, hasta que se
+   carga. Lo unico que lo apaga es cargarlo.
+   ========================================================================= */
+function honorariosSinCargar(){
+  if(!SESION || !verDatosClinicos()) return [];
+  const out = [];
+  lista('fichas').forEach(f => {
+    /* La consulta prequirurgica: concluida y firmada por quien la hizo */
+    if(f.valoracionGuardada && esAutorFicha(f) && !(f.honConsulta || {}).modalidad)
+      out.push({ f, alcance:'consulta', desde: f.valoracionGuardada,
+                 que:'la consulta prequirúrgica' });
+    /* El acto: firmado, o con el registro cerrado y el paciente ya afuera */
+    const actoHecho = (f.firma || {}).firmado || estadoPaso(f, 'anestesia') === 'ok';
+    if(actoHecho && esActorFicha(f) && !(f.hon || {}).modalidad)
+      out.push({ f, alcance:'acto',
+                 desde: (f.honDiferido || {}).desde || (f.firma || {}).fecha || f.modificado,
+                 que:'el acto anestésico' });
+  });
+  return out.sort((a, b) => String(a.desde) < String(b.desde) ? -1 : 1);
+}
+
 /* Momento del ultimo cartel, por usuario y por dispositivo. Se guarda fuera
    de la base: es una preferencia de este equipo, no un dato de la ficha. */
 function ultimoCartelHon(){
@@ -47,36 +81,165 @@ function marcarCartelHon0(){
 }
 
 function revisarRecordatorioHonorarios(){
-  const l = honorariosDiferidos();
+  const l = honorariosSinCargar();
   if(!l.length) return;
   const ultimo = ultimoCartelHon();
   if(ultimo && horasDesde(ultimo) < HORAS_RECORDATORIO_HON) return;
   if($('#modal') && $('#modal').classList.contains('on')) return;   /* no pisar otro modal */
   marcarCartelHon();
 
-  const filas = l.map(f => {
+  const filas = l.slice(0, 20).map(x => {
+    const f = x.f;
     const p = DB.pacientes[f.pacienteId] || {};
-    const hs = Math.floor(horasDesde(f.honDiferido.desde));
-    return '<button type="button" class="hon-pend" data-honf="'+esc(f.id)+'">'+
-      ico('dinero')+'<span class="tx"><b>'+esc((p.apellido||'—')+', '+(p.nombre||''))+'</b>'+
+    const hs = x.desde ? Math.floor(horasDesde(x.desde)) : null;
+    return '<button type="button" class="hon-pend" data-honf="'+esc(f.id)+'" '+
+      'data-honal="'+esc(x.alcance)+'">'+
+      ico(x.alcance === 'consulta' ? 'valoracion' : 'jeringa')+
+      '<span class="tx"><b>'+esc((p.apellido||'—')+', '+(p.nombre||''))+
+        ' — '+esc(x.que)+'</b>'+
       '<i>'+esc(f.cirugia || 'sin cirugía')+' · '+fFecha(fechaCirugiaDe(f) || f.fecha)+
-      ' · pendiente hace '+hs+' h</i></span>'+
+      (hs !== null ? ' · pendiente hace '+hs+' h' : '')+'</i></span>'+
       ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg);width:15px;height:15px;opacity:.5"')+
       '</button>';
   }).join('');
 
-  abrirModal('Honorarios pendientes',
-    '<div class="aviso warn">'+ico('reloj')+'<div><b>Dejaste '+l.length+' honorario'+
-      (l.length===1?'':'s')+' para después.</b><br>Mientras no cargues la modalidad del acto, '+
-      'la prestación no entra en tu facturación del mes ni en tus estadísticas.</div></div>'+
-    '<div class="hon-pend-lista">'+filas+'</div>',
+  abrirModal('Honorarios sin cargar',
+    '<div class="aviso warn">'+ico('reloj')+'<div><b>Tenés '+l.length+' honorario'+
+      (l.length===1?'':'s')+' sin cargar.</b><br>Son dos actos médicos distintos y se facturan '+
+      'por separado: la <b>consulta prequirúrgica</b> y el <b>acto anestésico</b>. Mientras la '+
+      'modalidad no esté cargada, la prestación no entra en tu facturación del mes, no viaja a '+
+      'contaduría y no aparece en tus estadísticas de ingresos.<br>'+
+      '<span class="mini">Este aviso vuelve cada '+HORAS_RECORDATORIO_HON+' horas, con sonido, '+
+      'hasta que los cargues. No se apaga de otra manera.</span></div></div>'+
+    '<div class="hon-pend-lista">'+filas+'</div>'+
+    (l.length > 20 ? '<p class="mini mt8">Se muestran los 20 más viejos de '+l.length+'.</p>' : ''),
     '<button class="btn ghost" data-cerrar>Ahora no</button>');
+
+  /* El sonido va con el cartel: es lo que hace que se note en un pasillo de
+     quirofano, donde nadie esta mirando la pantalla. Respeta la preferencia
+     de sonido del usuario, igual que el resto de los avisos. */
+  if(typeof sonidoAvisosOn === 'function' && sonidoAvisosOn() &&
+     typeof tocarAvisoSonoro === 'function') tocarAvisoSonoro();
+
   $$('#modal [data-honf]').forEach(b => b.onclick = () => {
-    const id = b.dataset.honf;
+    const id = b.dataset.honf, al = b.dataset.honal || '';
     cerrarModal();
     abrirFicha(id);
-    if(fichaActual && fichaActual.id === id) setTimeout(() => abrirHonorarios(fichaActual), 200);
+    if(fichaActual && fichaActual.id === id)
+      setTimeout(() => abrirHonorarios(fichaActual, al), 200);
   });
+}
+
+/* =========================================================================
+   BAJAS PROGRAMADAS — EL RELOJ, LA ALARMA Y EL BORRADO
+   -------------------------------------------------------------------------
+   Eliminar una ficha no se ejecuta en el momento: queda programada dos horas
+   (ver programarBaja en ui-ficha.js). Este reloj es el que la lleva adelante:
+
+     - Refresca la cuenta regresiva que se ve en la ficha.
+     - A los cinco minutos del final abre la alarma, con sonido de alerta y
+       el boton para detenerla. Se avisa UNA vez: si la persona la cierra y
+       no hace nada, la baja se ejecuta, que es exactamente lo que se pidio.
+     - Llegada la hora, borra.
+
+   Corre cada 20 segundos. Es barato —mira un campo de las fichas propias— y
+   veinte segundos es la precision que hace falta para una alarma de cinco
+   minutos.
+   ========================================================================= */
+function bajasProgramadasMias(){
+  if(!SESION || !verDatosClinicos()) return [];
+  return lista('fichas').filter(f => {
+    const b = bajaProgramada(f);
+    if(!b) return false;
+    return esCoordinador() || b.pedidaPor === SESION.uid ||
+           esAutorFicha(f) || esActorFicha(f);
+  });
+}
+
+/* La alarma de los cinco minutos. Tres notas graves y repetidas: no es el
+   mismo tono que un aviso comun, porque no es lo mismo. */
+function tocarAlarmaBaja(){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  let ctx;
+  try{ ctx = new AC(); }catch(e){ return; }
+  const emitir = () => {
+    const t0 = ctx.currentTime + 0.02;
+    [[440,0],[330,0.28],[440,0.56],[330,0.84]].forEach(([hz,d]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(hz, t0 + d);
+      g.gain.setValueAtTime(0.0001, t0 + d);
+      g.gain.exponentialRampToValueAtTime(0.13, t0 + d + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.24);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0 + d); o.stop(t0 + d + 0.26);
+    });
+    setTimeout(() => { try{ ctx.close(); }catch(e){} }, 2000);
+  };
+  let r;
+  try{ r = ctx.resume ? ctx.resume() : null; }catch(e){ r = null; }
+  Promise.resolve(r).catch(() => {}).then(() => {
+    if(ctx.state !== 'running'){ try{ ctx.close(); }catch(e){} return; }
+    emitir();
+  });
+}
+
+function avisarBajaInminente(f, b){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const min = Math.max(0, Math.round(minutosParaLaBaja(b)));
+  /* Queda anotado en la ficha que ya se aviso: si no, el cartel volveria
+     cada veinte segundos durante los ultimos cinco minutos. */
+  const base = JSON.parse(JSON.stringify(f));
+  base.bajaProgramada = Object.assign({}, b, { avisado: new Date().toISOString() });
+  escribir('fichas', f.id, base);
+
+  if(typeof sonidoAvisosOn === 'function' && sonidoAvisosOn()) tocarAlarmaBaja();
+
+  abrirModal('La ficha se va a borrar sola',
+    '<div class="aviso danger">'+ico('alerta')+'<div><b>Faltan '+min+' minuto'+(min===1?'':'s')+
+      ' para que se elimine '+(b.alcance === 'acto' ? 'el acto anestésico' : 'la ficha')+
+      ' de '+esc((p.apellido||'—')+', '+(p.nombre||''))+'.</b><br>'+
+      esc(f.cirugia || 'sin cirugía')+' · '+fFecha(fechaCirugiaDe(f) || f.fecha)+'<br><br>'+
+      'Con ella se van sus honorarios y su facturación, y no se puede deshacer. '+
+      'Si no la detenés ahora, se borra.</div></div>'+
+    (b.motivo ? '<div class="ayuda">Motivo que dejaste al programarla: «'+esc(b.motivo)+'».</div>' : ''),
+    '<button class="btn ghost" data-cerrar>Dejar que se borre</button>'+
+    '<button class="btn pri" id="bjAlarmaParar">'+ico('check')+' Detener la eliminación</button>',
+    '600px');
+  $('#bjAlarmaParar').onclick = () => { cerrarModal(); detenerBaja(f.id); };
+}
+
+function revisarBajasProgramadas(){
+  bajasProgramadasMias().forEach(f => {
+    const b = bajaProgramada(f);
+    if(!b) return;
+    const min = minutosParaLaBaja(b);
+    if(min === null) return;
+    if(min <= 0){ ejecutarBaja(f.id); return; }
+    /* La alarma es para quien la pidió: es quien puede detenerla y quien se
+       equivocó. La coordinación la ve en la ficha, sin alarma. */
+    const mia = SESION && b.pedidaPor === SESION.uid;
+    if(mia && min <= MINUTOS_ALARMA_BAJA && !b.avisado &&
+       !($('#modal') && $('#modal').classList.contains('on')))
+      avisarBajaInminente(f, b);
+  });
+  /* La cuenta regresiva que se ve en la ficha abierta */
+  const rel = $('#bjReloj');
+  if(rel && fichaActual){
+    const b = bajaProgramada(DB.fichas[fichaActual.id] || fichaActual);
+    if(b) rel.textContent = textoCuentaBaja(minutosParaLaBaja(b));
+  }
+}
+
+let __relojBaja = null;
+function iniciarRelojBajas(){
+  if(__relojBaja) clearInterval(__relojBaja);
+  __relojBaja = setInterval(revisarBajasProgramadas, 20000);
+  setTimeout(revisarBajasProgramadas, 4000);
+}
+function detenerRelojBajas(){
+  if(__relojBaja){ clearInterval(__relojBaja); __relojBaja = null; }
 }
 
 /* Arranca el reloj del recordatorio. Se llama al iniciar sesion. */
@@ -390,7 +553,7 @@ function calcularAvisos(){
               '.\nLos dejaste para después al cerrar la ficha. Te lo recuerdo cada 3 horas ' +
               'hasta que los cargues: sin la modalidad del acto la prestación no entra en tu ' +
               'facturación del mes.',
-      fichaId:f.id, solapa:'hon' });
+      fichaId:f.id, solapa:'hon', honAlcance:'acto' });
   });
 
   fichas.filter(f => { const cx = fechaCirugiaDe(f);
@@ -402,7 +565,44 @@ function calcularAvisos(){
         titulo:'Sin honorarios cargados — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
         detalle:(f.cirugia||'') + ' del ' + fFecha(fechaCirugiaDe(f)) +
                 '.\nMientras no cargues la modalidad del acto no aparece en tu facturación del mes.',
-        fichaId:f.id, solapa:'hon' });
+        fichaId:f.id, solapa:'hon', honAlcance:'acto' });
+    });
+
+  /* --- 3 bis. Eliminaciones en cuenta regresiva ---
+     Va arriba de todo y en rojo: es lo unico de la lista que, si nadie hace
+     nada, destruye datos. */
+  bajasProgramadasMias().forEach(f => {
+    const b = bajaProgramada(f); if(!b) return;
+    const p = DB.pacientes[f.pacienteId] || {};
+    const min = minutosParaLaBaja(b);
+    av.push({ nivel:'danger', icono:'alerta', orden:0,
+      titulo:'Se elimina en ' + textoCuentaBaja(min) + ' — ' +
+             (p.apellido||'—') + ', ' + (p.nombre||''),
+      detalle:(b.alcance === 'acto' ? 'El acto anestésico' : 'La ficha completa') +
+              ' se va a borrar sola, con sus honorarios y su facturación.\n' +
+              'La pidió ' + (b.pedidaPorNombre || nombreUsuario(b.pedidaPor)) +
+              (b.motivo ? ': «' + b.motivo + '».' : '.') +
+              '\nAbrí la ficha y tocá «Detener la eliminación» si fue un error.',
+      fichaId:f.id, solapa:'firma' });
+  });
+
+  /* --- 4 ter. Honorario de la CONSULTA prequirurgica sin cargar ---
+     La valoracion es un acto medico que se factura aparte, con su propio
+     titular. Estaba cerrada, firmada y sin nadie que reclamara el honorario:
+     el unico aviso de plata miraba el acto. */
+  fichas.filter(f => f.valoracionGuardada && esAutorFicha(f) &&
+                     !(f.honConsulta || {}).modalidad)
+    .sort((a,b) => String(a.valoracionGuardada) < String(b.valoracionGuardada) ? -1 : 1)
+    .slice(0, 12)
+    .forEach(f => {
+      const p = DB.pacientes[f.pacienteId] || {};
+      const dias = Math.floor(horasDesde(f.valoracionGuardada) / 24);
+      av.push({ nivel:'warn', icono:'dinero', orden:36,
+        titulo:'Consulta prequirúrgica sin honorario — ' + (p.apellido||'—') + ', ' + (p.nombre||''),
+        detalle:'Valoración cerrada hace ' + dias + ' día' + (dias===1?'':'s') +
+                '.\nLa consulta prequirúrgica se factura aparte del acto anestésico. ' +
+                'Sin la modalidad cargada no viaja a contaduría ni entra en tu facturación.',
+        fichaId:f.id, solapa:'hon', honAlcance:'consulta' });
     });
 
   /* --- 4 bis. Valoraciones vencidas --- */
@@ -541,7 +741,7 @@ function abrirAvisos(){
       if(a.fichaId){
         abrirFicha(a.fichaId);
         if(!fichaActual || fichaActual.id !== a.fichaId) return;   /* no se pudo abrir */
-        if(a.solapa === 'hon') abrirHonorarios(fichaActual);
+        if(a.solapa === 'hon') abrirHonorarios(fichaActual, a.honAlcance || '');
         else if(a.solapa && PASOS_FICHA.some(p => p.k === a.solapa)) irAPaso(a.solapa);
       } else if(a.accion) a.accion();
     }, 180);
@@ -716,7 +916,7 @@ function cablearAvisosPanel(){
     if(a.fichaId){
       abrirFicha(a.fichaId);
       if(!fichaActual || fichaActual.id !== a.fichaId) return;   /* no se pudo abrir */
-      if(a.solapa === 'hon') abrirHonorarios(fichaActual);
+      if(a.solapa === 'hon') abrirHonorarios(fichaActual, a.honAlcance || '');
       else if(a.solapa && PASOS_FICHA.some(p => p.k === a.solapa)) irAPaso(a.solapa);
     } else if(a.accion) a.accion();
   });

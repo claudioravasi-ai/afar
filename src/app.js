@@ -352,6 +352,9 @@ function arrancarApp(){
     iniciarRecordatorioHonorarios();
     /* Y la valoracion que quedo debiendose en un acto ya firmado. */
     iniciarRecordatorioValoracion();
+    /* Las eliminaciones programadas: cuenta regresiva, alarma a los cinco
+       minutos del final y borrado. Ver ui-ficha.js y ui-avisos.js. */
+    iniciarRelojBajas();
   }
   /* Un tono corto si hay algo esperando: avisos, recordatorios o mensajes sin
      ver. Entrar es un gesto del usuario, asi que el navegador deja sonar; si
