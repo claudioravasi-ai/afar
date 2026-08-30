@@ -210,17 +210,41 @@ function htmlValoracionExterna(f){
       'una vez terminado el acto se te va a recordar cada diez minutos.'+
     '</div></div>'+
 
-    /* Reintervencion: si todavia no se trajo la valoracion de aquella ficha,
-       el atajo sigue disponible aca. Es lo que salda la deuda en un clic. */
-    (s.motivo === 'reintervencion' && s.fichaOrigen && DB.fichas[s.fichaOrigen] && puede
-      ? '<div class="btn-row mt8">'+
-          '<button class="btn pri chico" id="svTraer">'+ico('valoracion')+
-            ' Traer la valoración de aquella ficha</button>'+
-          '<button class="btn ghost chico" id="svVerOrigen">'+ico('ojo')+
-            ' Ver aquella ficha</button>'+
-        '</div>'+
-        '<p class="mini mt8">Se traen antecedentes, examen, laboratorio, escalas y plan. '+
-        'El <b>consentimiento no se copia</b>: hay que firmar el de esta intervención.</p>'
+    /* Reintervencion. Dos cosas distintas conviven aca:
+       - traer (o volver a traer) la valoracion de aquella ficha;
+       - firmar el consentimiento NUEVO, que es lo unico que no se importa.
+       El consentimiento se apoya en la valoracion anterior pero es de ESTA
+       cirugia: otro procedimiento, otro riesgo, otra firma. La Ley 26.529 lo
+       pide para la intervencion que se va a hacer, no para la que ya se hizo. */
+    (s.motivo === 'reintervencion' && puede
+      ? (() => {
+          const hayOrigen = s.fichaOrigen && DB.fichas[s.fichaOrigen];
+          const listoParaFirmar = !!(f.cirugia && f.diagnostico);
+          const yaFirmado = consentimientoCompleto(f);
+          return '<div class="btn-row mt8">'+
+            (yaFirmado ? '' :
+              '<button class="btn pri chico" id="svConsent"'+(listoParaFirmar?'':' disabled')+'>'+
+                ico('firma')+' Completar y firmar el consentimiento de esta intervención</button>')+
+            (hayOrigen
+              ? '<button class="btn ghost chico" id="svTraer">'+ico('valoracion')+
+                  ' Volver a traer la valoración</button>'+
+                '<button class="btn ghost chico" id="svVerOrigen">'+ico('ojo')+
+                  ' Ver aquella ficha</button>'
+              : '')+
+          '</div>'+
+          (yaFirmado
+            ? '<div class="aviso ok mt8">'+ico('check')+'<div>El consentimiento de esta '+
+              'intervención ya está otorgado.</div></div>'
+            : listoParaFirmar
+              ? '<p class="mini mt8">Se traen antecedentes, examen, laboratorio, escalas y plan. '+
+                'El <b>consentimiento no se copia</b>: aquel era de otro procedimiento y de otro '+
+                'riesgo. Este se apoya en la misma valoración pero lleva el diagnóstico de ahora '+
+                '—<b>'+esc(f.cirugia)+'</b>— y lo firman el paciente y el anestesiólogo. Si es '+
+                'urgencia o emergencia, se documenta la salida del artículo 9.</p>'
+              : '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Falta la cirugía y el '+
+                'diagnóstico de esta intervención.</b> Cargalos en el paso <b>Paciente</b>: el '+
+                'consentimiento tiene que decir de qué procedimiento es.</div></div>');
+        })()
       : '')+
     (s.motivo === 'externa'
       ? '<p class="mini">Si tenés la valoración en papel, sacale una foto: queda adjunta como '+
@@ -254,6 +278,9 @@ function cablearValoracionExterna(f){
       }, 'Traer');
   };
   if($('#svVerOrigen')) $('#svVerOrigen').onclick = () => abrirFicha(s.fichaOrigen);
+  /* Atajo directo al punto 15, sin vueltas: abre el consentimiento ya
+     desplegado y con el paciente y la cirugía de esta ficha adentro. */
+  if($('#svConsent')) $('#svConsent').onclick = () => abrirConsentimientoModal(f);
   if($('#svFoto')) $('#svFoto').onclick = () =>
     pedirArchivos('image/*', true, fs => cargarValoracionExterna(f, fs));
   if($('#svArchivo')) $('#svArchivo').onclick = () =>

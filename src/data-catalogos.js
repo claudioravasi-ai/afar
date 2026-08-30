@@ -235,16 +235,27 @@ const MODALIDADES_CONSULTA = [
    `deuda: true` marca los motivos que dejan una valoracion pendiente de
    completar y que por lo tanto disparan el recordatorio. */
 const MOTIVOS_SIN_VALORACION = [
-  { id:'urgencia', deuda:true,  n:'Urgencia o emergencia',
-    d:'No hubo tiempo de hacer la valoración prequirúrgica. Se declara y el carácter del acto queda propuesto como urgencia.' },
+  /* Urgencia y emergencia van separadas: el caracter se toma de aca y no se
+     vuelve a preguntar en el paso 1, asi que la opcion tiene que decir cual
+     de las dos es. Las dos llevan el mismo adicional del nomenclador, pero no
+     son lo mismo en la historia clinica. */
+  { id:'urgencia',   deuda:true, caracter:'urgencia',   n:'Urgencia',
+    d:'Debe resolverse en horas y no hubo tiempo de hacer la valoración. El carácter de la cirugía queda cargado solo.' },
+  { id:'emergencia', deuda:true, caracter:'emergencia', n:'Emergencia',
+    d:'Riesgo vital inmediato, sin demora posible. El carácter de la cirugía queda cargado solo.' },
   { id:'externa',  deuda:true,  n:'La valoración se hizo fuera de la aplicación',
-    d:'En papel, en otra institución o por un profesional que no es socio. Se asienta quién la hizo y cuándo, y se puede adjuntar la foto.' },
-  { id:'reintervencion', deuda:true, n:'Ya lo valoré para una intervención anterior',
-    d:'Reintervención o segundo acto del mismo paciente. Se enlaza aquella ficha y se puede traer su valoración para actualizarla.' },
-  { id:'sinconsulta',    deuda:true, n:'Procedimiento sin consulta previa programada',
-    d:'Sedación para endoscopia o imágenes, cardioversión, analgesia del parto. La evaluación se hace al lado de la camilla, no en consultorio.' },
+    d:'En papel, en otra institución o por un profesional que no es socio. Se asienta quién la hizo y cuándo, y se adjunta la foto.' },
+  { id:'reintervencion', deuda:true, n:'Ya fue valorado para una intervención anterior',
+    d:'Reintervención o segundo acto del mismo paciente. Se importa la valoración de aquella ficha, sea propia o de un colega.' },
   { id:'ahora',    deuda:false, n:'La cargo ahora',
-    d:'Lleva al paso 2 para completarla antes de anestesiar. No queda nada declarado.' }
+    d:'Lleva al paso 2 para completarla antes de anestesiar. No queda nada declarado.' },
+  /* Retirado: una sedacion para endoscopia o una cardioversion SI llevan
+     valoracion prequirurgica, asi que este motivo era falso -hacia lo mismo
+     que «la cargo ahora» pero fingiendo una excepcion que no existe-. Queda
+     en la lista, oculto, para que las fichas ya declaradas asi se sigan
+     leyendo bien. */
+  { id:'sinconsulta', deuda:true, oculto:true, n:'Procedimiento sin consulta previa programada',
+    d:'Motivo retirado. La valoración sigue pendiente.' }
 ];
 
 /* ---------- Caracter de la cirugia y del acto ----------

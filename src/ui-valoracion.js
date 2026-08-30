@@ -410,7 +410,7 @@ function htmlPlan(f){
    dedo en el telefono, sobre el mismo lienzo. El anestesiologo, ademas,
    puede traer la firma que tiene guardada en su perfil o subir una imagen.
    ========================================================================= */
-function htmlConsentimiento(f){
+function htmlConsentimiento(f, abierto){
   const c = f.consent || {};
   const p = DB.pacientes[f.pacienteId] || {};
   const completo = consentimientoCompleto(f);
@@ -470,7 +470,7 @@ function htmlConsentimiento(f){
 
     campoArea('coObs','Aclaraciones', c.observaciones,
       'Lo que se conversó, quién estuvo presente, objeciones del paciente'),
-    !completo);
+    !completo || abierto);
 }
 
 /* ---- Lo que el punto 15 escribe en f.consent (no dentro de f.v) ---- */

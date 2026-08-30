@@ -309,12 +309,17 @@ function nuevaFichaEnInstitucion(paso){
      queda atenuada para que la pantalla muestre una sola cosa por vez. */
   modoFicha = (paso === 'anestesia') ? 'acto' : 'valoracion';
   if(paso === 'anestesia'){
-    /* Queda marcada como nacida por el acto: hasta que alguien tome el acto,
-       el paso Preanestesia no se abre. Ver valoracionTrabada() en core.js. */
+    /* Nacida por el acto: se entra directo a Anestesia y el resto del
+       recorrido queda cerrado hasta tomar el acto, decidir de dónde sale la
+       valoración y elegir el paciente. Ver pasoHabilitado() en core.js. */
     fichaActual.viaActo = true;
-    /* el acceso directo a la ficha anestesica igual arranca por el paciente:
-       sin paciente no hay registro que valga */
-    toast('Elegí el paciente y la cirugía; después tomá el acto anestésico.', 'ok');
+    pasoFicha = 'anestesia';
+    toast('Tomá el acto anestésico para empezar.', 'ok');
+  } else {
+    /* Nacida por la valoración: sólo Paciente y Preanestesia. El acto todavía
+       no existe y ofrecer sus tres pasos es ofrecer pantallas vacías. */
+    fichaActual.viaVal = true;
+    pasoFicha = 'paciente';
   }
   pintarFicha();
 }
@@ -403,7 +408,9 @@ function iniciar(){
   if(restaurarSesion()) arrancarApp();
 
   /* atajo: escape cierra modales */
-  document.addEventListener('keydown', e => { if(e.key === 'Escape') cerrarModal(); });
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && !modalObligatorio) cerrarModal();
+  });
 
   /* service worker (sólo si se sirve por http) */
   if('serviceWorker' in navigator && location.protocol.indexOf('http') === 0){

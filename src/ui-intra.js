@@ -77,7 +77,41 @@ function pintarPasoAnestesia(f){
   const g = DB.fichas[f.id] || f;
   const sinDueno = !(g.firma||{}).firmado && !esActorFicha(g);
 
-  $('#fiCuerpo').innerHTML =
+  /* Antes de resolver las tres cosas del recorrido, el paso muestra sólo el
+     botón de tomar el acto —que vive fuera de este cuerpo—. Las cinco solapas
+     no se dibujan: son pantallas para registrar un acto que todavía no tiene
+     ni responsable ni paciente. */
+  if(!actoDesbloqueado(f)){
+    /* Si cerró la ventana de motivos con la cruz, quedaría trabado sin manera
+       de seguir. Nunca se deja a alguien encerrado: el camino de vuelta está
+       siempre a la vista, en la misma pantalla donde se cortó. */
+    const faltaMotivo = !!f.actoPorUid && !sinValoracion(f) && !hayValoracion(f);
+    const faltaPac    = !!f.actoPorUid && !faltaMotivo && !f.pacienteId;
+    $('#fiCuerpo').innerHTML = !f.actoPorUid ? '' :
+      '<div class="aviso warn">'+ico('reloj')+'<div><b>'+esc(motivoPasoCerrado(f,'anestesia'))+
+      '</b><br>El registro del acto —drogas, signos vitales, balance y eventos— se abre '+
+      'en cuanto termines.'+
+      (faltaMotivo
+        ? '<div class="btn-row mt8"><button class="btn pri chico" id="acReabrirMotivo">'+
+          ico('valoracion')+' Elegir de dónde sale la valoración</button></div>'
+        : '')+
+      (faltaPac
+        ? '<div class="btn-row mt8"><button class="btn pri chico" id="acIrPaciente">'+
+          ico('pacientes')+' Elegir el paciente</button></div>'
+        : '')+
+      '</div></div>';
+    if($('#acReabrirMotivo')) $('#acReabrirMotivo').onclick = () => pedirMotivoSinValoracion(f, true);
+    if($('#acIrPaciente'))    $('#acIrPaciente').onclick = () => irAPaso('paciente');
+    return;
+  }
+
+  /* La tarjeta de la valoración pendiente también vive acá, no sólo en el
+     paso 2: quien entró por el acto no tiene por qué ir a la valoración —puede
+     ser de un colega— y desde acá firma el consentimiento en su propia
+     ventana, sin abrir nada ajeno. */
+  const tarjetaVal = deudaValoracion(f) ? htmlValoracionExterna(f) : '';
+
+  $('#fiCuerpo').innerHTML = tarjetaVal +
     '<div class="acto-solapas no-print">'+ SOLAPAS_ACTO.map(s =>
       '<button type="button" class="'+(solapaActo===s[0]?'on':'')+'" data-asolapa="'+s[0]+'">'+
         ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
@@ -100,6 +134,7 @@ function pintarPasoAnestesia(f){
   else if(solapaActo === 'balance'){ c.innerHTML = htmlActoBalance(f); cablearActoBalance(f); }
   else { c.innerHTML = htmlActoEventos(f); cablearActoEventos(f); }
 
+  if(tarjetaVal) cablearValoracionExterna(f);
   if(!sinDueno) cablearAutoguardadoActo();
 }
 

@@ -273,7 +273,30 @@ function abrirModal(titulo, cuerpoHTML, botones, ancho){
   m.onclick = e => { if(e.target === m || e.target.closest('[data-cerrar]')) cerrarModal(); };
   return m;
 }
+/* =========================================================================
+   VENTANAS QUE NO SE CIERRAN SIN CONTESTAR
+   -------------------------------------------------------------------------
+   Casi ninguna ventana debe atrapar a nadie. Esta es la excepcion: al tomar
+   el acto hay que decir de donde sale la valoracion, y las salidas son las
+   propias opciones -son cinco, y una de ellas es «ninguna, la cargo ahora»-.
+   Cerrarla sin contestar dejaba el acto tomado y trabado.
+
+   Se neutralizan las tres puertas de escape: la cruz, el clic en el fondo y
+   la tecla Escape. El cierre por codigo sigue funcionando, que es como salen
+   las opciones. */
+let modalObligatorio = false;
+
+function modalSinSalida(){
+  modalObligatorio = true;
+  const m = $('#modal');
+  if(!m) return;
+  const cruz = m.querySelector('.modal-head .cerrar');
+  if(cruz) cruz.remove();
+  m.onclick = null;                       /* el fondo deja de cerrar */
+}
+
 function cerrarModal(){
+  modalObligatorio = false;
   const m = $('#modal'); m.classList.remove('on'); m.innerHTML = '';
   const volver = PILA_MODAL.pop();
   if(volver) volver();
@@ -1742,35 +1765,103 @@ function valoracionesAdeudadas(){
   });
 }
 /* =========================================================================
-   LA VALORACION TRABADA HASTA TOMAR EL ACTO
+   EL RECORRIDO SEGUN POR DONDE SE ENTRO
    -------------------------------------------------------------------------
-   Una ficha abierta desde «Nueva ficha anestesica» queda marcada con
-   `viaActo`. Mientras el acto no tenga dueno, el paso Preanestesia no se
-   abre: primero se toma el acto -que es el momento en que alguien se hace
-   responsable- y recien ahi se decide que pasa con la valoracion.
+   Una ficha nace por una de dos puertas, y cada una tiene su recorrido:
 
-   La traba mira el DATO, no el modo de pantalla: cambiar de solapa no la
-   saltea. Y no toca el camino normal -«Nueva valoracion preanestesica»-,
-   donde no hay `viaActo` y el paso 2 se abre como siempre.
+   «Nueva valoracion preanestesica»  -> viaVal
+       Solo se abren Paciente y Preanestesia. El acto todavia no existe:
+       ofrecer sus tres pasos es ofrecer pantallas vacias.
+
+   «Nueva ficha anestesica»          -> viaActo
+       Solo se abre Anestesia, y dentro de Anestesia solo el boton de tomar
+       el acto. Recien cuando hay TRES cosas resueltas -quien se hace cargo,
+       de donde sale la valoracion y quien es el paciente- se abre el resto.
+
+       El orden no es caprichoso: tomar el acto es una afirmacion sobre uno
+       mismo, no sobre el paciente, y en una urgencia el responsable se
+       establece antes que la identidad. Por eso va primero.
+
+   Las fichas que ya existen no llevan ninguna marca y se navegan libres,
+   igual que siempre. Las trabas miran el DATO, no el modo de pantalla.
    ========================================================================= */
-function valoracionTrabada(f){
-  if(!f || !f.viaActo) return false;
-  if((f.firma || {}).firmado) return false;
-  if(f.actoPorUid) return false;          /* ya lo tomó alguien: se destraba */
-  return !hayValoracion(f);               /* si ya tiene algo cargado, no se traba */
+
+/* ¿Se resolvieron las tres cosas que abren el resto del acto? */
+function actoDesbloqueado(f){
+  if(!f || !f.viaActo) return true;
+  if((f.firma || {}).firmado) return true;
+  if(!f.actoPorUid) return false;                          /* falta tomar el acto */
+  if(!sinValoracion(f) && !hayValoracion(f)) return false;  /* falta decidir la valoracion */
+  if(!f.pacienteId) return false;                          /* falta el paciente */
+  return true;
+}
+
+/* La puerta de cada paso del recorrido */
+function pasoHabilitado(f, k){
+  if(!f) return true;
+  if((f.firma || {}).firmado) return true;
+
+  if(f.viaActo && !actoDesbloqueado(f)){
+    if(k === 'anestesia') return true;
+    /* Tomado el acto y decidida la valoracion, se habilita Paciente: es el
+       unico dato que falta y hay que poder ir a cargarlo. */
+    const decidida = !!f.actoPorUid && (!!sinValoracion(f) || hayValoracion(f));
+    return decidida && k === 'paciente';
+  }
+
+  if(f.viaVal && !f.valoracionGuardada && !f.actoPorUid)
+    return k === 'paciente' || k === 'preanestesia';
+
+  return true;
+}
+
+/* Por que esta cerrado, para poder decirlo en vez de solo bloquear */
+function motivoPasoCerrado(f, k){
+  if(f && f.viaActo && !actoDesbloqueado(f)){
+    if(!f.actoPorUid) return 'Primero tomá el acto anestésico.';
+    if(!sinValoracion(f) && !hayValoracion(f)) return 'Primero resolvé de dónde sale la valoración.';
+    if(!f.pacienteId) return 'Falta elegir el paciente.';
+  }
+  if(f && f.viaVal && k !== 'paciente' && k !== 'preanestesia')
+    return 'Guardá la valoración y después seguís con el acto.';
+  return 'Este paso todavía no está habilitado.';
 }
 
 function adjuntosValoracion(f){
   return ((f && f.sinValoracion) || {}).adjuntos || [];
 }
 
-/* Otras fichas del MISMO paciente que ya tienen valoracion cargada, de la mas
-   reciente a la mas vieja. Es lo que se ofrece en una reintervencion. */
+/* Fichas que ya tienen valoracion cargada, de la mas reciente a la mas vieja.
+   -------------------------------------------------------------------------
+   Con paciente, las de ESE paciente. Sin paciente -que es lo que pasa cuando
+   se toma el acto antes de identificarlo-, TODAS: propias y de colegas. En
+   ese caso elegir la intervencion resuelve las dos cosas de una vez, porque
+   el paciente sale de la ficha elegida.
+
+   Son las valoraciones y actos que la aplicacion ya tiene: no hay nada que
+   importar de afuera, la base es la de la asociacion. */
 function fichasValoradasDe(pacienteId, exceptoId){
-  if(!pacienteId) return [];
   return lista('fichas')
-    .filter(f => f.pacienteId === pacienteId && f.id !== exceptoId && hayValoracion(f))
+    .filter(f => f.id !== exceptoId && valoracionImportable(f) &&
+                 (!pacienteId || f.pacienteId === pacienteId))
     .sort((a, b) => (fechaDeFicha(b) || '').localeCompare(fechaDeFicha(a) || ''));
+}
+
+/* Solo se importa lo que esta COMPLETO.
+   -------------------------------------------------------------------------
+   No alcanza con que la ficha de origen tenga algo cargado: si su valoracion
+   esta a medias, importarla deja la ficha nueva igual de incompleta pero con
+   la apariencia de estar resuelta, que es peor que no importar nada.
+
+   «Completo» quiere decir el paso 1 y el paso 2 en verde: paciente, cirugia,
+   institucion y diagnostico, y del lado de la valoracion el ASA, la
+   conclusion de aptitud, el plan anestesico y el consentimiento firmado.
+
+   El criterio es el del propio semaforo, no uno paralelo: si la ficha de
+   origen no se podria haber firmado, tampoco sirve para sostener otra. */
+function valoracionImportable(f){
+  if(!f || !f.pacienteId) return false;
+  return estadoPaso(f, 'paciente') === 'ok' && estadoPaso(f, 'preanestesia') === 'ok';
 }
 
 /* Trae la valoracion de otra ficha del mismo paciente.
