@@ -502,7 +502,7 @@ function htmlPacAntecedentes(p){
       '<input type="checkbox" id="paSinAnt"'+(sinAnt?' checked':'')+'>'+
       ico('check')+' Sin antecedentes relevantes</label>'+
 
-    '<div id="paAntBloque"'+(sinAnt?' class="atenuado"':'')+'>'+
+    '<div id="paAntBloque"'+(sinAnt?' class="atenuado inerte"':'')+'>'+
       '<label class="mini strong mt14" style="display:block">Antecedentes relevantes</label>'+
       '<div class="chips" id="paChips">'+ PATOLOGIAS_CHIP.map(x =>
         '<button type="button" class="chip'+(tieneAntecedente(p, x.n)?' on':'')+'" data-chip="'+esc(x.n)+'">'+
@@ -617,6 +617,7 @@ function cablearPacAntecedentes(){
     const on = $('#paSinAnt').checked;
     $('#paSinAntL').classList.toggle('on', on);
     $('#paAntBloque').classList.toggle('atenuado', on);
+    $('#paAntBloque').classList.toggle('inerte', on);
   };
   $('#paSinAnt').onchange = sinAnt;
 
@@ -799,7 +800,7 @@ function htmlPacAlergias(p){
     '<label class="toggle-verde'+(sinAle?' on':'')+'" id="paSinAleL">'+
       '<input type="checkbox" id="paSinAle"'+(sinAle?' checked':'')+'>'+
       ico('check')+' Sin alergias conocidas</label>'+
-    '<div id="paAleBloque"'+(sinAle?' class="atenuado"':'')+' style="margin-top:12px">'+
+    '<div id="paAleBloque"'+(sinAle?' class="atenuado inerte"':'')+' style="margin-top:12px">'+
       chksHTML('paAlerg', ALERGENOS, p.alergias)+
       campoArea('paAlergDet','Detalle de la reacción', p.alergiaDetalle,
         'Tipo de reacción, gravedad, fecha, estudio alergológico realizado')+
@@ -827,6 +828,7 @@ function cablearPacAlergias(){
     const on = $('#paSinAle').checked;
     $('#paSinAleL').classList.toggle('on', on);
     $('#paAleBloque').classList.toggle('atenuado', on);
+    $('#paAleBloque').classList.toggle('inerte', on);
   };
   $('#paSinAle').onchange = sinAle;
 }

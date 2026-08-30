@@ -683,7 +683,19 @@ html[data-tema="oscuro"] .step.on .dot{box-shadow:0 0 0 4px rgba(42,107,168,.3)}
 .toggle-verde input{width:16px;height:16px;margin:0;accent-color:var(--ok);flex:none}
 .toggle-verde.on{background:var(--ok-bg);border-color:var(--ok);color:var(--ok);font-weight:720}
 .toggle-verde.on svg{opacity:1}
-.atenuado{opacity:.42;pointer-events:none;filter:grayscale(.4)}
+/* `atenuado` es SOLO apariencia: dice «esto no es tuyo» o «esto no aplica».
+   Tenia ademas pointer-events:none, y eso lo volvia inerte en lugares donde
+   si hay que poder tocar:
+     - la fila de un paciente del padron, que abre su ficha de identificacion;
+     - los pasos fuera de foco de la barra de la ficha, que avisan por que
+       estan cerrados;
+     - los botones de solo lectura de la seccion de un colega, que
+       bloquearCuerpo() deja a proposito habilitados.
+   Donde de verdad hay que anular el mouse se usa `inerte`, que es explicito.
+   El bloqueo real de la ficha ajena lo hace bloquearCuerpo() deshabilitando
+   los campos, no el CSS. */
+.atenuado{opacity:.42;filter:grayscale(.4)}
+.inerte{pointer-events:none}
 
 /* --------------------------------------------------- IMC -------------- */
 .imc-box{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding:12px 15px;

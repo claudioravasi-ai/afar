@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.08.30.1529";</script>
+<script>window.AFAR_BUILD = "2026.08.30.1539";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -702,7 +702,19 @@ html[data-tema="oscuro"] .step.on .dot{box-shadow:0 0 0 4px rgba(42,107,168,.3)}
 .toggle-verde input{width:16px;height:16px;margin:0;accent-color:var(--ok);flex:none}
 .toggle-verde.on{background:var(--ok-bg);border-color:var(--ok);color:var(--ok);font-weight:720}
 .toggle-verde.on svg{opacity:1}
-.atenuado{opacity:.42;pointer-events:none;filter:grayscale(.4)}
+/* `atenuado` es SOLO apariencia: dice «esto no es tuyo» o «esto no aplica».
+   Tenia ademas pointer-events:none, y eso lo volvia inerte en lugares donde
+   si hay que poder tocar:
+     - la fila de un paciente del padron, que abre su ficha de identificacion;
+     - los pasos fuera de foco de la barra de la ficha, que avisan por que
+       estan cerrados;
+     - los botones de solo lectura de la seccion de un colega, que
+       bloquearCuerpo() deja a proposito habilitados.
+   Donde de verdad hay que anular el mouse se usa `inerte`, que es explicito.
+   El bloqueo real de la ficha ajena lo hace bloquearCuerpo() deshabilitando
+   los campos, no el CSS. */
+.atenuado{opacity:.42;filter:grayscale(.4)}
+.inerte{pointer-events:none}
 
 /* --------------------------------------------------- IMC -------------- */
 .imc-box{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding:12px 15px;
@@ -11200,7 +11212,7 @@ function htmlPacAntecedentes(p){
       '<input type="checkbox" id="paSinAnt"'+(sinAnt?' checked':'')+'>'+
       ico('check')+' Sin antecedentes relevantes</label>'+
 
-    '<div id="paAntBloque"'+(sinAnt?' class="atenuado"':'')+'>'+
+    '<div id="paAntBloque"'+(sinAnt?' class="atenuado inerte"':'')+'>'+
       '<label class="mini strong mt14" style="display:block">Antecedentes relevantes</label>'+
       '<div class="chips" id="paChips">'+ PATOLOGIAS_CHIP.map(x =>
         '<button type="button" class="chip'+(tieneAntecedente(p, x.n)?' on':'')+'" data-chip="'+esc(x.n)+'">'+
@@ -11315,6 +11327,7 @@ function cablearPacAntecedentes(){
     const on = $('#paSinAnt').checked;
     $('#paSinAntL').classList.toggle('on', on);
     $('#paAntBloque').classList.toggle('atenuado', on);
+    $('#paAntBloque').classList.toggle('inerte', on);
   };
   $('#paSinAnt').onchange = sinAnt;
 
@@ -11497,7 +11510,7 @@ function htmlPacAlergias(p){
     '<label class="toggle-verde'+(sinAle?' on':'')+'" id="paSinAleL">'+
       '<input type="checkbox" id="paSinAle"'+(sinAle?' checked':'')+'>'+
       ico('check')+' Sin alergias conocidas</label>'+
-    '<div id="paAleBloque"'+(sinAle?' class="atenuado"':'')+' style="margin-top:12px">'+
+    '<div id="paAleBloque"'+(sinAle?' class="atenuado inerte"':'')+' style="margin-top:12px">'+
       chksHTML('paAlerg', ALERGENOS, p.alergias)+
       campoArea('paAlergDet','Detalle de la reacción', p.alergiaDetalle,
         'Tipo de reacción, gravedad, fecha, estudio alergológico realizado')+
@@ -11525,6 +11538,7 @@ function cablearPacAlergias(){
     const on = $('#paSinAle').checked;
     $('#paSinAleL').classList.toggle('on', on);
     $('#paAleBloque').classList.toggle('atenuado', on);
+    $('#paAleBloque').classList.toggle('inerte', on);
   };
   $('#paSinAle').onchange = sinAle;
 }
