@@ -50,7 +50,12 @@ function sembrarDemoManual(){
   if(!hayDemo())              sembrarDemo(true);      /* nada cargado: todo */
   else if(faltaEquipoDemo())  sembrarEquipoDemo();    /* completar lo que falta */
   else if(faltanEnviosDemo()) sembrarEnviosDemo();    /* faltan los envíos */
+  else if(faltaReintervencionDemo()) sembrarReintervencionDemo();
   else return 0;                                      /* ya estaba entero */
+  /* La ficha de reintervención se agrega siempre que falte, tambien cuando lo
+     que se acaba de sembrar fue otra cosa: es la unica valoracion COMPLETA de
+     la demostracion y sin ella no se puede probar la importacion. */
+  if(faltaReintervencionDemo()) sembrarReintervencionDemo();
   /* Si sólo se agregaron los envíos no cambia la cuenta de usuarios; se
      informa igual con el total de lo que quedó sembrado. */
   const nuevos = Object.keys(DB.usuarios).length - antes;
@@ -601,6 +606,7 @@ function sembrarDemo(forzar){
      necesita las fichas y los honorarios ya cargados para armar los envíos
      con el honorario discriminado de cada acto. */
   if(typeof sembrarEnviosDemo === 'function') sembrarEnviosDemo();
+  if(typeof sembrarReintervencionDemo === 'function') sembrarReintervencionDemo();
 
   return true;
 }

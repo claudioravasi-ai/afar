@@ -661,7 +661,11 @@ function seguirTrasElMotivo(f, destinoPreferido, aviso){
      elija. Llamar a guardarFicha() acá sólo produciría un error en pantalla. */
   if(!f.pacienteId){
     irAPaso('paciente');
-    toast('Falta el paciente: elegilo o cargalo para poder seguir.', 'warn');
+    /* Si lo que se declaró fue la valoración en papel, lo primero que tiene
+       que ver es la tarjeta para adjuntarla: la hoja la tiene en la mano. */
+    setTimeout(() => { const c = $('#svCard'); if(c) c.scrollIntoView({ block:'start' }); }, 220);
+    toast('Falta el paciente: elegilo o cargalo. Podés adjuntar la valoración en papel acá mismo.',
+          'warn');
     return;
   }
   guardarFicha(true, true);
@@ -1345,6 +1349,11 @@ function htmlPasoPaciente(f){
   const imc = p ? calcIMC(p.peso, p.talla) : null;
 
   return ''+
+  /* La tarjeta de la valoración pendiente encabeza también este paso. Cuando
+     se declara que la valoración se hizo en papel, la aplicación cae acá
+     —falta el paciente— y ahí mismo tiene que estar el botón de la foto: es
+     el momento en que la persona tiene la hoja en la mano. */
+  (deudaValoracion(f) ? htmlValoracionExterna(f) : '')+
   '<div class="card"><h3>'+ico('paciente')+'Identificación del paciente</h3>'+
     '<div class="campo"><label>Paciente <span class="req">*</span></label>'+
       '<select id="qxPaciente"><option value="">— Seleccionar paciente del padrón —</option>'+
@@ -1450,6 +1459,7 @@ function htmlPasoPaciente(f){
 }
 
 function cablearPasoPaciente(f){
+  cablearValoracionExterna(f);
   $('#qxPaciente').onchange = e => {
     fichaActual.pacienteId = e.target.value;
     const p = DB.pacientes[e.target.value];

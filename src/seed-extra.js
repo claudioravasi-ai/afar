@@ -612,3 +612,93 @@ function sembrarEnviosDemo(){
   guardarArchivosCache();
   return true;
 }
+
+/* =========================================================================
+   DEMOSTRACION: PACIENTE PARA PROBAR LA REINTERVENCION
+   -------------------------------------------------------------------------
+   Las fichas de la demostracion original tienen el consentimiento sin firmar,
+   asi que ninguna sirve para probar la importacion: la lista solo ofrece las
+   valoraciones COMPLETAS. Esta ficha si lo esta -ASA, conclusion de aptitud,
+   plan anestesico y consentimiento con las dos firmas-, y ademas la valoro
+   una colega, que es el caso que interesa: «ya fue valorado», no «yo lo
+   valore».
+
+   Con ella se prueba el recorrido entero: nueva ficha anestesica, tomar el
+   acto, «ya fue valorado para una intervencion anterior», importar, y firmar
+   el consentimiento nuevo de la reintervencion en su propia ventana.
+   ========================================================================= */
+const FIRMA_DEMO_PAC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQQAAABGCAIAAACljX2OAAACjklEQVR42u3cS27jMBBFUS4i415J9r8tBehBo+EAhihVFeXiucggQBLHfKpL8SePA8BfhggAMgBkwE58/fkmA2jw/e+LDGDChA9kABPIACaQAUwgA/YyYfbPyQAmkAFGR2QAE8gQnL4c2gyQyBDTA7GihwlkuK5B4DXAE0wgQ4wJlCADE/jQxwQyXDHh/58GLmVgrQlkmJ4u3/xNkKF/1nz4dBPIEFzZfPhcE8gQ38fnXaqXzY09dzlSuxsyxI92Yi+YJayyGy8ZUuKOqldLumTokPWdep3d3NhBiYKWkiEx62v1eqbin+/D77f68n39bZYMizue8yV7rct/pg+Bt7LK1pEh/RZc0NM/x4drQ7vfW/tLdvfJUDQezZ4DPMGHy1Odh4wAyVC3U5Y9D17ow5nivmlLQSsGE4oTT73kS2ooaZ2gXmkyLBtaJD0uV9yi+6O7Ny9SfEUGE/ot0le2K/B/LT9gQoaeO1Y1TWsW4GBCy73b+vWxBqENJnQ9xVC5edIjMTJ0PtJTs63eJq4xFYES0VIyHG1avtvJ5/D2Ng5wPLP9N885kiGpyb3Te5wMqfuRHhALfGKpX1DjOUEUH92xYCC9WxPo7Efd805u+SiXm80nw4KlifMHen2oUVlBb5LeWNg9zNZ31LNgx8bcf3KocTijrHc5WdkhY6o7r7+VDO8D2S29kZrmVEFnzzGYMBX+humN7N4lL2UmZNyWd05vRKW5cFWHCdldySaZjMA0U4dGU2/paHR+ZLkP+wQyYtOMnStjrRK7RTGSohT0Jyqx+R11pHYtNMBeMhw+LBpkmPJB1thFhjdKSBk7yvAihnxBBoAMABkAMgBkAMgAkAEgA0AGgAwAGQAyAJvzAyEix9qpem6CAAAAAElFTkSuQmCC';
+const FIRMA_DEMO_ANE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQQAAABGCAIAAACljX2OAAACXklEQVR42u3dW07kMBAF0FrEfLOS2f+2ggQSGg2Cdpzy+1y1+CLYKfsk7oR0xyUiHwklEIFBBAYRGERgEIFBBAYRGERgWDN/3v5+/vx8KQgMhzL45aU+MJxu4D8PVMBAghMFDEdKKESigDDsL6H87KGMMGwooWSTug0FhmUkpJxSVBWG4yTcXWIJDDtL4AEGEkYumb7fFz+BHwzLSOhzijj51gcMK0loQaL8Rsf2HmBYT0IWierb4buSgGFVCYUT+qelf/qGMMhgDIkH+PKe7+oBhrUlpJD42nzOS1swkNCJRG5zMMg125x4ufTfeN9hIGGiCixaBBhI4AEGM0A1YDD2R9WkvA8wWCDtXJZb3YCBhG2Lc7cbMJCwZ4kqOgADDBtWqa5pGEjYrVbVjcJAwlYVe9Jc3GrGuMIwc9EeNhR3mzGoSjFn6Z43EX2acbrnoWn1Uv5+mAp2f/UaZp15Yt0J8f3BlA6HHBJm85A4QIthKHwkNwsGCZN7yB2gGC67sN2r+8eZkDCzhxYPncZY2dW73VSFD3Kc3EOj0YlJ+lHNoHzt9PLJd1+MMNDDk497yupS9NyNLAa/vCWogPHy903cnge7gWfs6Mz6SY1SPsvEl6nN76H8aJXbmUjcjXalGfKuw0wd7qHz6ETubkwo4e4lKbNzfg+NuhHpuzEhg5cwLv+GuA6Jdh2IRvuQsmSUk0n0P1pFU9N1KxYTQoYk0kG7iCmnY7geX8o0GLIPhmoShkH2xFBI4nIBRw7B8C+Jy0VMgUEEBhEYRGAQgUEEBhEYRGAQgUEEBhEYRI7LOxohlJnKKMRHAAAAAElFTkSuQmCC';
+
+function faltaReintervencionDemo(){ return !DB.pacientes['pac_demo_reint']; }
+
+function sembrarReintervencionDemo(){
+  const U3 = 'usr_demo3';                     /* Torres, Alejandra */
+  const PR = 'pac_demo_reint';
+
+  escribir('pacientes', PR, {
+    id:PR, demo:true, ownerUid:U3,
+    apellido:'Ledesma', nombre:'Ana Clara', dni:'27655310', fechaNac:'1979-03-22',
+    sexo:'F', peso:'68', talla:'165', obraSocial:'OSDE', nroAfiliado:'62-2765531-04',
+    telefono:'2901-447722', grupoSanguineo:'0+', domicilio:'Karukinka 1180',
+    localidad:'Ushuaia', email:'',
+    contactoEmergencia:'Sergio Ledesma (hermano) — 2901-447723',
+    observaciones:'Paciente de prueba para el circuito de reintervencion.',
+    creado:diaRel(-4)
+  });
+
+  escribir('fichas', 'fic_demo_reint', {
+    id:'fic_demo_reint', demo:true, ownerUid:U3, pacienteId:PR,
+    fecha:diaRel(-3), fechaValoracion:diaRel(-4), fechaCirugia:diaRel(-3),
+    hora:'09:15', turno:'Manana', caracter:'programada',
+    institucion:'ssj', obraSocial:'OSDE', nroAfiliado:'62-2765531-04',
+    especialidad:'Cirugia General', cirugia:'Colecistectomia laparoscopica', cirugiaUA:12,
+    diagnostico:'Colelitiasis sintomatica',
+    lateralidad:'No aplica', cirujano:'Dr. Martin Gutierrez',
+    estado:'cerrada', valoracionGuardada:diaRel(-4)+'T10:40:00.000Z',
+    v:{
+      antecedentes2:[{n:'Hipotiroidismo', sis:'Endocrino-metabolico'},
+                     {n:'Migrana', sis:'Neurologico'}],
+      antecedentes:{ 'Endocrino-metabolico':['Hipotiroidismo'], 'Neurologico':['Migrana'] },
+      antAnestesicos:['Anestesia general previa sin complicaciones'],
+      antAnestDetalle:'Cesarea en 2011 bajo anestesia raquidea, sin complicaciones.',
+      medicacion:[{ n:'Levotiroxina', g:'Hormonal', accion:'continuar', dosis:'75 mcg por dia',
+                    nota:'CONTINUAR con un sorbo de agua la manana de la cirugia.' }],
+      alergias:[], alergiaDetalle:'Sin alergias conocidas.',
+      habitos:{ tabaco:'No fuma', alcohol:'Social', drogas:'No consume' },
+      examen:{ ta:'118/74', fc:'72', fr:'15', spo2:'98', temp:'36.5', peso:'68', talla:'165',
+        cardio:'R1-R2 normofoneticos, sin soplos.',
+        respiratorio:'Buena entrada de aire bilateral, sin ruidos agregados.' },
+      va:{ mallampati:'II', aperturaBucal:'Mayor a 3 cm', tiromentoniana:'Mayor a 6,5 cm',
+           cuelloMov:'Conservada', dentadura:'Completa, sin piezas flojas' },
+      lab:{ hb:'13.2', hto:'39', plaquetas:'244000', creatinina:'0.8', glucemia:'92',
+            fecha:diaRel(-6) },
+      ayuno:{ tipo:'Solidos 8 h / liquidos claros 2 h', cumple:'Si' },
+      scores:{ asa:'II', asaE:false },
+      riesgo:{ aptitud:'apto',
+        fundamento:'Paciente ASA II, hipotiroidea compensada, sin antecedentes cardiovasculares '+
+          'ni respiratorios. Via aerea sin predictores de dificultad. Laboratorio dentro de '+
+          'parametros. Apta para anestesia general.' ,
+        interconsultas:'' }
+    },
+    plan:{ tecnica:['General balanceada'], viaAerea:'Tubo endotraqueal',
+      monitoreo:['ECG','Oximetria de pulso','Presion arterial no invasiva','Capnografia'],
+      accesos:'Via periferica 18 G en antebrazo derecho',
+      profilaxisAtb:'Cefazolina 2 g EV en la induccion',
+      ponv:'Dexametasona 4 mg + ondansetron 4 mg', destino:'Sala de recuperacion' },
+    consent:{ quien:'El paciente',
+      firmante:'Ledesma, Ana Clara — DNI 27655310',
+      items:['Acepta transfusion de hemoderivados si fuera indispensable',
+             'Acepta anestesia general',
+             'Recibio informacion sobre el ayuno',
+             'Recibio informacion sobre la medicacion a suspender'],
+      observaciones:'Se converso con la paciente y su hermano. Sin objeciones.',
+      firmaPaciente:FIRMA_DEMO_PAC, firmaAnestesiologo:FIRMA_DEMO_ANE,
+      fecha:diaRel(-4), hora:'10:35' },
+    firma:{ firmado:true, uid:U3, nombre:'Torres, Alejandra', mp:'M.P. 1290',
+      fecha:diaRel(-3), hora:'11:40', firmaDataUrl:FIRMA_DEMO_ANE },
+    creado:diaRel(-4), modificado:new Date().toISOString(),
+    modificadoPor:U3, modificadoPorNombre:'Torres, Alejandra'
+  });
+  return true;
+}

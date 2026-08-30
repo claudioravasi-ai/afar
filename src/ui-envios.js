@@ -247,14 +247,26 @@ function htmlValoracionExterna(f){
         })()
       : '')+
     (s.motivo === 'externa'
-      ? '<p class="mini">Si tenés la valoración en papel, sacale una foto: queda adjunta como '+
-        'respaldo. La foto se achica sola y no viaja con la ficha —se guarda aparte y se trae '+
-        'recién cuando alguien la abre—, así que no pesa ni en la app ni en la base.</p>'+
+      ? '<p class="mini">Adjuntá acá la valoración que se hizo en papel: sacale una foto con el '+
+        'teléfono o subí el archivo si ya está escaneada. Entra <b>PDF</b>, JPG, PNG, HEIC del '+
+        'iPhone y Word.<br>Las fotos se achican solas y <b>no viajan con la ficha</b> —se guardan '+
+        'aparte y se traen recién cuando alguien las abre—, así que no pesan ni en la aplicación '+
+        'ni en la base.</p>'+
         (puede ? '<div class="btn-row mt8">'+
-          '<button class="btn ghost chico" id="svFoto" data-lectura>'+ico('camara')+
-            ' Tomar foto</button>'+
-          '<button class="btn ghost chico" id="svArchivo" data-lectura>'+ico('adjunto')+
-            ' Elegir archivo</button></div>' : '')+
+          '<button class="btn pri chico" id="svFoto" data-lectura'+(f.pacienteId?'':' disabled')+'>'+
+            ico('camara')+' Tomar foto de la hoja</button>'+
+          '<button class="btn ghost chico" id="svArchivo" data-lectura'+
+            (f.pacienteId?'':' disabled')+'>'+ico('adjunto')+
+            ' Subir PDF o archivo</button></div>' : '')+
+        /* Sin paciente la ficha no se guarda, asi que el archivo se subiria a
+           una ficha que no existe y la referencia se perderia al recargar. La
+           foto es un respaldo del papel, no una fuente de datos: la
+           aplicacion no puede leer el nombre de una imagen. */
+        (f.pacienteId ? '' :
+          '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Elegí primero el paciente.</b><br>'+
+          'El archivo se guarda dentro de la ficha, y la ficha todavía no tiene a quién pertenece. '+
+          'La foto es el respaldo del papel: el nombre hay que elegirlo del padrón para que la '+
+          'ficha se pueda buscar, facturar e informar.</div></div>')+
         '<div id="svLista" class="adjuntos mt14">'+ htmlListaAdjuntos(l, puede) +'</div>'
       : '')+
   '</div>';
