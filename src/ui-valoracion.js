@@ -15,6 +15,427 @@ function acc(id, icono, titulo, cuerpo, abierto){
     '<div class="cuerpo">'+cuerpo+'</div></details>';
 }
 
+/* =========================================================================
+   VALORACION EXPRES — lo minimo indispensable, arriba de todo
+   -------------------------------------------------------------------------
+   La valoracion tiene quince puntos porque la historia clinica los pide. Pero
+   para que una valoracion se pueda dar por CONCLUIDA y sostener un acto
+   anestesico hacen falta seis cosas, no quince:
+
+     peso · ASA · via aerea · aptitud fundamentada · plan · consentimiento
+
+   Esas seis estan ahora en una tarjeta al principio, con su estado a la vista
+   y un boton que lleva a cada una. Los quince puntos siguen abajo, enteros:
+   no se saco nada. Lo que cambio es que ya no hay que recorrerlos para saber
+   que falta ni para terminar una valoracion sencilla.
+
+   Y arriba de esa tarjeta hay dos atajos que son los que de verdad ahorran
+   tiempo:
+     - AUTOCOMPLETAR: marca solo las casillas de las escalas que se deducen de
+       lo que ya esta cargado (ver derivarValoracion() en valoracion-auto.js).
+     - PLANTILLAS: el paciente sano para cirugia menor, el adulto con HTA y
+       diabetes compensadas, la urgencia y el pediatrico sano. Rellenan examen
+       normal, ayuno, plan y profilaxis de una vez.
+   ========================================================================= */
+
+/* Las seis condiciones para concluir, con su estado y adonde ir a cargarlas */
+function itemsExpres(f){
+  const v = f.v || {}, sc = v.scores || {}, pl = f.plan || {};
+  const p = DB.pacientes[f.pacienteId] || {};
+  const peso = (typeof val === 'function' && $('#exPeso') ? val('exPeso') : '') || p.peso;
+  return [
+    { k:'peso',   t:'Peso del paciente',            ok:!!Number(peso),
+      v: peso ? peso + ' kg' : '', anc:'exPeso' },
+    { k:'asa',    t:'Clasificación ASA',            ok:!!($('#scAsa') ? val('scAsa') : sc.asa),
+      v: ($('#scAsa') ? val('scAsa') : sc.asa) ? 'ASA ' + ($('#scAsa') ? val('scAsa') : sc.asa) : '',
+      anc:'scAsa' },
+    { k:'va',     t:'Vía aérea (Mallampati)',       ok:!!($('#vaMallampati') ? val('vaMallampati') : (v.va||{}).mallampati),
+      v: ($('#vaMallampati') ? val('vaMallampati') : (v.va||{}).mallampati)
+         ? 'Clase ' + ($('#vaMallampati') ? val('vaMallampati') : (v.va||{}).mallampati) : '',
+      anc:'vaMallampati' },
+    { k:'apt',    t:'Conclusión de aptitud',        ok:!!($('#rgFundamento') ? val('rgFundamento') : (v.riesgo||{}).fundamento),
+      v:'', anc:'rgFundamento' },
+    { k:'plan',   t:'Plan anestésico (técnica)',    ok:!!(($('#plTecnica') ? leerChks('plTecnica') : (pl.tecnica||[])).length),
+      v:'', anc:'acPlan' },
+    { k:'consent',t:'Consentimiento (punto 15)',    ok: consentimientoCompleto(f),
+      v:'', anc:'acConsent' }
+  ];
+}
+
+function htmlValoracionExpres(f){
+  const it = itemsExpres(f);
+  const faltan = it.filter(x => !x.ok);
+  return ''+
+  '<div class="card expres"><h3>'+ico('valoracion')+'Valoración prequirúrgica'+
+    '<span class="tag '+(faltan.length?'warn':'ok')+'" style="margin-left:auto">'+
+      (faltan.length ? faltan.length+' pendiente'+(faltan.length===1?'':'s') : 'Completa')+'</span></h3>'+
+
+    '<div class="btn-row">'+
+      '<button type="button" class="btn pri" id="vaAuto">'+ico('calculadora')+
+        ' Autocompletar con lo cargado</button>'+
+      '<button type="button" class="btn ghost" id="vaPlantilla">'+ico('lista')+
+        ' Usar una plantilla</button>'+
+    '</div>'+
+    '<div class="ayuda">El autocompletado marca las casillas de las escalas del punto 9 y la '+
+      'profilaxis del punto 13 que se <b>deducen</b> de los antecedentes, la medicación, el '+
+      'laboratorio y la cirugía que ya cargaste. Muestra qué va a marcar y por qué antes de '+
+      'hacerlo, y nunca pisa lo que pusiste a mano.</div>'+
+
+    '<div id="vaAsaSug"></div>'+
+
+    '<label class="mini strong mt14" style="display:block">Lo que hace falta para poder concluirla</label>'+
+    '<div class="items">'+ it.map(x =>
+      '<div class="it">'+
+        '<span class="ic '+(x.ok?'si':'no')+'">'+(x.ok?'✓':'!')+'</span>'+
+        '<span class="t">'+esc(x.t)+'</span>'+
+        (x.v ? '<span class="v">'+esc(x.v)+'</span>' : '')+
+        (x.ok ? '' : '<button type="button" class="btn ghost chico" data-expres="'+esc(x.anc)+'">Ir</button>')+
+      '</div>').join('') +'</div>'+
+    '<div class="ayuda">Los quince puntos completos siguen abajo. Esta tarjeta es sólo el atajo: '+
+      'con estos seis la valoración se puede cerrar y sostiene el acto anestésico.</div>'+
+  '</div>';
+}
+
+/* Tarjeta de escala: el resultado a la vista, los items detras de un
+   desplegable. Los inputs siguen en el DOM aunque el desplegable este
+   cerrado, asi que leerValoracion() los lee igual que siempre. */
+function tarjetaEscala(icono, titulo, idOut, itemsHTML, cuantos){
+  return '<div class="card plano" style="border:1.5px solid var(--borde)"><h3>'+ico(icono)+
+    esc(titulo)+'</h3>'+
+    '<div id="'+idOut+'"></div>'+
+    '<details class="acc" style="margin:9px 0 0"><summary><span class="n">'+ico('editar')+'</span>'+
+      'Revisar los '+cuantos+' ítems<span class="flecha">'+ico('flecha')+'</span></summary>'+
+      '<div class="cuerpo">'+itemsHTML+'</div></details>'+
+  '</div>';
+}
+
+/* ------------------------------------------------ Cableado del expres -- */
+function cablearValoracionExpres(f){
+  $$('#fiCuerpo [data-expres]').forEach(b => b.onclick = () => {
+    const e = $('#'+b.dataset.expres);
+    if(!e) return;
+    const acc = e.closest ? e.closest('details.acc') : null;
+    if(acc) acc.open = true;
+    if(e.tagName === 'DETAILS') e.open = true;
+    e.scrollIntoView({ behavior:'smooth', block:'center' });
+    setTimeout(() => {
+      if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.tagName)) e.focus();
+      else { const x = e.querySelector('input,select,textarea'); if(x) x.focus(); }
+    }, 400);
+  });
+
+  /* --- ASA propuesto: se muestra, se acepta con un clic --- */
+  const pintarAsa = () => {
+    const caja = $('#vaAsaSug'); if(!caja) return;
+    if(val('scAsa')){ caja.innerHTML = ''; return; }
+    const a = asaPropuesto(f);
+    caja.innerHTML = '<div class="aviso info">'+ico('escudo')+'<div>'+
+      '<b>ASA propuesto: '+esc(a.v)+(a.e?'E':'')+'.</b> '+esc(a.texto)+
+      (a.reserva ? '<br><span class="mini">'+esc(a.reserva)+'</span>' : '')+
+      '<div class="btn-row mt8"><button type="button" class="btn ghost chico" id="vaAsaOK">'+
+        ico('check')+' Aceptar ASA '+esc(a.v)+(a.e?'E':'')+'</button></div></div></div>';
+    $('#vaAsaOK').onclick = () => {
+      $('#scAsa').value = a.v;
+      if(a.e) $('#scAsaE').checked = true;
+      $('#scAsaEL').classList.toggle('sel', !!a.e);
+      caja.innerHTML = '';
+      if(window.__recalcValoracion) window.__recalcValoracion();
+      pintarExpres();
+      toast('ASA '+a.v+(a.e?'E':'')+' cargado. Podés cambiarlo en el punto 9.', 'ok');
+    };
+  };
+
+  if($('#vaAuto')) $('#vaAuto').onclick = () => abrirAutocompletado(f);
+  if($('#vaPlantilla')) $('#vaPlantilla').onclick = () => abrirPlantillas(f);
+  if($('#rgRedactar')) $('#rgRedactar').onclick = () => {
+    const txt = redactarConclusion(fichaActual);
+    const ya = val('rgFundamento').trim();
+    if(!ya){
+      $('#rgFundamento').value = txt;
+      $('#rgFundamento').dispatchEvent(new Event('input', { bubbles:true }));
+      pintarExpres();
+      return toast('Conclusión redactada. Léela y corregí lo que haga falta antes de guardar.', 'ok');
+    }
+    confirmar('Ya hay texto escrito',
+      'La fundamentación no está vacía. ¿Querés <b>agregar</b> el resumen debajo de lo que ya '+
+      'escribiste, o <b>reemplazarlo</b>?<br><br>Lo redactado es un resumen de lo cargado: '+
+      'revisalo siempre antes de guardar.',
+      () => {
+        $('#rgFundamento').value = ya + '\n\n' + txt;
+        $('#rgFundamento').dispatchEvent(new Event('input', { bubbles:true }));
+        pintarExpres(); toast('Resumen agregado debajo.', 'ok');
+      }, 'Agregar debajo');
+  };
+  pintarAsa();
+  window.__pintarAsaSug = pintarAsa;
+}
+
+/* Repinta solo la tarjeta expres, sin rehacer la valoracion entera: rehacerla
+   cerraria todos los acordeones que la persona tiene abiertos. */
+function pintarExpres(){
+  const c = $('.expres'); if(!c) return;
+  const f = typeof fichaEnPantalla === 'function' ? fichaEnPantalla() : fichaActual;
+  const nuevo = document.createElement('div');
+  nuevo.innerHTML = htmlValoracionExpres(f);
+  const tarjeta = nuevo.firstElementChild;
+  /* Se reemplaza solo la lista de estados y el contador: los botones y el
+     cartel del ASA se dejan como estan para no cortar un clic a medias. */
+  const items = c.querySelector('.items'), itemsN = tarjeta.querySelector('.items');
+  if(items && itemsN) items.innerHTML = itemsN.innerHTML;
+  const tag = c.querySelector('h3 .tag'), tagN = tarjeta.querySelector('h3 .tag');
+  if(tag && tagN){ tag.className = tagN.className; tag.textContent = tagN.textContent; }
+  cablearValoracionExpres(fichaActual);
+}
+
+/* =========================================================================
+   AUTOCOMPLETADO — se ve antes de aplicarse
+   ========================================================================= */
+function abrirAutocompletado(f){
+  const r = derivarValoracion(fichaActual);
+  const props = r.propuestas;
+  if(!props.length)
+    return toast('No hay nada más que deducir: todo lo derivable ya está cargado.', 'ok');
+
+  const grupos = {};
+  props.forEach(x => (grupos[x.grupo] = grupos[x.grupo] || []).push(x));
+
+  const etiqueta = x => {
+    if(x.tipo === 'chk'){ const e = $('#'+x.id);
+      const l = e ? e.closest('label') : null; return l ? l.textContent.trim() : x.id; }
+    if(x.tipo === 'chkval') return x.valor;
+    if(x.tipo === 'cap') return CAPRINI_ITEMS[x.i].t + ' (' + CAPRINI_ITEMS[x.i].p + ')';
+    const e = $('#'+x.id);
+    const lab = e && e.closest('.campo') ? e.closest('.campo').querySelector('label') : null;
+    const sel = e && e.tagName === 'SELECT'
+      ? (Array.prototype.find.call(e.options, o => o.value === x.valor) || {}).textContent
+      : null;
+    return (lab ? lab.textContent.trim() + ': ' : '') + (sel || x.valor);
+  };
+
+  abrirModal('Autocompletar la valoración',
+    '<div class="aviso info">'+ico('info')+'<div><b>'+props.length+' dato'+
+      (props.length===1?'':'s')+' se '+(props.length===1?'deduce':'deducen')+' de lo que ya '+
+      'cargaste.</b><br>Nada de esto es una invención: cada renglón dice de dónde sale. Lo que '+
+      'ya pusiste a mano no se toca.</div></div>'+
+    Object.keys(grupos).map(g =>
+      '<label class="mini strong mt14" style="display:block">'+esc(g)+'</label>'+
+      '<div class="chks" style="flex-direction:column;align-items:stretch">'+
+      grupos[g].map((x,i) => {
+        const idx = props.indexOf(x);
+        /* Lo que REEMPLAZA algo ya cargado nace destildado: la app no pisa lo
+           que puso una persona, solo avisa que se contradicen. */
+        const rep = !!x.reemplaza;
+        return '<label class="chk'+(rep?'':' sel')+'" style="width:100%;align-items:flex-start;border-radius:9px">'+
+          '<input type="checkbox" class="autoc" data-i="'+idx+'"'+(rep?'':' checked')+'>'+
+          '<span><b>'+esc(etiqueta(x))+'</b>'+
+          (rep ? ' <span class="tag warn">reemplaza «'+esc(x.reemplaza)+'»</span>' : '')+
+          '<br><span class="mini" style="font-weight:400;opacity:.85">'+esc(x.porque)+
+          (rep ? ' Está cargado distinto: revisá cuál de los dos vale.' : '')+
+          '</span></span>'+
+          '</label>';
+      }).join('')+'</div>').join(''),
+    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+    '<button class="btn pri" id="autocOK">'+ico('check')+' Aplicar lo tildado</button>');
+
+  $$('#modal .chk').forEach(l => l.onclick = () =>
+    setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0));
+
+  $('#autocOK').onclick = () => {
+    const elegidos = $$('#modal .autoc:checked').map(i => props[Number(i.dataset.i)]);
+    let n = 0;
+    elegidos.forEach(x => {
+      if(x.tipo === 'chk'){
+        const e = $('#'+x.id); if(!e || e.checked) return;
+        e.checked = true; const l = e.closest('label'); if(l) l.classList.add('sel'); n++;
+      } else if(x.tipo === 'chkval'){
+        const e = $$('#'+x.cont+' input').find(y => y.value === x.valor);
+        if(!e || e.checked) return;
+        e.checked = true; const l = e.closest('label'); if(l) l.classList.add('sel');
+        const det = e.closest('details'); if(det) det.open = true;
+        n++;
+      } else if(x.tipo === 'cap'){
+        const e = $$('.cap').find(y => Number(y.dataset.i) === x.i);
+        if(!e || e.checked) return;
+        e.checked = true; const l = e.closest('label'); if(l) l.classList.add('sel'); n++;
+      } else {
+        const e = $('#'+x.id); if(!e) return;
+        if(e.value && !x.reemplaza) return;      /* por las dudas: no pisar */
+        e.value = x.valor; n++;
+      }
+    });
+    cerrarModal();
+    if(window.__recalcValoracion) window.__recalcValoracion();
+    pintarExpres();
+    toast(n+' dato'+(n===1?'':'s')+' completado'+(n===1?'':'s')+'. Revisá el punto 9 antes de guardar.', 'ok');
+  };
+}
+
+/* =========================================================================
+   PLANTILLAS
+   -------------------------------------------------------------------------
+   Cuatro situaciones que son la enorme mayoria de las valoraciones. Rellenan
+   el examen fisico normal, el ayuno, el plan y la profilaxis de una vez. Todo
+   queda editable y nada de lo que ya este cargado se pisa.
+
+   El examen fisico «normal» que escriben es la redaccion habitual de un
+   examen sin hallazgos. Se carga para no tener que tipearlo: hay que leerlo
+   y corregirlo si el paciente no es asi, igual que cualquier plantilla de
+   historia clinica.
+   ========================================================================= */
+const PLANTILLAS_VAL = [
+  { id:'sano', n:'Paciente sano para cirugía menor',
+    d:'ASA I-II, sin antecedentes. Examen normal, ayuno cumplido, general balanceada o sedación, '+
+      'analgesia multimodal sin opioides.',
+    aplica:{
+      sinAntecedentes:true,
+      examen:{ cardio:'R1-R2 normofonéticos, silencios libres, sin soplos. Pulsos periféricos presentes y simétricos.',
+               respiratorio:'Buena entrada de aire bilateral, murmullo vesicular conservado, sin ruidos agregados.',
+               abdomen:'Blando, depresible, indoloro, sin visceromegalias.',
+               neuro:'Vigil, orientado en tiempo y espacio, sin déficit focal.',
+               accesos:'Buenos', columna:'Apófisis palpables, sin dificultad' },
+      va:{ mallampati:'1', cuelloMov:'normal', protrusion:'clase1', denticion:'Completa y sana',
+           intubacionPrevia:'sin_datos' },
+      habitos:{ tabaco:'No fumador', alcohol:'No consume', drogas:'No consume' },
+      mets:'10',
+      ayuno:'Sólidos / comida liviana',
+      tecnica:['Anestesia general balanceada'],
+      va_disp:['Máscara laríngea 2ª generación'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h',
+                 'Infiltración de la herida con anestésico local'],
+      tev:'Deambulación precoz',
+      destino:'Sala común', ambito:'Consultorio de preanestesia' } },
+
+  { id:'cronico', n:'Adulto con HTA y/o diabetes compensadas',
+    d:'ASA II-III. Examen normal salvo lo cardiovascular, ayuno cumplido, general balanceada con IOT, '+
+      'analgesia multimodal y profilaxis de NVPO.',
+    aplica:{
+      examen:{ cardio:'R1-R2 normofonéticos, sin soplos. Tensión arterial controlada con la medicación habitual.',
+               respiratorio:'Buena entrada de aire bilateral, sin ruidos agregados.',
+               abdomen:'Blando, depresible, indoloro.',
+               neuro:'Vigil, orientado, sin déficit focal.',
+               accesos:'Buenos', columna:'Apófisis palpables, sin dificultad' },
+      va:{ mallampati:'2', cuelloMov:'normal', protrusion:'clase1', intubacionPrevia:'sin_datos' },
+      mets:'4',
+      ayuno:'Sólidos / comida liviana',
+      tecnica:['Anestesia general balanceada','Anestesia general con IOT'],
+      va_disp:['Tubo endotraqueal (laringoscopía directa)'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h','Morfina EV titulada'],
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Sala común', ambito:'Consultorio de preanestesia' } },
+
+  { id:'urgencia', n:'Urgencia — estómago ocupado',
+    d:'Ayuno no cumplido, secuencia de intubación rápida, profilaxis de aspiración y monitoreo '+
+      'según el estado. Deja el ámbito en guardia.',
+    aplica:{
+      ayuno:'Sin ayuno / desconocido',
+      ayRiesgo:['Cirugía de urgencia'],
+      ayProfilaxis:['Secuencia de intubación rápida','Omeprazol 40 mg','Metoclopramida 10 mg'],
+      va:{ intubacionPrevia:'sin_datos' },
+      tecnica:['Anestesia general con IOT','Secuencia de intubación rápida (SIR)'],
+      va_disp:['Tubo endotraqueal (videolaringoscopio)'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Morfina EV titulada'],
+      nvpo:['Ondansetrón 4 mg'],
+      destino:'Sala común', ambito:'Guardia / urgencia' } },
+
+  { id:'pedia', n:'Pediátrico sano',
+    d:'ASA I, inducción inhalatoria, máscara laríngea, analgesia sin AINE fuerte y bloqueo caudal '+
+      'o de campo. Ayuno pediátrico.',
+    aplica:{
+      sinAntecedentes:true,
+      examen:{ cardio:'R1-R2 normofonéticos, sin soplos.',
+               respiratorio:'Buena entrada de aire bilateral, sin ruidos agregados.',
+               abdomen:'Blando, depresible, indoloro.',
+               neuro:'Vigil, reactivo, acorde a la edad.',
+               accesos:'Buenos' },
+      va:{ mallampati:'1', cuelloMov:'normal', denticion:'Completa y sana', intubacionPrevia:'sin_datos' },
+      mets:'10',
+      ayuno:'Leche materna',
+      tecnica:['Anestesia general inhalatoria','Anestesia general con máscara laríngea'],
+      va_disp:['Máscara laríngea 2ª generación'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Bloqueo caudal (pediátrico)',
+                 'Infiltración de la herida con anestésico local'],
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      tev:'Deambulación precoz',
+      destino:'Sala común', ambito:'Consultorio de preanestesia' } }
+];
+
+function abrirPlantillas(f){
+  abrirModal('Usar una plantilla',
+    '<div class="aviso warn">'+ico('alerta')+'<div><b>Una plantilla es un punto de partida, no una '+
+      'valoración.</b> Rellena el examen físico, el ayuno, el plan y la profilaxis con lo habitual '+
+      'de esa situación para que no haya que tipearlos. <b>Leelos y corregí lo que no coincida con '+
+      'este paciente antes de guardar</b>: lo que se firma después es historia clínica.<br>'+
+      'No se pisa nada de lo que ya tengas cargado.</div></div>'+
+    PLANTILLAS_VAL.map(x =>
+      '<label class="chk" style="width:100%;align-items:flex-start;border-radius:9px;margin-bottom:7px">'+
+        '<input type="radio" name="plt" value="'+x.id+'">'+
+        '<span><b>'+esc(x.n)+'</b><br><span class="mini" style="font-weight:400;opacity:.85">'+
+        esc(x.d)+'</span></span></label>').join(''),
+    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+    '<button class="btn pri" id="pltOK">'+ico('check')+' Aplicar</button>');
+
+  $('#pltOK').onclick = () => {
+    const r = $('#modal input[name="plt"]:checked');
+    if(!r) return toast('Elegí una plantilla.', 'warn');
+    const t = PLANTILLAS_VAL.find(x => x.id === r.value);
+    cerrarModal();
+    aplicarPlantilla(t);
+  };
+}
+
+/* Aplica sin pisar: solo escribe donde no hay nada */
+function aplicarPlantilla(t){
+  const a = t.aplica;
+  let n = 0;
+  const ponerSi = (id, v) => { const e = $('#'+id); if(e && !e.value && v){ e.value = v; n++; } };
+  const tildarSi = (cont, lista) => (lista||[]).forEach(txt => {
+    const e = $$('#'+cont+' input').find(x => x.value === txt);
+    if(e && !e.checked){ e.checked = true;
+      const l = e.closest('label'); if(l) l.classList.add('sel');
+      const d = e.closest('details'); if(d) d.open = true; n++; }
+  });
+
+  if(a.sinAntecedentes && $('#dxSin') && !$('#dxSin').checked &&
+     (typeof dxSeleccionados === 'undefined' || !dxSeleccionados.length)){
+    $('#dxSin').checked = true; $('#dxSinL').classList.add('on'); n++;
+  }
+  if(a.examen){
+    ponerSi('exCardio', a.examen.cardio); ponerSi('exResp', a.examen.respiratorio);
+    ponerSi('exAbd', a.examen.abdomen);   ponerSi('exNeuro', a.examen.neuro);
+    ponerSi('exAccesos', a.examen.accesos); ponerSi('exColumna', a.examen.columna);
+  }
+  if(a.va){
+    ponerSi('vaMallampati', a.va.mallampati); ponerSi('vaCuello', a.va.cuelloMov);
+    ponerSi('vaProtrusion', a.va.protrusion); ponerSi('vaDenticion', a.va.denticion);
+    ponerSi('vaIntPrev', a.va.intubacionPrevia);
+  }
+  if(a.habitos){
+    ponerSi('habTabaco', a.habitos.tabaco); ponerSi('habAlcohol', a.habitos.alcohol);
+    ponerSi('habDrogas', a.habitos.drogas);
+  }
+  if(a.mets && $('#mets') && !$('#mets').value) { $('#mets').value = a.mets; n++; }
+  ponerSi('ayTipo', a.ayuno);
+  tildarSi('ayRiesgo', a.ayRiesgo); tildarSi('ayProfilaxis', a.ayProfilaxis);
+  tildarSi('plTecnica', a.tecnica);  tildarSi('plVA', a.va_disp);
+  /* La analgesia de las plantillas se guarda para que el paso Recuperacion la
+     proponga: ahi es donde ahora se indica. */
+  if(a.analgesia && !((fichaActual.plan||{}).analgesia||[]).length){
+    fichaActual.plan = fichaActual.plan || {};
+    fichaActual.plan.analgesia = a.analgesia.slice();
+    n += a.analgesia.length;
+  }
+  tildarSi('plNVPO', a.nvpo);
+  ponerSi('plTEV', a.tev); ponerSi('plDestino', a.destino); ponerSi('rgAmbito', a.ambito);
+
+  if(window.__recalcValoracion) window.__recalcValoracion();
+  pintarExpres();
+  toast(n
+    ? 'Plantilla «'+t.n+'» aplicada: '+n+' campo'+(n===1?'':'s')+'. Revisalos antes de guardar.'
+    : 'La plantilla no agregó nada: todo lo que rellena ya estaba cargado.',
+    n ? 'ok' : 'warn');
+}
+
 /* =================================================== HTML de la seccion */
 function htmlValoracion(f){
   const v = f.v || {};
@@ -27,9 +448,7 @@ function htmlValoracion(f){
   /* Si se declaro que el acto arranco sin valoracion, la deuda se cobra aca:
      es el paso donde se salda. Desaparece sola al llegar a verde. */
   htmlValoracionExterna(f)+
-  '<div class="aviso info">'+ico('valoracion')+'<div><b>Valoración anestésica prequirúrgica</b><br>'+
-    'Las escalas se calculan solas a medida que completás. Todo campo puede dejarse vacío: '+
-    'el documento final sólo imprime lo que cargaste.</div></div>'+
+  htmlValoracionExpres(f)+
 
   /* -------- 1. Antecedentes patologicos -------- */
   acc('acDx','lista','1 · Antecedentes patológicos',
@@ -239,37 +658,42 @@ function htmlValoracion(f){
         ((v.scores||{}).asaE?' checked':'')+'>Modificador E — procedimiento de emergencia</label>'+
       '<div id="scAsaDesc" class="mini mt8"></div></div>'+
 
-    '<div class="card plano" style="border:1.5px solid var(--borde)"><h3>'+ico('corazon')+'RCRI — índice de riesgo cardíaco revisado (Lee)</h3>'+
+    /* Las cinco escalas muestran el RESULTADO arriba y esconden sus ítems
+       detrás de «Revisar los ítems». Eran cincuenta y tres casillas siempre a
+       la vista, y casi todas repiten algo que ya está cargado en los puntos 1,
+       3, 5, 7 y 8: el autocompletado de arriba las marca solo. Los ítems
+       siguen estando —y en el DOM, así que se guardan igual—: se abren cuando
+       hay que corregir uno. */
+    tarjetaEscala('corazon','RCRI — índice de riesgo cardíaco revisado (Lee)','rcriOut',
       RCRI_ITEMS.map((it,i) => '<label class="chk mb8" style="display:flex;width:100%;margin-bottom:6px">'+
-        '<input type="checkbox" id="rcri'+i+'"'+(((v.scores||{}).rcri||[]).indexOf(i)>=0?' checked':'')+'>'+esc(it.t)+'</label>').join('')+
-      '<div id="rcriOut" class="mt8"></div></div>'+
+        '<input type="checkbox" id="rcri'+i+'"'+(((v.scores||{}).rcri||[]).indexOf(i)>=0?' checked':'')+'>'+esc(it.t)+'</label>').join(''),
+      RCRI_ITEMS.length)+
 
-    '<div class="card plano" style="border:1.5px solid var(--borde)"><h3>'+ico('pulmon')+'ARISCAT — riesgo de complicaciones pulmonares</h3>'+
+    tarjetaEscala('pulmon','ARISCAT — riesgo de complicaciones pulmonares','ariscatOut',
       '<div class="grid c2">'+
         campoSel('arIncision','Incisión quirúrgica',
           [{v:'periferica',t:'Periférica'},{v:'alta',t:'Abdominal alta'},{v:'toracica',t:'Torácica'}], (v.scores||{}).arIncision)+
         campoNum('arDuracion','Duración prevista (min)', (v.scores||{}).arDuracion)+
       '</div>'+
       '<label class="chk mb8" style="display:flex;width:100%;margin-bottom:6px"><input type="checkbox" id="arInf"'+
-        ((v.scores||{}).arInf?' checked':'')+'>Infección respiratoria en el último mes</label>'+
-      '<div id="ariscatOut" class="mt8"></div></div>'+
+        ((v.scores||{}).arInf?' checked':'')+'>Infección respiratoria en el último mes</label>', 3)+
 
-    '<div class="card plano" style="border:1.5px solid var(--borde)"><h3>'+ico('aire')+'STOP-BANG — apnea obstructiva del sueño</h3>'+
+    tarjetaEscala('aire','STOP-BANG — apnea obstructiva del sueño','sbOut',
       STOPBANG_ITEMS.map(it => '<label class="chk mb8" style="display:flex;width:100%;margin-bottom:6px">'+
-        '<input type="checkbox" id="sb_'+it.k+'"'+(((v.scores||{}).stopbang||{})[it.k]?' checked':'')+'>'+esc(it.t)+'</label>').join('')+
-      '<div id="sbOut" class="mt8"></div></div>'+
+        '<input type="checkbox" id="sb_'+it.k+'"'+(((v.scores||{}).stopbang||{})[it.k]?' checked':'')+'>'+esc(it.t)+'</label>').join(''),
+      STOPBANG_ITEMS.length)+
 
-    '<div class="card plano" style="border:1.5px solid var(--borde)"><h3>'+ico('estomago')+'Apfel — náuseas y vómitos postoperatorios</h3>'+
+    tarjetaEscala('estomago','Apfel — náuseas y vómitos postoperatorios','apOut',
       APFEL_ITEMS.map(it => '<label class="chk mb8" style="display:flex;width:100%;margin-bottom:6px">'+
-        '<input type="checkbox" id="ap_'+it.k+'"'+(((v.scores||{}).apfel||{})[it.k]?' checked':'')+'>'+esc(it.t)+'</label>').join('')+
-      '<div id="apOut" class="mt8"></div></div>'+
+        '<input type="checkbox" id="ap_'+it.k+'"'+(((v.scores||{}).apfel||{})[it.k]?' checked':'')+'>'+esc(it.t)+'</label>').join(''),
+      APFEL_ITEMS.length)+
 
-    '<div class="card plano" style="border:1.5px solid var(--borde)"><h3>'+ico('vena')+'Caprini — riesgo de tromboembolismo venoso</h3>'+
+    tarjetaEscala('vena','Caprini — riesgo de tromboembolismo venoso','capOut',
       '<div class="chks">'+CAPRINI_ITEMS.map((it,i) =>
         '<label class="chk'+(((v.scores||{}).caprini||[]).indexOf(i)>=0?' sel':'')+'">'+
         '<input type="checkbox" class="cap" data-i="'+i+'"'+(((v.scores||{}).caprini||[]).indexOf(i)>=0?' checked':'')+'>'+
-        esc(it.t)+' <b style="opacity:.6">('+it.p+')</b></label>').join('')+'</div>'+
-      '<div id="capOut" class="mt8"></div></div>')+
+        esc(it.t)+' <b style="opacity:.6">('+it.p+')</b></label>').join('')+'</div>',
+      CAPRINI_ITEMS.length))+
 
   /* -------- 10. Ayuno -------- */
   acc('acAyuno','reloj','10 · Ayuno preoperatorio y profilaxis de aspiración',
@@ -297,6 +721,16 @@ function htmlValoracion(f){
       '</div></div>'+
     campoArea('rgFundamento','Fundamentación y recomendaciones', (v.riesgo||{}).fundamento,
       'Riesgo global, optimizaciones necesarias, interconsultas, condiciones para operar')+
+    /* El campo que más tiempo llevaba y el único enteramente derivable: la
+       fundamentación es el resumen de lo que ya está cargado arriba. Se
+       redacta con un botón y queda editable; si ya hay texto escrito no se
+       pisa, se pregunta. */
+    '<div class="btn-row" style="margin-top:-6px;margin-bottom:12px">'+
+      '<button type="button" class="btn ghost chico" id="rgRedactar">'+ico('valoracion')+
+        ' Redactar con lo cargado</button>'+
+      '<span class="mini" style="align-self:center;opacity:.8">Resume antecedentes, escalas, '+
+        'laboratorio y plan. Después lo corregís.</span>'+
+    '</div>'+
     campoArea('rgInterconsultas','Interconsultas solicitadas', (v.riesgo||{}).interconsultas,
       'Cardiología, neumonología, hematología, endocrinología…')+
     '<div class="grid c2">'+
@@ -344,10 +778,26 @@ function htmlPlan(f){
     '<label class="mini strong mt14" style="display:block">Profilaxis de náuseas y vómitos</label>'+
     chksHTML('plNVPO', ['Ondansetrón 4 mg','Dexametasona 4-8 mg','Droperidol 0,625-1,25 mg',
       'Metoclopramida 10 mg','Dimenhidrinato','TIVA con propofol','Aprepitant'], pl.nvpo)+
-    '<label class="mini strong mt14" style="display:block">Analgesia postoperatoria multimodal</label>'+
-    chksHTML('plAnalgesia', ANALGESIA_POP, pl.analgesia)+
-    campoArea('plAnalgesiaDet','Esquema analgésico detallado', pl.analgesiaDetalle,
-      'Fármaco, dosis, vía, intervalo y duración prevista')+
+    /* La analgesia postoperatoria se MUDO al paso Recuperacion, despues del
+       destino. Ver htmlPasoRecuperacion() en ui-ficha.js.
+
+       El motivo es el momento: lo que se indica al egreso de la URPA no es lo
+       que se penso el dia de la consulta prequirurgica. Entre una cosa y la
+       otra pasaron la cirugia entera, el sangrado real, el bloqueo que
+       funciono o no y el EVA que el paciente tiene delante. Preguntarlo aca
+       obligaba a decidirlo a ciegas y despues nadie volvia a corregirlo.
+
+       Lo que queda en el punto 13 es lo que SI se decide antes: profilaxis
+       antibiotica, tromboprofilaxis, profilaxis de nauseas y vomitos,
+       destino previsto y prevision transfusional. */
+    '<div class="aviso info">'+ico('info')+'<div><b>La analgesia postoperatoria se indica en el paso '+
+      '<b>Recuperación</b>, después del destino.</b><br>Es donde corresponde: lo que se indica al '+
+      'egreso depende de cómo salió la cirugía, de si el bloqueo funcionó y del dolor que el '+
+      'paciente tiene delante, no de lo que se pensó semanas antes.'+
+      ((f.plan||{}).analgesia && (f.plan||{}).analgesia.length
+        ? '<br><span class="mini">Esta ficha tiene un esquema cargado de antes: aparece propuesto '+
+          'en Recuperación para confirmarlo o cambiarlo.</span>' : '')+
+      '</div></div>'+
     '<div class="grid c2">'+
       campoSel('plDestino','Destino postoperatorio previsto', [''].concat(DESTINOS_POP), pl.destino)+
       campoSel('plTransfusion','Previsión transfusional',
@@ -609,7 +1059,11 @@ function leerPlan(){
     monitoreoEstandar: leerChks('plMonEst'), monitoreoAvanzado: leerChks('plMonAv'),
     accesos: val('plAccesos'), atb: val('plATB'), atbOtro: val('plATBOtro'),
     tev: val('plTEV'), nvpo: leerChks('plNVPO'),
-    analgesia: leerChks('plAnalgesia'), analgesiaDetalle: val('plAnalgesiaDet'),
+    /* La analgesia ya no se edita en el punto 13. Se conserva lo que tenga la
+       ficha para no perder nada de lo cargado antes de la mudanza: el paso
+       Recuperacion lo lee como propuesta. */
+    analgesia: (fichaActual.plan || {}).analgesia || [],
+    analgesiaDetalle: (fichaActual.plan || {}).analgesiaDetalle || '',
     destino: val('plDestino'), transfusion: val('plTransfusion'),
     indicaciones: val('plIndicaciones'), observaciones: val('plObs')
   };
@@ -688,7 +1142,7 @@ function cablearValoracion(f){
 
   /* --- checkboxes con estilo --- */
   ['antAnest','alerg','vaOtros','ayRiesgo','ayProfilaxis'].forEach(cablearChks);
-  ['plTecnica','plVA','plMonEst','plMonAv','plNVPO','plAnalgesia'].forEach(cablearChks);
+  ['plTecnica','plVA','plMonEst','plMonAv','plNVPO'].forEach(cablearChks);
   $$('#vFicha .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
   });
@@ -823,6 +1277,16 @@ function cablearValoracion(f){
       (alto.length ? '<div class="aviso danger">'+ico('alerta')+'<div><b>'+alto.length+
         ' dominio(s) en riesgo alto.</b> Revisá la fundamentación y las medidas de mitigación antes de emitir la aptitud.</div></div>'
       : '<div class="aviso ok">'+ico('check')+'<div>Ningún dominio evaluado alcanza el nivel de riesgo alto.</div></div>');
+
+    /* La ficha recuerda si el paciente esta anticoagulado: lo usa el paso
+       Recuperacion para avisar antes de indicar un bloqueo neuroaxial. */
+    fichaActual.__anticoagulado = cond.anticoagulado;
+
+    /* Y el cartel de faltantes de arriba y la tarjeta exprés, que miran esta
+       misma pantalla y tienen que reflejar lo que se acaba de escribir. */
+    if(typeof refrescarFaltantes === 'function') refrescarFaltantes();
+    if(typeof pintarExpres === 'function') pintarExpres();
+    if(window.__pintarAsaSug) window.__pintarAsaSug();
   };
   window.__recalcValoracion = recalcular;
 
@@ -837,6 +1301,7 @@ function cablearValoracion(f){
   $('#scAsaEL').onclick = () => setTimeout(() =>
     $('#scAsaEL').classList.toggle('sel', $('#scAsaE').checked), 0);
 
+  cablearValoracionExpres(f);   /* tarjeta exprés, autocompletado y plantillas */
   cablearAsignacionActo();      /* punto 14 */
   cablearConsentimiento(f);     /* punto 15 */
   cablearEnvioValoracion(f);    /* envío de la valoración a contaduría */

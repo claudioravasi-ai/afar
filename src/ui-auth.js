@@ -491,6 +491,25 @@ function chksHTML(id, ops, sel){
     '<label class="chk'+(sel.indexOf(o)>=0?' sel':'')+'"><input type="checkbox" value="'+esc(o)+'"'+
     (sel.indexOf(o)>=0?' checked':'')+'>'+esc(o)+'</label>').join('') +'</div>';
 }
+/* Igual que chksHTML pero por grupos, dentro del MISMO contenedor: asi
+   leerChks(id) y cablearChks(id) siguen funcionando sin cambios y lo que se
+   guarda es exactamente lo mismo de antes -el nombre del item-.
+   Cada grupo se puede plegar; los que ya tienen algo marcado nacen abiertos,
+   que es lo que hace falta al reabrir una ficha. */
+function chksGrupoHTML(id, grupos, sel){
+  sel = sel || [];
+  return '<div id="'+id+'" class="chks-grupo">'+ grupos.map(g => {
+    const n = g.items.filter(o => sel.indexOf(o) >= 0).length;
+    return '<details class="chk-grupo"'+(n?' open':'')+'>'+
+      '<summary>'+esc(g.g)+
+        (n ? '<span class="tag ok">'+n+'</span>' : '')+
+        '<span class="flecha">'+ico('flecha')+'</span></summary>'+
+      '<div class="chks">'+ g.items.map(o =>
+        '<label class="chk'+(sel.indexOf(o)>=0?' sel':'')+'">'+
+        '<input type="checkbox" value="'+esc(o)+'"'+(sel.indexOf(o)>=0?' checked':'')+'>'+
+        esc(o)+'</label>').join('') +'</div></details>';
+  }).join('') +'</div>';
+}
 function cablearChks(id){
   $$('#'+id+' .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);

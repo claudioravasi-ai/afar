@@ -10,7 +10,11 @@
 
 let fichaActual = null;
 let pasoFicha = 'paciente';
-let cxSeleccionada = null;
+/* La ficha puede tener mas de un procedimiento. `cxLista` es la lista viva
+   mientras se edita el paso 1; se vuelca a f.cirugias al guardar y el
+   principal se copia a f.cirugia / f.cirugiaUA / ... para todo lo que ya
+   leia esos campos. Ver procedimientosFacturables() en core.js. */
+let cxLista = [];
 
 const PASOS_FICHA = [
   { k:'paciente',     ico:'paciente',   t:'Paciente',     sub:'Identificación y procedimiento' },
@@ -186,7 +190,7 @@ function vistaFichas(){
         : 'background:var(--danger-bg);color:var(--danger)')+'">'+
         (!esNoProgramado(caracterActo(f))?ico('calendario'):ico('alerta'))+'</div>'+
       '<div class="txt"><b>'+esc(p.apellido||'—')+', '+esc(p.nombre||'')+'</b>'+
-        '<span>'+esc(f.cirugia||'Sin cirugía')+' · '+
+        '<span>'+esc(textoProcedimientos(f)||'Sin cirugía')+' · '+
         /* Se muestra la fecha que corresponde y se dice cuál es: una ficha
            que dice «12/03» sin aclarar si es la consulta o la cirugía no
            informa, confunde. */
@@ -378,11 +382,7 @@ function abrirFicha(id, pacienteId){
     creado:new Date().toISOString()
   });
   if(pacienteId) fichaActual.pacienteId = pacienteId;
-  cxSeleccionada = fichaActual.cirugia ? {
-    n: fichaActual.cirugia, ua: fichaActual.cirugiaUA,
-    cod: fichaActual.cirugiaCod || '', comp: fichaActual.cirugiaComp || '',
-    grillaB: !!fichaActual.cirugiaGrillaB, nota: fichaActual.cirugiaNota || ''
-  } : null;
+  cxLista = procedimientosDe(fichaActual);
   /* Se entra por el primer paso de la seccion propia: al que viene a
      anestesiar la ficha de un colega no le sirve arrancar en la
      identificacion del paciente, que no puede tocar. */
@@ -908,7 +908,9 @@ function pintarFicha(){
      datos que la persona todavía no tuvo oportunidad de cargar. Vuelve solo
      en cuanto el acto queda desbloqueado, que es cuando sirve. */
   (soloActo ? bannerFichaAjena(f)
-            : (actoDesbloqueado(f) ? bannerFaltantes(f) : '') + bannerSeccion(guardada || f))+
+            : '<div id="fiFaltantesBox">'+
+              (actoDesbloqueado(f) ? bannerFaltantes(f) : '')+'</div>' +
+              bannerSeccion(guardada || f))+
 
   /* «Tomar acto anestésico» vive FUERA del cuerpo del paso, a propósito.
      El cuerpo se atenúa y se bloquea entero cuando la sección es de un
@@ -996,6 +998,111 @@ function pintarFicha(){
      —el que anestesia necesita leer el prequirúrgico— pero se distingue de
      un golpe de vista lo que es propio de lo que es del colega. */
   if(!miSeccion || !enFoco) cuerpo.classList.add('atenuado');
+
+  cablearFaltantes();
+  /* El cartel se recalcula con lo que hay EN PANTALLA, no con lo ultimo
+     guardado: apenas se escribe la conclusion de aptitud deja de figurar
+     como faltante, sin guardar y sin cambiar de paso. */
+  cuerpo.addEventListener('input',  debounce(refrescarFaltantes, 260));
+  cuerpo.addEventListener('change', refrescarFaltantes);
+}
+
+/* =========================================================================
+   EL CARTEL DE FALTANTES, EN VIVO Y NAVEGABLE
+   -------------------------------------------------------------------------
+   Dos cosas que no funcionaban:
+
+   1. El cartel se dibujaba una sola vez, al pintar la ficha, y leia la ficha
+      GUARDADA. El usuario escribia la conclusion de aptitud y el cartel
+      seguia diciendo que faltaba, porque nadie se lo habia vuelto a
+      preguntar. Ahora se recalcula contra lo que hay en pantalla cada vez que
+      se escribe o se marca algo.
+
+   2. Lo que faltaba era texto: habia que salir a buscarlo. Ahora cada
+      faltante es un boton que va al paso, abre el punto exacto y lo deja
+      centrado en la pantalla.
+   ========================================================================= */
+
+/* Una copia de la ficha con lo que hay ESCRITO en pantalla encima, sin
+   guardar nada. Si el paso en pantalla no es de esta seccion, o sus campos
+   no estan montados, se devuelve lo que ya habia: leer un formulario que no
+   esta en el DOM devolveria vacios y borraria datos buenos del calculo. */
+function fichaEnPantalla(){
+  const f = fichaActual;
+  if(!f) return f;
+  const c = Object.assign({}, f);
+  try{
+    if(pasoFicha === 'paciente' && $('#qxDx')){
+      Object.assign(c, leerPasoPaciente());
+      sincronizarProcedimientoPrincipal(c);
+    } else if(pasoFicha === 'preanestesia' && $('#scAsa')){
+      c.v = leerValoracion(); c.plan = leerPlan(); c.consent = leerConsentimiento(f);
+    } else if(pasoFicha === 'anestesia' && $('#acIniCx')){
+      c.acto = leerPasoAnestesia();
+    } else if(pasoFicha === 'recuperacion' && $('#reHora')){
+      c.recup = leerPasoRecuperacion();
+    }
+  }catch(e){ return f; }      /* ante cualquier campo a medio montar, lo guardado */
+  return c;
+}
+
+function refrescarFaltantes(){
+  const caja = $('#fiFaltantesBox');
+  if(!caja) return;
+  const f = fichaEnPantalla();
+  if(!actoDesbloqueado(f)){ caja.innerHTML = ''; return; }
+  caja.innerHTML = bannerFaltantes(f);
+  cablearFaltantes();
+  pintarSemaforoPasos(f);
+}
+
+/* El semaforo de los cinco pasos también se pinta con lo que hay en
+   pantalla: si no, el paso quedaba en ámbar hasta guardar. */
+function pintarSemaforoPasos(f){
+  $$('#vFicha [data-paso]').forEach(b => {
+    const k = b.dataset.paso;
+    const e = estadoPaso(f, k);
+    b.classList.remove('ok','medio','alerta','pend');
+    b.classList.add(e);
+    const et = b.querySelector('.est');
+    if(et){ et.className = 'est ' + e; et.textContent = ROTULO_ESTADO[e] || ''; }
+    const dot = b.querySelector('.dot');
+    const paso = PASOS_FICHA.find(x => x.k === k);
+    if(dot && paso) dot.innerHTML = e === 'ok' ? ico('check')
+                                  : e === 'alerta' ? ico('alerta') : ico(paso.ico);
+  });
+}
+
+function cablearFaltantes(){
+  $$('#fiFaltantesBox [data-falta-s]').forEach(b => b.onclick = () => {
+    const paso = b.dataset.faltaS, anc = b.dataset.faltaAnc, sol = b.dataset.faltaSol;
+
+    /* Honorarios no es un paso del recorrido: es la ventana de honorarios */
+    if(paso === 'hon') return abrirHonorarios(fichaActual);
+
+    if(sol) solapaActo = sol;                 /* solapa del acto anestésico */
+    if(paso !== pasoFicha) irAPaso(paso);
+    else guardarPasoActual();
+    if(sol) pintarPasoAnestesia(fichaActual);
+
+    /* Ya en el paso, se abre el punto y se lo deja en el medio de la
+       pantalla. Sin esto el usuario aterriza arriba de todo y tiene que
+       buscar el acordeón entre quince. */
+    setTimeout(() => {
+      if(!anc) return;
+      const e = $('#'+anc);
+      if(!e) return;
+      const acc = e.closest ? e.closest('details') : null;
+      if(acc) acc.open = true;
+      if(e.tagName === 'DETAILS') e.open = true;
+      e.scrollIntoView({ behavior:'smooth', block:'center' });
+      if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.tagName)) setTimeout(() => e.focus(), 380);
+      else {
+        const primero = e.querySelector('input,select,textarea');
+        if(primero) setTimeout(() => primero.focus(), 380);
+      }
+    }, 120);
+  });
 }
 
 /* =========================================================================
@@ -1304,7 +1411,8 @@ function guardarPasoActual(){
   /* Nadie escribe en la sección del otro: el que hizo la valoración no toca
      el acto de su colega, y el que anestesió no toca la valoración. */
   if(!puedeEditarSeccion(guardada || f, seccionDePaso(pasoFicha))) return;
-  if(pasoFicha === 'paciente')          Object.assign(f, leerPasoPaciente());
+  if(pasoFicha === 'paciente'){         Object.assign(f, leerPasoPaciente());
+                                        sincronizarProcedimientoPrincipal(f); }
   else if(pasoFicha === 'preanestesia'){ f.v = leerValoracion(); f.plan = leerPlan();
                                         f.consent = leerConsentimiento(f);   /* punto 15 */
                                         Object.assign(f, leerAsignacionActo()); }
@@ -1403,7 +1511,10 @@ function htmlPasoPaciente(f){
       '<div id="qxIMC"></div>'+
       '<div class="ayuda">El peso y la talla se guardan en la historia del paciente. El peso es '+
         'obligatorio para calcular dosis: sin él, el vademécum no propone ninguna.</div>'+
-      campoTxt('qxPacOS','Obra social', (p.obraSocial||'Sin cobertura'), true)+
+      /* La obra social NO se repite aca: se elige abajo, en «Datos de la
+         cirugia», que es donde ademas se puede agregar otro financiador y
+         cargar el numero de autorizacion. Decirla dos veces en la misma
+         pantalla invitaba a cargarla dos veces distintas. */
     '</div>' : '<div class="aviso warn mt14">'+ico('alerta')+
       '<div>Elegí un paciente del padrón o creá uno nuevo para poder continuar.</div></div>')+
   '</div>'+
@@ -1469,10 +1580,11 @@ function htmlPasoPaciente(f){
       '<input type="text" id="qxDx" value="'+esc(f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : ''))+'" '+
         'placeholder="Ej.: Colelitiasis" autocomplete="off">'+
       '<div class="ayuda">Diagnóstico quirúrgico en texto claro.</div></div>'+
-    '<div class="campo"><label>Cirugía / procedimiento <span class="req">*</span></label>'+
+    '<div class="campo"><label>Cirugías / procedimientos <span class="req">*</span></label>'+
       '<div class="buscador"><input type="search" id="cxBuscar" placeholder="Buscar en el nomenclador anestésico… ej.: colecistectomía, cesárea, cadera" autocomplete="off">'+
       '<div class="res" id="cxRes"></div></div>'+
-      '<div class="ayuda">Nomenclador anestésico AFAAR. Si el procedimiento no está, lo agregás desde el mismo buscador.</div>'+
+      '<div class="ayuda">Podés cargar <b>más de una</b>: buscá y agregá tantas como se hagan en el '+
+      'mismo acto. Si el procedimiento no está en el nomenclador, lo agregás desde el mismo buscador.</div>'+
       '<div id="cxSel" class="mt8"></div></div>'+
     campoSel('qxLateralidad','Lateralidad', ['No aplica','Derecha','Izquierda','Bilateral'], f.lateralidad)+
   '</div>'+
@@ -1574,28 +1686,120 @@ function cablearPasoPaciente(f){
     };
   };
 
-  /* buscador de cirugías — nomenclador anestésico AFAAR + catálogo propio */
+  /* =====================================================================
+     BUSCADOR Y LISTA DE PROCEDIMIENTOS
+     ---------------------------------------------------------------------
+     Antes era una cirugia sola. Ahora es una lista, porque en el mismo acto
+     anestesico se hace mas de una cosa mas seguido de lo que parece y la
+     segunda no se estaba registrando ni cobrando.
+
+     Cada renglon muestra el porcentaje con el que se factura y POR QUE, que
+     es lo que el anestesiologo necesita poder mirar antes de firmar:
+       principal (mayor complejidad)  100 %
+       otra via de abordaje            75 %
+       misma via de abordaje           50 %
+     ===================================================================== */
   const pintarCx = () => {
-    $('#cxSel').innerHTML = cxSeleccionada
-      ? '<span class="pill">'+
-          (cxSeleccionada.cod ? '<b>'+esc(cxSeleccionada.cod)+'</b>' : '')+
-          '<span>'+esc(cxSeleccionada.n)+'</span>'+
-          (cxSeleccionada.comp ? '<b class="comp">Complejidad '+esc(cxSeleccionada.comp)+'</b>' : '')+
-          (cxSeleccionada.ua ? '<b>'+cxSeleccionada.ua+' UA</b>' : '')+
-          '<button id="cxQuitar">&times;</button></span>'+
-        (cxSeleccionada.grillaB
-          ? '<div class="ayuda">Práctica de <b>Grilla B</b>: se factura con la grilla de '+
-            'Cardiovascular, Tórax, Neurocirugía, Hemodinamia, Maxilofacial o cirujano itinerante.</div>' : '')+
-        (cxSeleccionada.nota
-          ? '<div class="ayuda">'+esc(cxSeleccionada.nota.replace(/;/g,' · ')
+    const caja = $('#cxSel'); if(!caja) return;
+    const fake = { cirugias: cxLista };
+    const l = procedimientosFacturables(fake);
+
+    if(!l.length){
+      caja.innerHTML = '<span class="mini">Sin procedimientos cargados. '+
+        'Buscá el primero en el campo de arriba.</span>';
+      return;
+    }
+
+    caja.innerHTML = '<div class="proc-lista">'+ l.map((x, i) =>
+      '<div class="proc-item'+(x.principal?' principal':'')+'" data-proc="'+esc(x.id)+'">'+
+        '<div class="fila1">'+
+          '<div class="nom">'+esc(x.n)+
+            ((x.cod || x.comp || x.ua)
+              ? '<span class="cod">'+
+                  (x.cod ? esc(x.cod)+' · ' : '')+
+                  (x.comp ? 'complejidad '+esc(x.comp) : '')+
+                  (x.ua ? (x.comp?' · ':'')+x.ua+' UA' : '')+
+                  (x.grillaB ? ' · Grilla B' : '')+
+                '</span>' : '')+
+          '</div>'+
+          '<span class="pct p'+x.pct+'">'+x.pct+' %</span>'+
+          '<div class="acciones">'+
+            (x.principal ? '' :
+              '<button type="button" class="btn ghost chico" data-cxppal="'+esc(x.id)+'" '+
+              'title="Marcar como procedimiento principal">'+ico('check')+' Principal</button>')+
+            '<button type="button" class="ico-btn danger" data-cxdel="'+esc(x.id)+'" '+
+            'title="Quitar">'+ico('borrar')+'</button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="fila2">'+
+          '<span class="mini strong">Vía de abordaje</span>'+
+          '<select data-cxvia="'+esc(x.id)+'">'+
+            '<option value="">— Sin declarar —</option>'+
+            VIAS_ABORDAJE.map(v => '<option value="'+v.id+'"'+
+              (x.via === v.id ? ' selected' : '')+'>'+esc(v.n)+'</option>').join('')+
+          '</select>'+
+        '</div>'+
+        '<div class="porque">'+(x.viaIncierta ? ico('alerta') : '')+esc(x.motivo)+'</div>'+
+        (x.grillaB
+          ? '<div class="porque"><b>Grilla B</b>: se factura con la grilla de Cardiovascular, '+
+            'Tórax, Neurocirugía, Hemodinamia, Maxilofacial o cirujano itinerante.</div>' : '')+
+        (x.nota
+          ? '<div class="porque">'+esc(String(x.nota).replace(/;/g,' · ')
               .replace('RX:','Requiere radioscopia: ').replace('RF:','Radiofrecuencia: ')
               .replace('INT:','Internación: '))+'</div>' : '')+
-        (cxSeleccionada.cod && !cxSeleccionada.ua
-          ? '<div class="ayuda">El nomenclador tabula por complejidad. Si tu convenio se liquida '+
-            'por unidades anestésicas, cargá las UA en Honorarios.</div>' : '')
-      : '<span class="mini">Sin cirugía seleccionada.</span>';
-    if($('#cxQuitar')) $('#cxQuitar').onclick = () => { cxSeleccionada = null; pintarCx(); };
+      '</div>').join('') +'</div>'+
+
+      (l.length > 1
+        ? '<div class="aviso info mt8">'+ico('calculadora')+'<div><b>Cómo se factura este acto.</b><br>'+
+          'El de mayor complejidad va al <b>100 %</b>. Cada procedimiento adicional va al '+
+          '<b>75 %</b> si la vía de abordaje es distinta y al <b>50 %</b> si es la misma. '+
+          'Las unidades anestésicas efectivas se calculan solas en <b>Honorarios</b>.<br>'+
+          '<span class="mini">El principal lo propone la app por complejidad; podés cambiarlo '+
+          'con «Principal». La vía se reconoce por el nombre de la práctica y se corrige acá.</span>'+
+          '</div></div>'
+        : '')+
+      (l.some(x => x.viaIncierta)
+        ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Falta la vía de abordaje de algún '+
+          'procedimiento.</b> Sin ese dato no se puede decidir entre el 75 % y el 50 %: mientras '+
+          'tanto se propone el 75 %.</div></div>'
+        : '')+
+      (l.some(x => x.cod && !x.ua)
+        ? '<div class="ayuda mt8">El nomenclador tabula por complejidad. Si tu convenio se liquida '+
+          'por unidades anestésicas, cargá las UA de cada procedimiento en Honorarios.</div>'
+        : '');
+
+    $$('#cxSel [data-cxdel]').forEach(b => b.onclick = () => {
+      cxLista = cxLista.filter(x => x.id !== b.dataset.cxdel);
+      /* Si se borro el que estaba marcado como principal, la marca se suelta:
+         la vuelve a proponer la complejidad. */
+      if(!cxLista.some(x => x.principal)) cxLista.forEach(x => { delete x.principal; });
+      pintarCx();
+    });
+    $$('#cxSel [data-cxppal]').forEach(b => b.onclick = () => {
+      cxLista.forEach(x => { x.principal = (x.id === b.dataset.cxppal); });
+      pintarCx();
+      toast('Procedimiento principal cambiado: ahora se factura al 100 %.', 'ok');
+    });
+    $$('#cxSel [data-cxvia]').forEach(sel => sel.onchange = () => {
+      const x = cxLista.find(y => y.id === sel.dataset.cxvia);
+      if(x){ x.via = sel.value; x.viaManual = true; }
+      pintarCx();
+    });
   };
+
+  const agregarCx = obj => {
+    /* La misma practica dos veces es casi siempre un doble clic, no dos
+       cirugias iguales. Se avisa en vez de duplicar en silencio. */
+    if(cxLista.some(x => norm(x.n) === norm(obj.n)))
+      return toast('«'+obj.n+'» ya está en la lista.', 'warn');
+    obj.id = uid('cx');
+    if(!obj.via) obj.via = viaSugerida(obj.n);
+    cxLista.push(obj);
+    pintarCx();
+    if(cxLista.length > 1)
+      toast('Procedimiento agregado. Revisá la vía de abordaje: de eso depende si va al 75 % o al 50 %.', 'ok');
+  };
+
   montarBuscador({
     input:$('#cxBuscar'), caja:$('#cxRes'), manual:true,
     fuente: () => NOMENCLADOR.map(x => ({
@@ -1610,17 +1814,23 @@ function cablearPasoPaciente(f){
         busca: norm(x.n+' '+x.esp), peso:1, dato:x }))),
     onElegir: x => {
       const d = x.dato;
-      cxSeleccionada = d.cod
+      agregarCx(d.cod
         ? { n:d.n, cod:d.cod, comp:d.comp, grillaB:d.grillaB, nota:d.nota, ua:0 }
-        : { n:d.n, ua:d.ua, cod:'', comp:'', grillaB:false, nota:'' };
+        : { n:d.n, ua:d.ua, cod:'', comp:'', grillaB:false, nota:'' });
       if(!$('#qxEsp').value && d.esp) $('#qxEsp').value = d.esp;
-      pintarCx();
+      $('#cxBuscar').value = '';
     },
     onManual: txt => { if(!txt) return;
       abrirModal('Agregar procedimiento al catálogo',
         campoTxt('ncNombre','Nombre del procedimiento', txt)+
         campoSel('ncEsp','Especialidad', ESPECIALIDADES)+
         campoNum('ncUA','Unidades anestésicas', 10)+
+        '<div class="campo"><label>Vía de abordaje</label><select id="ncVia">'+
+          '<option value="">— Sin declarar —</option>'+
+          VIAS_ABORDAJE.map(v => '<option value="'+v.id+'"'+
+            (viaSugerida(txt) === v.id ? ' selected' : '')+'>'+esc(v.n)+'</option>').join('')+
+        '</select><div class="ayuda">De la vía depende el porcentaje con el que se factura '+
+        'cuando hay más de un procedimiento.</div></div>'+
         '<div class="ayuda">Sólo para prácticas que no figuran en el nomenclador anestésico AFAAR. '+
         'El nomenclador indica facturar por similitud antes que crear una práctica nueva.</div>',
         '<button class="btn ghost" data-cerrar>Cancelar</button>'+
@@ -1628,8 +1838,9 @@ function cablearPasoPaciente(f){
       $('#ncGuardar').onclick = () => {
         const n = $('#ncNombre').value.trim(); if(!n) return;
         agregarExtra('cx', { n, esp:$('#ncEsp').value, ua:Number($('#ncUA').value)||10 });
-        cxSeleccionada = { n, ua:Number($('#ncUA').value)||10, cod:'', comp:'', grillaB:false, nota:'' };
-        cerrarModal(); pintarCx(); toast('Procedimiento agregado al catálogo.', 'ok');
+        agregarCx({ n, ua:Number($('#ncUA').value)||10, cod:'', comp:'', grillaB:false,
+                    nota:'', via:$('#ncVia').value });
+        cerrarModal(); toast('Procedimiento agregado al catálogo.', 'ok');
       };
     }
   });
@@ -1648,8 +1859,19 @@ function leerPasoPaciente(){
   if(pid && DB.pacientes[pid] && $('#qxPeso')){
     const p = JSON.parse(JSON.stringify(DB.pacientes[pid]));
     const peso = val('qxPeso'), talla = val('qxTalla');
-    if(String(p.peso||'') !== String(peso) || String(p.talla||'') !== String(talla)){
+    /* El financiador se elige por ficha —el mismo paciente se opera una vez
+       por su obra social y la siguiente como particular— pero el ULTIMO que
+       se uso vuelve a la historia para que la proxima ficha lo proponga
+       solo. Es el reemplazo de haberlo pedido en el alta del paciente. */
+    const os = val('qxOS'), afi = val('qxAfiliado');
+    const cambio = String(p.peso||'') !== String(peso) ||
+                   String(p.talla||'') !== String(talla) ||
+                   (os && p.obraSocial !== os) ||
+                   (afi && p.nroAfiliado !== afi);
+    if(cambio){
       p.peso = peso; p.talla = talla;
+      if(os)  p.obraSocial = os;
+      if(afi) p.nroAfiliado = afi;
       p.modificado = new Date().toISOString(); p.modificadoPor = SESION.uid;
       escribir('pacientes', pid, p);
     }
@@ -1659,12 +1881,10 @@ function leerPasoPaciente(){
     institucion: val('qxInst'), obraSocial: val('qxOS'), nroAfiliado: val('qxAfiliado'),
     especialidad: val('qxEsp'),
     diagnostico: val('qxDx'),
-    cirugia: cxSeleccionada ? cxSeleccionada.n : '',
-    cirugiaUA: cxSeleccionada ? cxSeleccionada.ua : 0,
-    cirugiaCod: cxSeleccionada ? (cxSeleccionada.cod || '') : '',
-    cirugiaComp: cxSeleccionada ? (cxSeleccionada.comp || '') : '',
-    cirugiaGrillaB: cxSeleccionada ? !!cxSeleccionada.grillaB : false,
-    cirugiaNota: cxSeleccionada ? (cxSeleccionada.nota || '') : '',
+    /* La lista completa, y ademas el PRINCIPAL volcado a los campos sueltos
+       de siempre para que listados, estadisticas y exportaciones no tengan
+       que enterarse de nada. Ver sincronizarProcedimientoPrincipal(). */
+    cirugias: cxLista.slice(),
     lateralidad: val('qxLateralidad')
     /* El equipo quirúrgico se lee en el paso Anestesia (acto.equipo) y la
        designación del actuante en el paso Preanestesia (punto 14). Si se
@@ -1799,6 +2019,59 @@ function htmlPasoRecuperacion(f){
     campoSel('reEstado','Estado al egreso',
       ['','Estable, sin complicaciones','Estable con analgesia en curso','Requiere vigilancia estrecha',
        'Complicación resuelta','Traslado a UTI','Óbito intraoperatorio'], r.estado)+
+  '</div>'+
+
+  /* =====================================================================
+     ANALGESIA POSTOPERATORIA INDICADA
+     ---------------------------------------------------------------------
+     Estaba en el punto 13 de la valoracion prequirurgica, semanas antes del
+     acto. Ahi se decidia a ciegas: todavia no se sabia como iba a salir la
+     cirugia, si el bloqueo iba a funcionar ni con cuanto dolor iba a
+     despertar el paciente. Y una vez escrita, nadie volvia a corregirla.
+
+     Este es el lugar y este es el momento: al egreso de la recuperacion,
+     despues del destino, con el Aldrete y el EVA de esta misma pantalla
+     delante. Lo que se marque aca es la INDICACION, no el plan.
+
+     Si la ficha traia un esquema del punto 13 —o de una plantilla— se
+     propone marcado, para confirmarlo o cambiarlo. No se pierde nada.
+     ===================================================================== */
+  (function(){
+    const previo = (f.plan || {}).analgesia || [];
+    const sel = (r.analgesia && r.analgesia.length) ? r.analgesia : previo;
+    const heredado = !(r.analgesia && r.analgesia.length) && previo.length;
+    return '<div class="card"><h3>'+ico('jeringa')+'Analgesia postoperatoria indicada</h3>'+
+      '<div id="reEvaEco"></div>'+
+      (heredado
+        ? '<div class="aviso info">'+ico('info')+'<div><b>Viene propuesto de la valoración '+
+          'prequirúrgica.</b> Confirmalo o cambialo: lo que vale es lo que se indica ahora, con la '+
+          'cirugía hecha y el dolor del paciente delante.</div></div>' : '')+
+      '<div class="ayuda">Agrupada por escalón y por técnica. Los <b>bloqueos regionales</b> '+
+        '—neuroaxiales, de plano fascial y de miembro— son la parte del esquema que más baja el '+
+        'consumo de opioides: dejalos escritos con nombre propio, con su anestésico local, si lleva '+
+        'catéter y a cargo de quién queda el seguimiento.</div>'+
+      chksGrupoHTML('reAnalgesia', ANALGESIA_POP_GRUPOS, sel)+
+      '<div id="reAnalgAviso"></div>'+
+      '<div class="grid c2 mt14">'+
+        campoSel('reAnalgDuracion','Duración prevista del esquema',
+          ['','Sólo en recuperación','24 horas','48 horas','72 horas','Hasta el alta',
+           'Continúa al alta con indicación escrita'],
+          r.analgesiaDuracion || (f.plan||{}).analgesiaDuracion)+
+        campoSel('reAnalgRescate','Rescate analgésico indicado',
+          ['','Morfina 2-3 mg EV a demanda','Nalbufina 10 mg EV a demanda',
+           'Tramadol 100 mg EV a demanda','Ketorolac 30 mg EV a demanda',
+           'Dipirona 1 g EV a demanda','Refuerzo por catéter','Sin rescate pautado'],
+          r.analgesiaRescate || (f.plan||{}).analgesiaRescate)+
+      '</div>'+
+      campoArea('reAnalgDet','Esquema analgésico detallado',
+        r.analgesiaDetalle || (f.plan||{}).analgesiaDetalle,
+        'Fármaco, dosis, vía, intervalo y duración. Para los bloqueos: anestésico local, '+
+        'concentración, volumen, si lleva catéter y quién hace el seguimiento')+
+      campoTxt('reAnalgResponsable','Seguimiento del dolor a cargo de', r.analgesiaResponsable)+
+    '</div>';
+  })()+
+
+  '<div class="card"><h3>'+ico('archivo')+'Cierre de la recuperación</h3>'+
     campoArea('reObs','Observaciones', r.observaciones,
       'Indicaciones al alta, controles pendientes, avisos al equipo tratante')+
   '</div>';
@@ -1849,8 +2122,61 @@ function cablearPasoRecuperacion(f){
         : v<=6 ? 'Dolor moderado. Revisar el esquema analgésico antes del alta de la URPA.'
         : 'Dolor severo. Rescate analgésico y reevaluación antes del alta.')+'</div></div>';
   };
-  eva.oninput = pintarEva;
+  cablearChks('reAnalgesia');
+  $$('#reAnalgesia .chk').forEach(l => l.onclick = () =>
+    setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0));
+
+  /* Bloqueo neuroaxial en un paciente anticoagulado: es la contraindicación
+     que sale más cara y la que se pasa por alto justo acá, lejos del punto 3
+     donde está cargada la medicación. La marca viaja desde la valoración. */
+  const anticoag = () => {
+    const meds = ((f.v||{}).medicacion || []);
+    return fichaActual.__anticoagulado ||
+      (flagsDeAntecedentes((f.v||{}).antecedentes2 || {}) || {}).anticoagulado ||
+      meds.some(m => /anticoagul|warfar|rivarox|apix|dabig|edox|heparin|enoxapar|clopidogrel|ticagrelor|prasugrel/i
+        .test(String(m.n||'')+' '+String(m.g||'')));
+  };
+  const revisarAnalg = () => {
+    const caja = $('#reAnalgAviso'); if(!caja) return;
+    const l = leerChks('reAnalgesia');
+    const neuro = l.some(x => /peridural|intratecal|raquíde|raquide|caudal|paravertebral|PCEA/i.test(x));
+    const opioide = l.some(x => /morfina|nalbufina|tramadol|oxicodona|fentanilo|buprenorfina|PCA/i.test(x));
+    const saos = ((f.v||{}).scores||{}).stopbang || {};
+    const nSaos = Object.keys(saos).filter(k => saos[k]).length;
+    let h = '';
+    if(neuro && anticoag())
+      h += '<div class="aviso danger mt8">'+ico('alerta')+'<div><b>Analgesia neuroaxial en un '+
+        'paciente anticoagulado o antiagregado.</b> Verificá los intervalos de seguridad de '+
+        'ASRA/ESAIC antes de la punción y del retiro del catéter, y dejalo escrito en el esquema '+
+        'detallado.</div></div>';
+    if(opioide && nSaos >= 5)
+      h += '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Opioides con STOP-BANG '+nSaos+
+        '/8 (riesgo alto de apnea del sueño).</b> Minimizá la dosis, priorizá el bloqueo y los no '+
+        'opioides, y dejá indicado monitoreo prolongado de la saturación en la URPA.</div></div>';
+    if(!l.length)
+      h += '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>No hay analgesia indicada.</b> Un '+
+        'paciente que sale de la recuperación sin esquema analgésico escrito es un paciente sin '+
+        'analgesia: la sala hace lo que dice la indicación.</div></div>';
+    caja.innerHTML = h;
+    if(typeof refrescarFaltantes === 'function') refrescarFaltantes();
+  };
+  $('#reAnalgesia').addEventListener('change', revisarAnalg);
+  revisarAnalg();
+
+  /* El EVA de esta misma pantalla es el dato que decide el esquema: se
+     repite arriba de la analgesia para no tener que subir a mirarlo. */
+  const ecoEva = () => {
+    const caja = $('#reEvaEco'); if(!caja) return;
+    const v = Number($('#reEva').value);
+    caja.innerHTML = '<div class="aviso '+(v<=3?'ok':(v<=6?'warn':'danger'))+'">'+
+      ico(v<=3?'check':'alerta')+'<div><b>El paciente tiene EVA '+v+'/10 en este momento.</b> '+
+      (v<=3 ? 'Alcanza con el esquema de base.'
+       : v<=6 ? 'Dolor moderado: reforzá el esquema antes del alta de la URPA.'
+       : 'Dolor severo: rescate ahora y reevaluación antes del alta.')+'</div></div>';
+  };
+  eva.oninput = () => { pintarEva(); ecoEva(); };
   pintarEva();
+  ecoEva();
 }
 
 function leerPasoRecuperacion(){
@@ -1866,7 +2192,13 @@ function leerPasoRecuperacion(){
     aldrete, aldreteTotal: completo ? Object.values(aldrete).reduce((a,b)=>a+b,0) : 0,
     aldreteCompleto: completo,
     eva: val('reEva'), nauseas: seg('reNauseas'), rescate: val('reRescate'),
-    destino: seg('reDestino'), estado: val('reEstado'), observaciones: val('reObs')
+    destino: seg('reDestino'), estado: val('reEstado'), observaciones: val('reObs'),
+    /* La analgesia postoperatoria se indica acá, después del destino */
+    analgesia: leerChks('reAnalgesia'),
+    analgesiaDetalle: val('reAnalgDet'),
+    analgesiaDuracion: val('reAnalgDuracion'),
+    analgesiaRescate: val('reAnalgRescate'),
+    analgesiaResponsable: val('reAnalgResponsable')
   };
 }
 
@@ -2172,10 +2504,33 @@ function htmlHonorarios(f){
   '</div>'+
 
   '<div class="card" id="hoAbierto"><h3>'+ico('calculadora')+'Cálculo por unidades anestésicas</h3>'+
-    '<div class="grid c2">'+
-      campoNum('hoUA','Unidades anestésicas (UA)', ua)+
-      campoNum('hoVU','Valor de la unidad', vu, 'step="0.01"')+
-    '</div>'+
+    /* Una fila por procedimiento, con su porcentaje del nomenclador ya
+       aplicado. Cuando hay uno solo esto se ve exactamente igual que antes:
+       un campo de UA. Cuando hay varios, se ve de dónde sale cada peso. */
+    (function(){
+      const l = procedimientosFacturables(f);
+      const uas = h.uas || [];
+      if(l.length <= 1) return '<div class="grid c2">'+
+        campoNum('hoUA','Unidades anestésicas (UA)', ua)+
+        campoNum('hoVU','Valor de la unidad', vu, 'step="0.01"')+
+      '</div>';
+      return '<div class="ayuda">Cargá las unidades de <b>cada</b> procedimiento. '+
+        'El porcentaje ya viene aplicado según la vía de abordaje declarada en el paso 1.</div>'+
+        '<div class="tabla-wrap mt8"><table><thead><tr>'+
+          '<th>Procedimiento</th><th class="num">UA</th><th class="num">%</th>'+
+        '</tr></thead><tbody>'+
+        l.map((x,i) => '<tr><td>'+esc(x.n)+
+            (x.comp ? '<br><span class="mini">complejidad '+esc(x.comp)+' · '+
+              esc(nombreVia(x.via))+'</span>' : '')+'</td>'+
+          '<td class="num" style="width:100px"><input type="number" class="hoUAi" data-i="'+i+'" '+
+            'inputmode="numeric" value="'+esc(uas[i] !== undefined && uas[i] !== ''
+              ? uas[i] : (Number(x.ua)||''))+'"></td>'+
+          '<td class="num"><b>'+x.pct+' %</b></td></tr>').join('')+
+        '</tbody></table></div>'+
+        '<div class="grid c2 mt8">'+
+          campoNum('hoVU','Valor de la unidad', vu, 'step="0.01"')+
+        '</div>';
+    })()+
     '<label class="mini strong" style="display:block;margin-bottom:6px">Adicionales del nomenclador</label>'+
     '<div class="chks" id="hoAdic">'+ ADICIONALES_HONORARIOS.map(a =>
       '<label class="chk'+((h.adicionales||[]).indexOf(a.id)>=0?' sel':'')+'">'+
@@ -2229,13 +2584,29 @@ function cablearHonorariosModal(f){
 
     let total = 0, detalle = '', base = 0;
     if(porUnidades){
-      const ua = Number(val('hoUA')) || 0, vu = Number(val('hoVU')) || 0;
+      const vu = Number(val('hoVU')) || 0;
+      /* Con un solo procedimiento es el campo de siempre. Con varios, la suma
+         de las UA de cada uno afectadas por su 100 / 75 / 50 %. */
+      const filas = $$('.hoUAi');
+      const procs = procedimientosFacturables(fichaActual);
+      let ua = 0, detalleProc = '';
+      if(filas.length){
+        const uas = filas.map(i => i.value);
+        fichaActual.hon = Object.assign(fichaActual.hon || {}, { uas });
+        ua = uaEfectivas(fichaActual, uas);
+        detalleProc = procs.map((x,i) => {
+          const u = Number(uas[i]) || 0;
+          return '<tr><td>'+esc(x.n)+' — '+u+' UA al '+x.pct+' %</td>'+
+            '<td class="num">'+fNum(u * x.pct/100, 2)+' UA</td></tr>';
+        }).join('');
+      } else ua = Number(val('hoUA')) || 0;
       base = ua * vu;
       const sel = $$('#hoAdic input:checked').map(i => i.value);
       const pct = sel.reduce((a,id) => a + (ADICIONALES_HONORARIOS.find(x => x.id === id) || {pct:0}).pct, 0);
       total = base * (1 + pct/100);
       detalle = '<table><tbody>'+
-        '<tr><td>Base: '+ua+' UA × '+fMoneda(vu)+'</td><td class="num">'+fMoneda(base)+'</td></tr>'+
+        detalleProc+
+        '<tr><td>Base: '+fNum(ua,2)+' UA efectivas × '+fMoneda(vu)+'</td><td class="num">'+fMoneda(base)+'</td></tr>'+
         sel.map(id => { const a = ADICIONALES_HONORARIOS.find(x => x.id === id);
           return '<tr><td>'+esc(a.n)+' (+'+a.pct+' %)</td><td class="num">'+fMoneda(base*a.pct/100)+'</td></tr>'; }).join('')+
         '<tr style="font-weight:800"><td>TOTAL</td><td class="num">'+fMoneda(total)+'</td></tr>'+
@@ -2305,7 +2676,14 @@ function leerHonorariosConsulta(){
 }
 function leerHonorarios(){
   const mod = val('hoModalidad');
-  const ua = Number(val('hoUA')) || 0, vu = Number(val('hoVU')) || 0;
+  /* Con varios procedimientos la UA que se guarda es la EFECTIVA: la suma de
+     las de cada uno afectadas por su 100 / 75 / 50 %. Asi el resto de la app
+     —estadisticas, portal contable, exportaciones— sigue haciendo la misma
+     cuenta de siempre, ua x valorUnidad, sin enterarse de nada. */
+  const filas = $$('.hoUAi');
+  const uas = filas.length ? filas.map(i => i.value) : null;
+  const ua = uas ? uaEfectivas(fichaActual, uas) : (Number(val('hoUA')) || 0);
+  const vu = Number(val('hoVU')) || 0;
   const adicionales = leerChks('hoAdic');
   const pct = adicionales.reduce((a,id) => a + (ADICIONALES_HONORARIOS.find(x => x.id === id) || {pct:0}).pct, 0);
   let total = 0;
@@ -2313,6 +2691,14 @@ function leerHonorarios(){
   else if(mod === 'cerrado' || mod === 'particular') total = Number(val('hoMontoFijo')) || 0;
   return {
     modalidad: mod, ua, valorUnidad: vu, adicionales, pctAdicional: pct,
+    uas: uas || undefined,
+    /* El detalle por procedimiento queda guardado: es lo que responde una
+       auditoria que pregunta de donde salio el numero de la factura. */
+    detalleProcedimientos: uas
+      ? procedimientosFacturables(fichaActual).map((x,i) => ({
+          n:x.n, cod:x.cod||'', comp:x.comp||'', via:x.via||'', pct:x.pct,
+          ua:Number(uas[i])||0, uaEfectiva:(Number(uas[i])||0) * x.pct/100 }))
+      : undefined,
     montoFijo: Number(val('hoMontoFijo')) || 0, total,
     estado: val('hoEstado'), fechaPresentacion: val('hoFecha'),
     comprobante: val('hoComprobante'), cobrado: Number(val('hoCobrado')) || 0,

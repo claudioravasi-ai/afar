@@ -41,6 +41,180 @@ const ESPECIALIDADES = [
   'Cirugía Plástica Reconstructiva','Procedimientos fuera de quirófano (NORA)'
 ];
 
+/* =========================================================================
+   VIAS DE ABORDAJE QUIRURGICO
+   -------------------------------------------------------------------------
+   De la via depende cuanto se factura el procedimiento secundario. La regla
+   del nomenclador es:
+
+     1er procedimiento (el de mayor complejidad)  ->  100 %
+     2do y siguientes, VIA DISTINTA a la del 1ro  ->   75 %
+     2do y siguientes, MISMA VIA que el 1ro       ->   50 %
+
+   El fundamento es el trabajo anestesico real: cambiar de via obliga a
+   reposicionar, recampar y muchas veces a cambiar el plan; seguir por la
+   misma via es prolongar el mismo acto.
+
+   Ejemplos del propio pedido:
+     colecistectomia + fimosis                    -> vias distintas -> 75 %
+     colecistectomia lap. + gastrostomia lap.     -> misma via      -> 50 %
+
+   `det` son las palabras con las que se reconoce la via en el nombre de la
+   practica del nomenclador, para proponerla sola. Siempre se puede corregir.
+   ========================================================================= */
+const VIAS_ABORDAJE = [
+  { id:'laparoscopica',  n:'Laparoscópica / videoasistida' },
+  { id:'laparotomia',    n:'Abierta abdominal (laparotomía)' },
+  { id:'toracotomia',    n:'Abierta torácica (toracotomía / esternotomía)' },
+  { id:'convencional',   n:'Abierta / convencional' },
+  { id:'endoscopica',    n:'Endoscópica digestiva o respiratoria' },
+  { id:'transuretral',   n:'Transuretral / endourológica' },
+  { id:'percutanea',     n:'Percutánea / punción guiada' },
+  { id:'endovascular',   n:'Endovascular / hemodinamia' },
+  { id:'artroscopica',   n:'Artroscópica' },
+  { id:'osteoarticular', n:'Osteoarticular abierta' },
+  { id:'vaginal',        n:'Vaginal / obstétrica por vía baja' },
+  { id:'cesarea',        n:'Abdominal obstétrica (cesárea)' },
+  { id:'orl',            n:'Transnasal / transoral / ORL' },
+  { id:'oftalmica',      n:'Oftálmica' },
+  { id:'neuroquirurgica',n:'Craneal / raquídea neuroquirúrgica' },
+  { id:'cutanea',        n:'Cutánea / superficial (piel y anexos)' },
+  { id:'neuroaxial',     n:'Neuroaxial / perineural (procedimiento del dolor)' },
+  { id:'otra',           n:'Otra vía' }
+];
+
+/* =========================================================================
+   COMO SE RECONOCE LA VIA EN EL NOMBRE DE LA PRACTICA
+   -------------------------------------------------------------------------
+   El nomenclador AFAAR dice la via en el propio nombre cuando importa:
+
+     01.04.07  Colecistectomia simple                     -> abierta abdominal
+     01.04.11  Colecistectomia laparoscopica              -> laparoscopica
+     01.04.16  Colecistectomia laparoscopica convertida   -> abierta: se
+                                                             convirtio
+     01.02.06  Absceso subfrenico (via convencional)      -> abierta abdominal
+     01.01.17  Reparacion de hernia con malla (convencional)
+
+   La lectura va en TRES pasadas, en este orden, y el orden es lo que la hace
+   correcta:
+
+     1. TECNICA EXPLICITA. «laparoscopica», «transuretral», «percutanea»,
+        «endovascular», «artroscopica»… nombran la via sin ambiguedad y
+        mandan sobre todo lo demas. «Convertida» va primero que
+        «laparoscopica»: una laparoscopia convertida termina siendo una
+        laparotomia y es lo que se anestesia.
+
+     2. REGION ANATOMICA. Cuando el nombre no dice la via —«colecistectomia
+        simple»— la region la determina: una colecistectomia sin apellido es
+        abierta abdominal; una prostatectomia, convencional; una
+        osteosintesis, osteoarticular.
+
+     3. PALABRA GENERICA. «convencional», «a cielo abierto» sueltas, ya sin
+        region que las ubique.
+
+   Sin este orden, «Absceso subfrenico (via convencional)» daba «piel y
+   partes blandas» por la palabra «convencional», y entonces junto a una
+   colecistectomia abierta se facturaba al 75 % cuando comparten la via y
+   corresponde el 50 %.
+
+   Todo esto es una PROPUESTA: cada procedimiento muestra su via en un
+   desplegable y cambiarlo recalcula el porcentaje en el acto.
+   ========================================================================= */
+
+/* 1. Tecnica explicita en el nombre */
+const VIA_POR_TECNICA = [
+  { via:'laparotomia',   det:['convertid'] },
+  /* El nomenclador dice la via con todas las letras en varias practicas:
+     «Hernia diafragmatica por via toraxica». Sin esta linea, «hernia» la
+     mandaba a abdominal por la pasada de region. */
+  { via:'toracotomia',   det:['por via toracica','por via toraxica','via toracica','via toraxica',
+      'transtoracic','toraco-abdominal','toracoabdominal'] },
+  { via:'laparotomia',   det:['por via abdominal','via abdominal','transabdominal',
+      'por via convencional','via convencional'] },
+  { via:'vaginal',       det:['por via vaginal','via vaginal','por via baja'] },
+  { via:'transuretral',  det:['por via transuretral','via transuretral','via endoscopica'] },
+  { via:'laparoscopica', det:['laparoscop','videoasist','video asist','toracoscop','vats',
+      'celioscop','robotic','minilaparoscop'] },
+  { via:'laparotomia',   det:['laparotom','celiotom'] },
+  { via:'toracotomia',   det:['toracotom','esternotom'] },
+  { via:'endoscopica',   det:['endoscop','fibroscop','broncoscop','colonoscop','rectosigmoidoscop',
+      'gastroscop','cpre','esofagoscop','videolaringoscop'] },
+  { via:'transuretral',  det:['transuretral','rtu ','r.t.u','uretrocistoscop','cistoscop',
+      'ureteroscop','endourolog','ureterorenoscop'] },
+  { via:'percutanea',    det:['percutan','puncion','punción','drenaje guiado','nefrostom',
+      'biopsia con aguja','biopsia percutan'] },
+  { via:'endovascular',  det:['endovascular','angioplast','cateterismo','embolizacion','embolización',
+      'colocacion de stent','hemodinam','arteriograf','flebograf'] },
+  { via:'artroscopica',  det:['artroscop'] },
+  { via:'cesarea',       det:['cesarea','cesárea'] },
+  { via:'vaginal',       det:['vaginal','via baja','vía baja','parto','vulv','perine','periné',
+      'episiotom','colporraf'] },
+  { via:'orl',           det:['transnasal','transoral','amigdal','adenoid','septoplast','sinusal',
+      'faring','laring','otologic','otológic','timpan','oido','oído','nasal','rinoplast',
+      'traqueostom'] },
+  { via:'oftalmica',     det:['catarat','cristalino','vitrect','estrabismo','glaucoma','retina',
+      'ocular','globo ocular','parpado','párpado','dacrio'] },
+  { via:'neuroaxial',    det:['bloqueo','peridural','epidural','raquide','raquíde','radiofrecuencia',
+      'infiltracion','infiltración','denervacion','denervación','neurolisis'] },
+  { via:'cutanea',       det:['fimosis','circuncis','nevo','lipoma','quiste sebaceo','quiste sebáceo',
+      'uña','uñas','onicect','lesion de piel','lesión de piel','injerto de piel','cutane','cután'] }
+];
+
+/* 2. Region anatomica, cuando el nombre no dice la via */
+const VIA_POR_REGION = [
+  { via:'laparotomia', det:['colecist','apendic','hernia','herniorraf','hernioplast','gastrectom',
+      'gastrostom','gastro','colectom','colostom','sigmoid','recto','esofag','hepat','higado',
+      'hígado','esplenect','bazo','pancrea','páncrea','intestin','duoden','yeyun','ileo','íleo',
+      'vesicula','vesícula','via biliar','vía biliar','coledoc','colédoc','peritone','abdomin',
+      'abdomen','eventracion','eventración','evisceracion','evisceración','ostomia','ostomía',
+      'anastomosis','subfrenico','subfrénico','epiplon','epiplón','ano','anal','hemorroid'] },
+  { via:'toracotomia', det:['pulmon','pulmón','lobectom','neumonectom','mediastin','pleur','timo',
+      'diafragma','costilla','esternon','esternón','cardiac','cardíac','coronari','valvul','aorta',
+      'toracic','torácic','torax','tórax'] },
+  { via:'neuroquirurgica', det:['craneotom','craniectom','trepan','craneo','cráneo','cerebr',
+      'encefal','hidrocefal','ventriculo','ventrículo','laminectom','discectom','columna','vertebr',
+      'medul','médul','hematoma subdural','hematoma extradural','aneurisma cerebral'] },
+  { via:'osteoarticular', det:['fractura','osteosintes','osteosíntes','artroplast','protesis',
+      'prótesis','artrodesis','osteotom','amputacion','amputación','femur','fémur','tibia','humero',
+      'húmero','radio','cubito','cúbito','clavicula','clavícula','cadera','rodilla','hombro',
+      'tobillo','muneca','muñeca','escafoides','menisc','ligament','tendon','tendón','osteo',
+      'ortoped','traumat','luxacion','luxación'] },
+  { via:'convencional', det:['prostat','próstat','vejiga','rinon','riñon','riñón','nefrect','ureter',
+      'uréter','testic','testíc','escrot','varicocel','hidrocel','orquid','orquiec','pene',
+      'utero','útero','histerect','ovari','anex','anex','trompa','mama','mastect','tumorect',
+      'tiroid','paratiroid','cuello','ganglio','adenopat','vascular','safen','safén','arteria',
+      'vena','absceso','quiste','fistula','fístula','plastia','biopsia','tumor','maxilar',
+      'mandibul','mandíbul','dental','dentari','labio','paladar'] }
+];
+
+/* 3. Palabra generica, ya sin region */
+const VIA_GENERICA = [
+  { via:'convencional', det:['convencional','a cielo abierto','incision','incisión','abierta'] }
+];
+
+function __buscaVia(t, tabla){
+  for(let i = 0; i < tabla.length; i++){
+    const r = tabla[i];
+    for(let j = 0; j < r.det.length; j++)
+      if(t.indexOf(norm(r.det[j])) >= 0) return r.via;
+  }
+  return '';
+}
+
+/* Propone la via mirando el nombre de la practica. Nunca decide sola nada
+   que se facture: lo que propone se ve en pantalla y se corrige con un clic. */
+function viaSugerida(nombre){
+  const t = norm(nombre || '');
+  if(!t) return '';
+  return __buscaVia(t, VIA_POR_TECNICA) ||
+         __buscaVia(t, VIA_POR_REGION)  ||
+         __buscaVia(t, VIA_GENERICA)    || '';
+}
+function nombreVia(id){
+  const v = VIAS_ABORDAJE.find(x => x.id === id);
+  return v ? v.n : 'Vía sin definir';
+}
+
 /* ---------- Tecnicas anestesicas ---------- */
 const TECNICAS_ANESTESICAS = [
   'Anestesia general balanceada','Anestesia general endovenosa total (TIVA)',
@@ -297,15 +471,72 @@ const EVENTOS_ADVERSOS = [
 ];
 
 /* ---------- Analgesia postoperatoria multimodal ---------- */
-const ANALGESIA_POP = [
-  'Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h','Ketorolac 30 mg EV c/8 h',
-  'Diclofenac 75 mg IM/EV c/12 h','Ibuprofeno 400-600 mg VO c/8 h','Morfina EV titulada',
-  'Morfina subcutánea','Nalbufina 10 mg EV','Tramadol 100 mg EV c/8 h','PCA endovenosa',
-  'Peridural continua con anestésico local','Catéter perineural continuo','Bloqueo de campo con AL',
-  'Infiltración de la herida','Dexametasona 4-8 mg EV','Ketamina en dosis subanestésica',
-  'Lidocaína EV en infusión','Sulfato de magnesio EV','Gabapentina / Pregabalina',
-  'Dexmedetomidina','Crioterapia / medidas no farmacológicas'
+/* Agrupada por escalon y por tecnica: la lista plana de 21 renglones obligaba
+   a leerla entera para encontrar un bloqueo. Los grupos se dibujan como
+   sub-listas en el punto 13 y el documento sigue imprimiendo los nombres tal
+   cual, asi que las fichas ya cargadas se siguen leyendo sin tocar nada. */
+const ANALGESIA_POP_GRUPOS = [
+  { g:'No opioides — base de todo esquema multimodal', items:[
+    'Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h','Ketorolac 30 mg EV c/8 h',
+    'Diclofenac 75 mg IM/EV c/12 h','Ibuprofeno 400-600 mg VO c/8 h',
+    'Ketoprofeno 100 mg EV c/12 h','Parecoxib 40 mg EV c/12 h',
+    'Celecoxib 200 mg VO c/12 h','Naproxeno 500 mg VO c/12 h'] },
+
+  { g:'Opioides sistémicos', items:[
+    'Morfina EV titulada','Morfina subcutánea','Nalbufina 10 mg EV','Tramadol 100 mg EV c/8 h',
+    'Oxicodona VO','Buprenorfina transdérmica','Fentanilo EV en infusión',
+    'Remifentanilo EV en infusión (transición)','PCA endovenosa con morfina',
+    'PCA endovenosa con fentanilo'] },
+
+  { g:'Coadyuvantes sistémicos', items:[
+    'Dexametasona 4-8 mg EV','Ketamina en dosis subanestésica','Lidocaína EV en infusión',
+    'Sulfato de magnesio EV','Gabapentina / Pregabalina','Dexmedetomidina',
+    'Clonidina','Alfa-2 agonista como ahorrador de opioides'] },
+
+  /* Lo que faltaba: la anestesia regional como analgesia postoperatoria.
+     Es la parte que mas cambia el consumo de opioides y la que el registro
+     tiene que poder nombrar con precision -no alcanza con «bloqueo». */
+  { g:'Bloqueos neuroaxiales', items:[
+    'Peridural lumbar en bolos','Peridural torácica en bolos',
+    'Peridural continua con anestésico local','Peridural continua con AL + opioide',
+    'PCEA — peridural controlada por el paciente','Morfina intratecal (raquídea)',
+    'Raquídea con opioide de acción prolongada','Bloqueo caudal (pediátrico)',
+    'Catéter caudal continuo'] },
+
+  { g:'Bloqueos de tronco y de plano fascial', items:[
+    'Bloqueo TAP','Bloqueo del cuadrado lumbar (QLB)',
+    'Bloqueo del plano erector de la espina (ESP)','Bloqueo paravertebral torácico',
+    'Bloqueo intercostal','Bloqueo PECS I','Bloqueo PECS II',
+    'Bloqueo del serrato anterior','Bloqueo del recto anterior del abdomen',
+    'Bloqueo ilioinguinal-iliohipogástrico','Bloqueo del plano interfascial esternal (PIF)',
+    'Bloqueo del nervio pudendo','Bloqueo peneano'] },
+
+  { g:'Bloqueos de miembro superior', items:[
+    'Bloqueo interescalénico','Bloqueo supraclavicular','Bloqueo infraclavicular',
+    'Bloqueo axilar','Bloqueo del nervio supraescapular','Bloqueo de nervios distales del antebrazo',
+    'Catéter interescalénico continuo','Catéter infraclavicular continuo'] },
+
+  { g:'Bloqueos de miembro inferior', items:[
+    'Bloqueo femoral','Bloqueo del canal aductor','Bloqueo del grupo pericapsular (PENG)',
+    'Bloqueo de la fascia ilíaca','Bloqueo ciático (poplíteo)','Bloqueo ciático (subglúteo)',
+    'Bloqueo del obturador','Bloqueo del tobillo','Catéter del canal aductor continuo',
+    'Catéter perineural continuo'] },
+
+  { g:'Analgesia local del sitio quirúrgico', items:[
+    'Infiltración de la herida con anestésico local','Bloqueo de campo con AL',
+    'Catéter de infiltración continua de la herida','Instilación intraperitoneal de AL',
+    'Instilación intraarticular de AL','Anestésico local liposomal'] },
+
+  { g:'Medidas no farmacológicas y seguimiento', items:[
+    'Crioterapia / medidas no farmacológicas','TENS','Kinesiología y movilización precoz',
+    'Ferulización o inmovilización analgésica',
+    'Seguimiento por el equipo de dolor agudo','Escala EVA pautada cada 4 h',
+    'Plan de rescate escrito indicado en la historia'] }
 ];
+
+/* Lista plana: la siguen usando el documento impreso, el buscador y las
+   fichas viejas, que guardan el nombre del item tal cual. */
+const ANALGESIA_POP = ANALGESIA_POP_GRUPOS.reduce((a,g) => a.concat(g.items), []);
 
 /* ---------- Consentimiento informado anestesico - texto base ----------
    Redactado sobre el modelo de consentimiento informado anestesico de la

@@ -191,35 +191,51 @@ function faltantesFicha(f){
   const v = f.v || {}, sc = v.scores || {}, pl = f.plan || {}, a = f.acto || {}, h = f.hon || {};
 
   const r = f.recup || {};
-  /* La solapa que se nombra es el paso del flujo al que hay que ir */
-  if(!f.pacienteId)                        m.push({ t:'paciente', s:'paciente', critico:true });
-  if(!f.institucion)                       m.push({ t:'institución', s:'paciente', critico:true });
-  if(!f.cirugia)                           m.push({ t:'cirugía', s:'paciente', critico:true });
-  if(!f.diagnostico && !f.dxQuirurgico)    m.push({ t:'diagnóstico', s:'paciente' });
-  if(!f.obraSocial)                        m.push({ t:'financiador', s:'paciente' });
-  if(!f.cirujano)                          m.push({ t:'cirujano', s:'paciente' });
-  if(!pesoDePaciente(f))                   m.push({ t:'peso del paciente', s:'paciente', critico:true });
-  if(!sc.asa)                              m.push({ t:'clasificación ASA', s:'preanestesia', critico:true });
+  /* `s`   es el paso del flujo al que hay que ir.
+     `anc` es el ancla dentro de ese paso: el id del acordeon o del campo
+           exacto. Con eso, cada faltante del cartel es un boton que lleva al
+           lugar donde se completa, en vez de dejar al usuario buscandolo.
+     `sol` es la solapa, para los faltantes del acto anestesico. */
+  if(!f.pacienteId)                        m.push({ t:'paciente', s:'paciente', anc:'qxPaciente', critico:true });
+  if(!f.institucion)                       m.push({ t:'institución', s:'paciente', anc:'qxInst', critico:true });
+  if(!f.cirugia)                           m.push({ t:'cirugía', s:'paciente', anc:'cxBuscar', critico:true });
+  if(!f.diagnostico && !f.dxQuirurgico)    m.push({ t:'diagnóstico', s:'paciente', anc:'qxDx' });
+  if(!f.obraSocial)                        m.push({ t:'financiador', s:'paciente', anc:'qxOS' });
+  /* El cirujano vive en acto.equipo.cirujano desde que el equipo quirurgico
+     paso al paso Anestesia. Se seguia mirando f.cirujano, que solo existe en
+     fichas viejas: por eso «falta cirujano» no se iba nunca aunque estuviera
+     cargado. Y no se reclama antes de que la cirugia ocurra: el dia de la
+     valoracion todavia no se sabe quien opera. */
+  const cirujano = (a.equipo || {}).cirujano || f.cirujano || '';
+  if(pasada && !cirujano)                  m.push({ t:'cirujano', s:'anestesia', sol:'resumen', anc:'acCirujano' });
+  if(!pesoDePaciente(f))                   m.push({ t:'peso del paciente', s:'paciente', anc:'qxPeso', critico:true });
+  if(!sc.asa)                              m.push({ t:'clasificación ASA', s:'preanestesia', anc:'acScores', critico:true });
   if(!(v.antecedentes2 || []).length && !v.sinAntecedentes)
-                                           m.push({ t:'antecedentes patológicos', s:'preanestesia' });
-  if(!(v.examen || {}).ta)                 m.push({ t:'signos vitales de la consulta', s:'preanestesia' });
-  if(!(v.va || {}).mallampati)             m.push({ t:'evaluación de la vía aérea', s:'preanestesia', critico:true });
-  if(!(v.lab || {}).hb)                    m.push({ t:'laboratorio', s:'preanestesia' });
-  if(!(v.ayuno || {}).tipo)                m.push({ t:'control de ayuno', s:'preanestesia' });
-  if(!(v.riesgo || {}).fundamento)         m.push({ t:'conclusión de aptitud', s:'preanestesia', critico:true });
-  if(!(pl.tecnica || []).length)           m.push({ t:'plan anestésico', s:'preanestesia', critico:true });
+                                           m.push({ t:'antecedentes patológicos', s:'preanestesia', anc:'acDx' });
+  if(!(v.examen || {}).ta)                 m.push({ t:'signos vitales de la consulta', s:'preanestesia', anc:'acExamen' });
+  if(!(v.va || {}).mallampati)             m.push({ t:'evaluación de la vía aérea', s:'preanestesia', anc:'acVA', critico:true });
+  if(!(v.lab || {}).hb)                    m.push({ t:'laboratorio', s:'preanestesia', anc:'acLab' });
+  if(!(v.ayuno || {}).tipo)                m.push({ t:'control de ayuno', s:'preanestesia', anc:'acAyuno' });
+  if(!(v.riesgo || {}).fundamento)         m.push({ t:'conclusión de aptitud', s:'preanestesia', anc:'acConclusion', critico:true });
+  if(!(pl.tecnica || []).length)           m.push({ t:'plan anestésico', s:'preanestesia', anc:'acPlan', critico:true });
   if(!consentimientoCompleto(f))           m.push({ t:'consentimiento informado (punto 15)',
-                                                    s:'preanestesia', critico:true });
+                                                    s:'preanestesia', anc:'acConsent', critico:true });
   if(!cx && (f.valoracionGuardada || (f.v||{}).scores))
-                                           m.push({ t:'fecha de la cirugía', s:'anestesia' });
+                                           m.push({ t:'fecha de la cirugía', s:'anestesia', sol:'resumen', anc:'acFechaCx' });
   if(pasada){
-    if(!(a.tecnicas || []).length)         m.push({ t:'técnica anestésica realizada', s:'anestesia', critico:true });
-    if(!a.finCirugia && !a.finAnestesia)   m.push({ t:'tiempos del procedimiento', s:'anestesia', critico:true });
-    if(!(a.drogas || []).length)           m.push({ t:'drogas administradas', s:'anestesia' });
-    if(!(a.controles || []).length)        m.push({ t:'controles de signos vitales', s:'anestesia' });
+    if(!(a.tecnicas || []).length)         m.push({ t:'técnica anestésica realizada', s:'anestesia', sol:'resumen', anc:'acTecnicas', critico:true });
+    if(!a.finCirugia && !a.finAnestesia)   m.push({ t:'tiempos del procedimiento', s:'anestesia', sol:'resumen', anc:'acFinCx', critico:true });
+    if(!(a.drogas || []).length)           m.push({ t:'drogas administradas', s:'anestesia', sol:'drogas' });
+    if(!(a.controles || []).length)        m.push({ t:'controles de signos vitales', s:'anestesia', sol:'vitales' });
     if(!(a.eventos2 || []).length && !a.sinEventos)
-                                           m.push({ t:'eventos intraoperatorios', s:'anestesia' });
-    if(!r.aldreteTotal)                    m.push({ t:'Aldrete al egreso', s:'recuperacion' });
+                                           m.push({ t:'eventos intraoperatorios', s:'anestesia', sol:'eventos' });
+    if(!r.aldreteTotal)                    m.push({ t:'Aldrete al egreso', s:'recuperacion', anc:'aldTotal' });
+    /* La analgesia postoperatoria se indica al egreso de la URPA. Un paciente
+       que sale sin esquema escrito es un paciente sin analgesia: la sala hace
+       lo que dice la indicacion. */
+    if(!(r.analgesia||[]).length && !((f.plan||{}).analgesia||[]).length)
+                                           m.push({ t:'analgesia postoperatoria', s:'recuperacion',
+                                                    anc:'reAnalgesia' });
     if(!(f.firma || {}).firmado)           m.push({ t:'firma de la ficha', s:'firma', critico:true });
   }
   if(esActorFicha(f) && !h.modalidad)      m.push({ t:'honorarios del acto', s:'hon' });
@@ -707,10 +723,17 @@ function cablearAvisosPanel(){
   if($('#avVerTodos')) $('#avVerTodos').onclick = abrirAvisos;
 }
 
-/* ------------------------- Banner de faltantes dentro de la ficha ----- */
+/* ------------------------- Banner de faltantes dentro de la ficha -----
+   Cada faltante es un BOTON: lleva al paso donde se carga, abre el punto
+   exacto y lo deja en pantalla. Y el cartel se recalcula solo mientras se
+   escribe —ver refrescarFaltantes()—, asi que en cuanto se completa algo
+   desaparece de la lista sin tener que guardar ni cambiar de paso.
+   Antes era texto muerto: decia «falta la conclusion de aptitud» y seguia
+   diciendolo despues de escribirla, porque solo se redibujaba al repintar
+   la ficha entera.                                                        */
 function bannerFaltantes(f){
   const m = faltantesFicha(f);
-  if(!m.length) return '<div class="aviso ok no-print">'+ico('check')+
+  if(!m.length) return '<div class="aviso ok no-print" id="fiFaltantes">'+ico('check')+
     '<div><b>Ficha completa.</b> No falta ningún dato.</div></div>';
   const criticos = m.filter(x => x.critico), otros = m.filter(x => !x.critico);
   /* La urgencia se mide contra la fecha de la CIRUGÍA. Mientras no haya
@@ -720,13 +743,21 @@ function bannerFaltantes(f){
   const cx = fechaCirugiaDe(f);
   const d = cx ? diasHasta(cx) : null;
   const inminente = d !== null && d >= 0 && d <= 1;
-  return '<div class="aviso '+(criticos.length ? (inminente ? 'danger' : 'warn') : 'info')+' no-print">'+
+  const chip = (x, opc) => '<button type="button"'+(opc?' class="opc"':'')+
+    ' data-falta-s="'+esc(x.s)+'"'+
+    (x.anc ? ' data-falta-anc="'+esc(x.anc)+'"' : '')+
+    (x.sol ? ' data-falta-sol="'+esc(x.sol)+'"' : '')+
+    '>'+esc(x.t)+'</button>';
+  return '<div class="aviso '+(criticos.length ? (inminente ? 'danger' : 'warn') : 'info')+
+    ' no-print" id="fiFaltantes">'+
     ico(criticos.length ? 'alerta' : 'info')+
     '<div><b>'+(criticos.length
-      ? 'Faltan ' + criticos.length + ' dato' + (criticos.length===1?'':'s') + ' esencial' + (criticos.length===1?'':'es')
+      ? (criticos.length===1 ? 'Falta 1 dato esencial'
+                             : 'Faltan ' + criticos.length + ' datos esenciales')
       : 'Faltan datos opcionales')+
-      (inminente && criticos.length ? ' y la cirugía es ' + cuandoTexto(d).toLowerCase() : '')+'.</b><br>'+
-    (criticos.length ? '<b>Esenciales:</b> '+esc(criticos.map(x=>x.t).join(' · '))+'<br>' : '')+
-    (otros.length ? '<span style="opacity:.85">Opcionales: '+esc(otros.map(x=>x.t).join(' · '))+'</span>' : '')+
+      (inminente && criticos.length ? ' y la cirugía es ' + cuandoTexto(d).toLowerCase() : '')+'.</b> '+
+    '<span class="mini">Tocá cualquiera para ir a completarlo.</span>'+
+    (criticos.length ? '<div class="falta-chips">'+criticos.map(x => chip(x,false)).join('')+'</div>' : '')+
+    (otros.length ? '<div class="falta-chips">'+otros.map(x => chip(x,true)).join('')+'</div>' : '')+
     '</div></div>';
 }

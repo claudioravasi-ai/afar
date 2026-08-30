@@ -34,6 +34,7 @@ JS_FILES = [
     'seed-extra.js',
     'ui-auth.js',
     'ui-pacientes.js',
+    'valoracion-auto.js',
     'ui-valoracion.js',
     'ui-ficha.js',
     'ui-intra.js',

@@ -191,7 +191,6 @@ function pintarEditorPaciente(){
 
 /* ------------------------------------------------ Solapa 1: filiatorios */
 function htmlPacFiliatorios(p){
-  const os = obrasSociales();
   return ''+
   '<div class="card plano"><h3>'+ico('paciente')+'Identificación del paciente</h3>'+
     '<div class="grid c2">'+
@@ -213,15 +212,22 @@ function htmlPacFiliatorios(p){
     '<div id="paIMC"></div>'+
   '</div>'+
 
-  '<div class="card plano"><h3>'+ico('dinero')+'Cobertura</h3>'+
-    '<div class="grid c2">'+
-      '<div class="campo"><label>Obra social / financiador</label><select id="paOS">'+
-        '<option value="">— Seleccionar —</option>'+
-        os.map(o => '<option'+(p.obraSocial===o?' selected':'')+'>'+esc(o)+'</option>').join('')+
-      '</select></div>'+
-      campoTxt('paAfiliado','N.º de afiliado', p.nroAfiliado)+
-    '</div>'+
-  '</div>'+
+  /* La cobertura NO se pide aca. Vive en «Datos de la cirugia» del paso 1 de
+     la ficha, que es donde ademas se puede agregar un financiador nuevo y
+     donde el numero de autorizacion tiene sentido: la obra social es de la
+     intervencion, no del paciente -el mismo paciente se opera una vez por su
+     obra social y la siguiente como particular-. Lo que se elija alli vuelve
+     a la historia del paciente para que la proxima ficha lo proponga solo.
+     Ver htmlPasoPaciente() en ui-ficha.js. */
+  (p.obraSocial
+    ? '<div class="aviso info">'+ico('dinero')+'<div><b>Cobertura: '+esc(p.obraSocial)+
+      (p.nroAfiliado ? ' — N.º '+esc(p.nroAfiliado) : '')+'.</b><br>'+
+      'Es la última que se usó. La cobertura se elige en cada ficha, en <b>Datos de la '+
+      'cirugía</b>: ahí se puede cambiar, agregar otro financiador y cargar el número de '+
+      'autorización.</div></div>'
+    : '<div class="aviso info">'+ico('dinero')+'<div><b>La cobertura se carga en la ficha.</b><br>'+
+      'En <b>Datos de la cirugía</b> del paso 1 elegís el financiador de esa intervención, '+
+      'agregás otro si hace falta y cargás el número de afiliado o de autorización.</div></div>')+
 
   '<div class="card plano"><h3>'+ico('correo')+'Contacto y domicilio</h3>'+
     '<div class="grid c2">'+
@@ -642,7 +648,7 @@ function leerSolapaPaciente(){
       p.apellido = g('paApellido'); p.nombre = g('paNombre'); p.dni = g('paDni');
       p.hc = g('paHC'); p.fechaNac = g('paNac'); p.sexo = $('#paSexo').value;
       p.peso = g('paPeso'); p.talla = g('paTalla');
-      p.obraSocial = $('#paOS').value; p.nroAfiliado = g('paAfiliado');
+      /* obraSocial y nroAfiliado ya no se editan aca: los escribe la ficha */
       p.telefono = g('paTel'); p.grupoSanguineo = $('#paGrupo').value;
       p.email = g('paEmail'); p.domicilio = g('paDom'); p.localidad = $('#paLocalidad').value;
       p.contactoEmergencia = g('paEmergencia'); p.ocupacion = g('paOcupacion');

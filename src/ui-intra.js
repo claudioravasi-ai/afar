@@ -153,6 +153,9 @@ function pintarPasoAnestesia(f){
   if(tarjetaVal) cablearValoracionExterna(f);
   if($('#acConsentAhora')) $('#acConsentAhora').onclick = () => abrirConsentimientoModal(f);
   if(!sinDueno) cablearAutoguardadoActo();
+  /* El cartel de faltantes de arriba mira esta pantalla: cargar un control o
+     una droga tiene que descontarlo del cartel en el momento. */
+  if(typeof refrescarFaltantes === 'function') refrescarFaltantes();
 }
 
 /* =========================================================================
@@ -883,12 +886,29 @@ function abrirTablaDosis(){
    ========================================================================= */
 const COLS_VITALES = [
   { k:'ta',    t:'TA',    um:'mmHg' },
+  { k:'pam',   t:'PAM',   um:'mmHg' },
   { k:'fc',    t:'FC',    um:'lpm' },
+  { k:'fr',    t:'FR',    um:'rpm' },
   { k:'spo2',  t:'SpO₂',  um:'%' },
   { k:'etco2', t:'EtCO₂', um:'mmHg' },
   { k:'temp',  t:'Temp',  um:'°C' },
   { k:'tof',   t:'TOF',   um:'' }
 ];
+
+/* Texto del TOF a partir del recuento y el cociente */
+function textoTOF(c){
+  const p = [];
+  if(c.tofC !== '' && c.tofC !== undefined && c.tofC !== null) p.push(c.tofC + '/4');
+  if(c.tofR) p.push(c.tofR + ' %');
+  return p.join(' · ');
+}
+/* Presion arterial media, calculada: (TAS + 2 x TAD) / 3.
+   No se pide, se deduce, y es la que gobierna la perfusion de organo. */
+function pamDe(c){
+  const s = Number(c.tas), d = Number(c.tad);
+  if(!s || !d) return '';
+  return String(Math.round((s + 2*d) / 3));
+}
 
 function htmlActoVitales(f){
   const a = f.acto || {};
@@ -904,7 +924,11 @@ function htmlActoVitales(f){
         : '<b>Evolución estable durante el procedimiento</b>')+'</div></div>'
     : '')+
 
+  htmlVitalesNormales(f)+
+
   '<button class="btn pri grande" id="svNuevo">'+ico('mas')+' Registrar control</button>'+
+  '<div class="ayuda">Usá este botón cuando los signos vitales <b>estén alterados</b> o quieras '+
+    'cargar un control a mano. Para el control horario sin novedad, el botón verde de arriba.</div>'+
 
   (ult ? '<div class="card ultimo-control"><h3>'+ico('monitor')+'Último control · '+esc(ult.hora||'')+'</h3>'+
     '<div class="vitales-grid">'+ COLS_VITALES.map(c =>
@@ -919,8 +943,10 @@ function htmlActoVitales(f){
       ? '<div class="tabla-wrap"><table class="vitales-tabla"><thead><tr><th>Hora</th>'+
         COLS_VITALES.map(c => '<th class="num">'+c.t+(c.um?'<br><span class="mini">'+c.um+'</span>':'')+'</th>').join('')+
         '<th></th></tr></thead><tbody>'+
-        ctrls.map(c => '<tr data-ctrl="'+esc(c.id)+'">'+
-          '<td><b>'+esc(c.hora||'—')+'</b></td>'+
+        ctrls.map(c => '<tr data-ctrl="'+esc(c.id)+'"'+(c.preset?' class="auto"':'')+'>'+
+          '<td><b>'+esc(c.hora||'—')+'</b>'+
+            (c.preset ? '<span class="marca" title="Cargado con el preseteado de valores '+
+              'normales para este paciente">NORMAL</span>' : '')+'</td>'+
           COLS_VITALES.map(col => '<td class="num">'+esc(valorVital(c, col.k) || '—')+'</td>').join('')+
           '<td><button type="button" class="ico-btn danger" data-svdel="'+esc(c.id)+'">'+ico('borrar')+'</button></td>'+
         '</tr>').join('')+
@@ -930,9 +956,194 @@ function htmlActoVitales(f){
   '</div>';
 }
 
+/* =========================================================================
+   CONTROL HORARIO CON VALORES NORMALES
+   -------------------------------------------------------------------------
+   El registro intraoperatorio pide un control por hora. En un acto sin
+   novedad eso son siete numeros por hora escritos a mano con guantes
+   puestos, y es la razon por la que la solapa quedaba vacia: nadie lo hace.
+
+   Ahora hay un preseteado de valores NORMALES calculado para ESTE paciente
+   —edad, sexo, peso, talla e IMC, ver vitalesNormalesDe() en core.js— y dos
+   botones: uno carga el control de esta hora de un toque, el otro completa
+   de una vez todas las horas que falten entre el inicio y el fin de la
+   anestesia.
+
+   El boton azul «Registrar control» sigue estando y es el que hay que usar
+   en cuanto algo se sale de lo normal.
+
+   IMPORTANTE, y por eso se dice en pantalla: lo que se carga asi queda
+   marcado como preseteado (`preset:'normal'`) y sale marcado en la tabla.
+   Un registro de signos vitales es historia clinica: el preseteado es una
+   forma de escribir mas rapido lo que el anestesiologo esta viendo en el
+   monitor, no una forma de rellenar horas que no se miraron.
+   ========================================================================= */
+
+/* Las horas en punto que van entre el inicio y el fin de la anestesia y
+   todavia no tienen control cargado. */
+function horasSinControl(a){
+  const desde = a.inicioAnestesia || a.ingreso;
+  const hasta = a.finAnestesia || a.finCirugia || ahoraHora();
+  if(!desde) return [];
+  const min = h => { const [x,y] = h.split(':').map(Number); return x*60+y; };
+  let d = min(desde), t = min(hasta);
+  if(t < d) t += 1440;                      /* cruza la medianoche */
+  const ya = {};
+  (a.controles || []).forEach(c => { if(c.hora) ya[c.hora] = true; });
+  const out = [];
+  /* Primera hora en punto posterior al inicio, y de ahi cada 60 minutos */
+  for(let m = Math.ceil(d / 60) * 60; m <= t; m += 60){
+    const hh = String(Math.floor((m % 1440) / 60)).padStart(2,'0');
+    const hora = hh + ':00';
+    if(!ya[hora]) out.push(hora);
+    if(out.length > 24) break;              /* un acto no dura mas de un dia */
+  }
+  return out;
+}
+
+function htmlVitalesNormales(f){
+  const a = f.acto || {};
+  const p = DB.pacientes[f.pacienteId] || {};
+  const nrm = vitalesNormalesDe(p, f);
+  const v = a.vitalesNormales || nrm.v;     /* si el anestesiologo los ajusto, mandan los suyos */
+  const propios = !!a.vitalesNormales;
+  const pend = horasSinControl(a);
+
+  return '<div class="card sv-normal"><h3>'+ico('monitor')+'Control horario sin novedad</h3>'+
+    '<div class="aviso '+(nrm.edad === null ? 'warn' : 'ok')+'">'+
+      ico(nrm.edad === null ? 'alerta' : 'check')+'<div>'+
+      (nrm.edad === null
+        ? '<b>El paciente no tiene fecha de nacimiento cargada.</b> Sin la edad no se puede '+
+          'calcular el preseteado: se usan los valores del adulto. Cargá la fecha en la historia '+
+          'del paciente.'
+        : '<b>Valores normales para '+esc(nrm.franja.n.toLowerCase())+'</b> ('+esc(nrm.franja.d)+')'+
+          (nrm.ajustes.length
+            ? '<br><span class="mini">Ajustado por '+esc(nrm.ajustes.join(' · '))+'</span>'
+            : '')+
+          '<br><span class="mini">Son los valores esperables <b>bajo anestesia</b>, que están '+
+          'entre un 10 y un 20 % por debajo de los de vigilia.</span>')+
+      (propios ? '<br><span class="mini"><b>Estás usando valores ajustados a mano.</b></span>' : '')+
+      '</div></div>'+
+
+    '<div class="valores">'+
+      '<span>TA '+v.tas+'/'+v.tad+' mmHg</span>'+
+      '<span>FC '+v.fc+' lpm</span>'+
+      '<span>FR '+v.fr+' rpm</span>'+
+      '<span>SpO₂ '+v.spo2+' %</span>'+
+      '<span>EtCO₂ '+v.etco2+' mmHg</span>'+
+      '<span>Temp '+fNum(v.temp,1)+' °C</span>'+
+    '</div>'+
+
+    '<div class="btn-row">'+
+      '<button class="btn ok grande" id="svNormalAhora">'+ico('check')+
+        ' Control normal — '+ahoraHora()+'</button>'+
+      (pend.length
+        ? '<button class="btn ghost" id="svNormalHoras">'+ico('reloj')+' Completar '+
+          pend.length+' hora'+(pend.length===1?'':'s')+' pendiente'+(pend.length===1?'':'s')+
+          '</button>'
+        : '')+
+      '<button class="btn ghost chico" id="svAjustar">'+ico('editar')+' Ajustar estos valores</button>'+
+      (propios ? '<button class="btn ghost chico" id="svRestaurar">'+ico('atras')+
+        ' Volver al calculado</button>' : '')+
+    '</div>'+
+    (pend.length
+      ? '<div class="ayuda">Horas en punto entre el inicio y el fin de la anestesia todavía sin '+
+        'control: '+esc(pend.join(' · '))+'.</div>'
+      : (a.inicioAnestesia || a.ingreso
+        ? '<div class="ayuda">No hay horas en punto pendientes dentro del acto.</div>'
+        : '<div class="ayuda">Cargá el <b>inicio de anestesia</b> en la solapa Resumen y acá vas a '+
+          'poder completar todas las horas del acto de una vez.</div>'))+
+    '<div class="ayuda">Los controles cargados así quedan marcados como <b>NORMAL</b> en la tabla. '+
+      'Es un atajo para escribir lo que estás viendo en el monitor, no un relleno: si algo se sale '+
+      'de lo esperable, usá «Registrar control».</div>'+
+  '</div>';
+}
+
+function cablearVitalesNormales(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const base = () => (fichaActual.acto || {}).vitalesNormales || vitalesNormalesDe(p, f).v;
+
+  const cargar = horas => {
+    const v = base();
+    fichaActual.acto = leerPasoAnestesia();
+    fichaActual.acto.controles = fichaActual.acto.controles || [];
+    let n = 0;
+    horas.forEach(hora => {
+      if(fichaActual.acto.controles.some(c => c.hora === hora)) return;
+      fichaActual.acto.controles.push({
+        id: uid('ctl'), hora,
+        tas:String(v.tas), tad:String(v.tad), fc:String(v.fc), fr:String(v.fr),
+        spo2:String(v.spo2), etco2:String(v.etco2), temp:String(v.temp),
+        tof:'', tofC:'', tofR:'', obs:'',
+        preset:'normal'
+      });
+      n++;
+    });
+    fichaActual.acto.controles.sort((a,b) => (a.hora||'') < (b.hora||'') ? -1 : 1);
+    pintarPasoAnestesia(fichaActual);
+    toast(n === 1 ? 'Control normal registrado.' : n+' controles normales registrados.', 'ok');
+  };
+
+  if($('#svNormalAhora')) $('#svNormalAhora').onclick = () => cargar([ahoraHora()]);
+  if($('#svNormalHoras')) $('#svNormalHoras').onclick = () => {
+    const pend = horasSinControl(fichaActual.acto || {});
+    if(!pend.length) return toast('No hay horas pendientes.', 'warn');
+    confirmar('Completar '+pend.length+' control'+(pend.length===1?'':'es'),
+      'Se van a cargar los valores normales de este paciente en las horas '+
+      '<b>'+esc(pend.join(', '))+'</b>.<br><br>Quedan marcados como preseteado en la tabla. '+
+      'Confirmá sólo si son los valores que efectivamente viste en el monitor: lo que se firma '+
+      'después es historia clínica.',
+      () => cargar(pend), 'Cargar los controles');
+  };
+
+  if($('#svRestaurar')) $('#svRestaurar').onclick = () => {
+    fichaActual.acto = leerPasoAnestesia();
+    delete fichaActual.acto.vitalesNormales;
+    pintarPasoAnestesia(fichaActual);
+    toast('Vuelto al preseteado calculado para el paciente.', 'ok');
+  };
+
+  if($('#svAjustar')) $('#svAjustar').onclick = () => {
+    const v = base();
+    const nrm = vitalesNormalesDe(p, f);
+    abrirModal('Ajustar los valores normales de este paciente',
+      '<div class="aviso info">'+ico('info')+'<div>Lo que cambies vale <b>sólo para esta ficha</b>. '+
+        'El cálculo automático parte de la franja <b>'+esc(nrm.franja.n)+'</b> ('+esc(nrm.franja.d)+
+        ') y de los datos del paciente.</div></div>'+
+      '<div class="grid c3">'+
+        '<div class="campo"><label>TA sistólica</label>'+
+          '<input type="number" id="vnTas" inputmode="numeric" value="'+esc(v.tas)+'"></div>'+
+        '<div class="campo"><label>TA diastólica</label>'+
+          '<input type="number" id="vnTad" inputmode="numeric" value="'+esc(v.tad)+'"></div>'+
+        campoNum('vnFc','FC (lpm)', v.fc, 'inputmode="numeric"')+
+      '</div>'+
+      '<div class="grid c4">'+
+        campoNum('vnFr','FR (rpm)', v.fr, 'inputmode="numeric"')+
+        campoNum('vnSpo2','SpO₂ (%)', v.spo2, 'inputmode="numeric"')+
+        campoNum('vnEtco2','EtCO₂ (mmHg)', v.etco2, 'inputmode="numeric"')+
+        campoNum('vnTemp','Temp (°C)', v.temp, 'step="0.1" inputmode="decimal"')+
+      '</div>',
+      '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+      '<button class="btn pri" id="vnOK">'+ico('check')+' Usar estos valores</button>');
+    $('#vnOK').onclick = () => {
+      fichaActual.acto = leerPasoAnestesia();
+      fichaActual.acto.vitalesNormales = {
+        tas:Number(val('vnTas'))||v.tas, tad:Number(val('vnTad'))||v.tad,
+        fc:Number(val('vnFc'))||v.fc,    fr:Number(val('vnFr'))||v.fr,
+        spo2:Number(val('vnSpo2'))||v.spo2, etco2:Number(val('vnEtco2'))||v.etco2,
+        temp:Number(val('vnTemp'))||v.temp
+      };
+      cerrarModal();
+      pintarPasoAnestesia(fichaActual);
+      toast('Valores normales ajustados para esta ficha.', 'ok');
+    };
+  };
+}
+
 function valorVital(c, k){
   if(!c) return '';
-  if(k === 'ta') return (c.tas && c.tad) ? c.tas+'/'+c.tad : '';
+  if(k === 'ta')  return (c.tas && c.tad) ? c.tas+'/'+c.tad : '';
+  if(k === 'pam') return pamDe(c);
   return c[k] === undefined || c[k] === '' ? '' : String(c[k]);
 }
 
@@ -948,10 +1159,22 @@ function alertasVitales(ctrls){
   if(hay('etco2', v => v < 25 || v > 50)) out.push('EtCO₂ fuera de rango');
   if(hay('temp', v => v < 35))  out.push('hipotermia (< 35 °C)');
   if(hay('temp', v => v > 38))  out.push('hipertermia (> 38 °C)');
+  if(hay('fr', v => v < 8))     out.push('bradipnea (FR < 8)');
+  if(hay('fr', v => v > 25))    out.push('taquipnea (FR > 25)');
+  /* La presion arterial media es la que gobierna la perfusion de organo: por
+     debajo de 65 mmHg sostenidos aparecen la injuria renal y la miocardica,
+     y una sistolica de 95 con una diastolica de 45 da una media de 62 sin que
+     ninguno de los dos numeros parezca alarmante por separado. */
+  if(ctrls.some(c => { const m = Number(pamDe(c)); return m && m < 65; }))
+    out.push('presión arterial media < 65 mmHg');
+  /* El unico TOF que dice algo sobre extubar es el cociente */
+  if(ctrls.some(c => Number(c.tofR) && Number(c.tofR) < 90))
+    out.push('bloqueo neuromuscular residual (TOF < 90 %)');
   return out;
 }
 
 function cablearActoVitales(f){
+  cablearVitalesNormales(f);
   $('#svNuevo').onclick = () => abrirControl(null);
   $$('#actoCuerpo [data-ctrl]').forEach(tr => tr.onclick = e => {
     if(e.target.closest('[data-svdel]')) return;
@@ -988,7 +1211,36 @@ function abrirControl(id){
     '<div class="grid c3">'+
       campoNum('svEtco2','EtCO₂ (mmHg)', c.etco2, 'inputmode="numeric"')+
       campoNum('svTemp','Temp (°C)', c.temp, 'step="0.1" inputmode="decimal"')+
-      campoTxt('svTof','TOF', c.tof)+
+      campoNum('svFr','FR (rpm)', c.fr, 'inputmode="numeric"')+
+    '</div>'+
+    /* TOF = tren de cuatro: cuatro estimulos supramaximales a 2 Hz sobre un
+       nervio periferico. Se registra de dos maneras distintas y no son lo
+       mismo, asi que se piden por separado:
+         RECUENTO  cuantas respuestas de las cuatro se ven o se palpan (0 a 4).
+                   Es lo que da un estimulador simple, sin medicion objetiva.
+         COCIENTE  T4/T1 en por ciento. Necesita monitoreo cuantitativo
+                   (aceleromiografia, electromiografia, kinemiografia) y es el
+                   unico que permite descartar bloqueo residual: el umbral de
+                   extubacion segura es 90 %.
+       Antes era un campo de texto libre: no se podia graficar ni comparar, y
+       «4» podia querer decir cuatro respuestas o cuatro por ciento. */
+    '<div class="card plano" style="border:1.5px solid var(--borde);padding:12px">'+
+      '<label class="mini strong" style="display:block;margin-bottom:8px">'+
+        'TOF — tren de cuatro (relajación neuromuscular)</label>'+
+      '<div class="grid c3">'+
+        campoSel('svTofC','Recuento (respuestas / 4)',
+          [{v:'',t:'— No medido —'},{v:'0',t:'0 — bloqueo profundo'},
+           {v:'1',t:'1 / 4'},{v:'2',t:'2 / 4'},{v:'3',t:'3 / 4'},{v:'4',t:'4 / 4'}], c.tofC)+
+        campoNum('svTofR','Cociente T4/T1 (%)', c.tofR, 'inputmode="numeric" placeholder="90"')+
+        campoSel('svTofSitio','Sitio de estimulación',
+          ['','Nervio cubital / aductor del pulgar','Nervio facial / orbicular del ojo',
+           'Nervio facial / corrugador superciliar','Nervio tibial posterior / flexor del hallux',
+           'Otro'], c.tofSitio)+
+      '</div>'+
+      '<div id="svTofAviso"></div>'+
+      '<div class="ayuda">El <b>recuento</b> lo da cualquier estimulador. El <b>cociente</b> requiere '+
+        'monitoreo cuantitativo y es el único que descarta bloqueo residual: '+
+        '<b>no extubar por debajo de 90 %</b>.</div>'+
     '</div>'+
     (ult && !id ? '<div class="ayuda">Último control a las '+esc(ult.hora||'—')+': '+
       esc([valorVital(ult,'ta')+' mmHg', ult.fc?ult.fc+' lpm':'', ult.spo2?ult.spo2+' %':'']
@@ -998,11 +1250,48 @@ function abrirControl(id){
     '<button class="btn pri" id="svOK">'+ico('check')+' Guardar control</button>');
 
   $('#svAhora').onclick = () => { $('#svHora').value = ahoraHora(); };
+
+  /* El unico numero del TOF que decide algo es el cociente, y decide una cosa
+     concreta: si se puede extubar. Se dice ahi mismo. */
+  const avisarTof = () => {
+    const caja = $('#svTofAviso'); if(!caja) return;
+    const r = Number(val('svTofR')), cnt = val('svTofC');
+    let h = '';
+    if(r && r < 90)
+      h = '<div class="aviso danger mt8">'+ico('alerta')+'<div><b>Cociente TOF '+r+' %: bloqueo '+
+        'residual.</b> Por debajo de 90 % hay debilidad faríngea y de la vía aérea superior, con '+
+        'riesgo de aspiración e hipoxemia. Revertir y volver a medir antes de extubar.</div></div>';
+    else if(r && r >= 90)
+      h = '<div class="aviso ok mt8">'+ico('check')+'<div><b>Cociente TOF '+r+' %.</b> Recuperación '+
+        'neuromuscular adecuada para la extubación.</div></div>';
+    else if(cnt === '0')
+      h = '<div class="aviso warn mt8">'+ico('info')+'<div><b>Recuento 0: bloqueo profundo.</b> '+
+        'Para valorar la profundidad hace falta el recuento post-tetánico. La reversión con '+
+        'sugammadex a esta profundidad requiere 4 mg/kg; la neostigmina no revierte acá.</div></div>';
+    else if(cnt && Number(cnt) < 4)
+      h = '<div class="aviso info mt8">'+ico('info')+'<div><b>Recuento '+cnt+' de 4.</b> Bloqueo '+
+        'quirúrgico. El recuento solo no descarta bloqueo residual: con 4 respuestas visibles todavía '+
+        'puede haber un cociente de 0,4. Para extubar hace falta el <b>cociente</b>.</div></div>';
+    else if(cnt === '4' && !r)
+      h = '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Cuatro respuestas visibles no es '+
+        'sinónimo de recuperación.</b> El desvanecimiento deja de verse a simple vista por encima de '+
+        'un cociente de 0,4: hace falta medirlo para poder extubar con respaldo.</div></div>';
+    caja.innerHTML = h;
+  };
+  if($('#svTofC')) $('#svTofC').onchange = avisarTof;
+  if($('#svTofR')) $('#svTofR').oninput = avisarTof;
+  avisarTof();
   $('#svOK').onclick = () => {
+    const tofC = val('svTofC'), tofR = val('svTofR');
     const reg = {
       id: c.id || uid('ctl'), hora: val('svHora'),
       tas: val('svTas'), tad: val('svTad'), fc: val('svFc'), spo2: val('svSpo2'),
-      etco2: val('svEtco2'), temp: val('svTemp'), tof: val('svTof'), obs: val('svObs')
+      etco2: val('svEtco2'), temp: val('svTemp'), fr: val('svFr'),
+      tofC, tofR, tofSitio: val('svTofSitio'),
+      /* `tof` sigue siendo el texto que se muestra en la tabla y que leen las
+         fichas y las exportaciones de siempre. Ahora se arma solo. */
+      tof: textoTOF({ tofC, tofR }),
+      obs: val('svObs')
     };
     if(!reg.hora) return toast('Cargá la hora del control.', 'err');
     fichaActual.acto = leerPasoAnestesia();
@@ -1017,56 +1306,209 @@ function abrirControl(id){
   };
 }
 
-/* Grafico de tendencia: TA sistolica/diastolica, FC y SpO2 en SVG a mano,
-   sin librerias, igual que el resto de los graficos de la app. */
+/* =========================================================================
+   GRAFICO DE LA EVOLUCION INTRAOPERATORIA
+   -------------------------------------------------------------------------
+   Antes dibujaba cuatro curvas —TA sistolica, TA diastolica, FC y SpO2—
+   apiladas sobre una unica escala de 0 a 200. Con esa escala:
+
+     la SpO2 (94-100) quedaba aplastada contra el techo y no se veia moverse;
+     el EtCO2 (35) y la temperatura (36) no se dibujaban en absoluto;
+     la FR y el TOF ni siquiera estaban.
+
+   Ahora se dibuja TODO lo que se haya cargado, y cada parametro tiene SU
+   PROPIA ESCALA, con la banda de normalidad sombreada y el rango escrito al
+   costado. Es la forma en que se lee un registro anestesico: no importa
+   cuanto vale un numero contra otro, importa donde esta cada uno respecto de
+   su propio rango.
+
+   Solo se dibujan las filas que tienen datos: una ficha sin temperatura no
+   muestra una franja vacia de temperatura.
+
+   La primera fila es la hemodinamia junta —sistolica, media y diastolica en
+   una escala compartida de mmHg, mas la FC— porque ahi si la comparacion
+   entre las tres tiene sentido y es como se lee la hoja de anestesia.
+   ========================================================================= */
+
+/* Que fila dibuja cada parametro: su escala, su banda normal y su color */
+function filasGrafico(){
+  return [
+    { k:'ta',    t:'Presión arterial', um:'mmHg', min:30,  max:220, nl:65,  nh:150,
+      color:'#dc2626', combinada:true },
+    { k:'fc',    t:'Frec. cardíaca', um:'lpm', min:20, max:180, nl:50, nh:100,
+      color:'#1b4e85' },
+    { k:'spo2',  t:'Saturación', um:'%',    min:80,  max:100, nl:94,  nh:100, color:'#14b8a6' },
+    { k:'etco2', t:'EtCO₂',      um:'mmHg', min:10,  max:60,  nl:30,  nh:45,  color:'#7c3aed' },
+    { k:'fr',    t:'Frec. respiratoria', um:'rpm', min:0, max:40, nl:10, nh:20,
+      color:'#0891b2' },
+    { k:'temp',  t:'Temperatura', um:'°C',   min:33,  max:40,  nl:36,  nh:37.5, color:'#d97706' },
+    { k:'tof',   t:'TOF',         um:'',     min:0,   max:100, nl:90,  nh:100, color:'#65a30d',
+      tof:true }
+  ];
+}
+
+/* El TOF se dibuja en una escala de 0 a 100. El COCIENTE va en su valor real;
+   el RECUENTO, que va de 0 a 4, se lleva a la misma escala multiplicando por
+   25, y el punto se marca distinto para que no se confundan: son dos medidas
+   distintas y solo el cociente descarta bloqueo residual. */
+function puntoTOF(c){
+  if(c.tofR) return { v:Number(c.tofR), cociente:true, txt:c.tofR+' %' };
+  if(c.tofC !== '' && c.tofC !== undefined && c.tofC !== null && c.tofC !== false){
+    const n = Number(c.tofC);
+    if(isFinite(n)) return { v:n*25, cociente:false, txt:n+'/4' };
+  }
+  /* Fichas cargadas antes del campo estructurado: el TOF era texto libre */
+  const t = String(c.tof || '').trim();
+  if(!t) return null;
+  const pc = t.match(/(\d{1,3})\s*%/);
+  if(pc) return { v:Number(pc[1]), cociente:true, txt:pc[1]+' %' };
+  const frac = t.match(/^([0-4])\s*\/\s*4/);
+  if(frac) return { v:Number(frac[1])*25, cociente:false, txt:frac[1]+'/4' };
+  const dec = t.match(/^0?[.,](\d+)/);
+  if(dec) return { v:Number('0.'+dec[1])*100, cociente:true, txt:t };
+  const n = Number(t.replace(',','.'));
+  if(isFinite(n)){
+    if(n <= 4) return { v:n*25, cociente:false, txt:n+'/4' };
+    if(n <= 100) return { v:n, cociente:true, txt:n+' %' };
+  }
+  return null;
+}
+
+function valorDeFila(c, k){
+  if(k === 'tof') return null;                 /* lo resuelve puntoTOF */
+  const v = Number(c[k]);
+  return isFinite(v) && v ? v : null;
+}
+
 function abrirGraficoVitales(){
   const ctrls = (fichaActual.acto.controles || []).slice()
     .sort((a,b) => (a.hora||'') < (b.hora||'') ? -1 : 1);
   if(ctrls.length < 2) return toast('Hacen falta al menos dos controles para el gráfico.', 'warn');
 
-  const W = 640, H = 260, ML = 38, MR = 12, MT = 14, MB = 30;
   const n = ctrls.length;
+  /* Solo se dibujan las filas que tienen algo cargado */
+  const filas = filasGrafico().filter(f => {
+    if(f.tof)        return ctrls.some(c => puntoTOF(c));
+    if(f.combinada)  return ctrls.some(c => Number(c.tas) || Number(c.tad));
+    return ctrls.some(c => valorDeFila(c, f.k) !== null);
+  });
+  if(!filas.length) return toast('Los controles no tienen valores numéricos para graficar.', 'warn');
+
+  const W = 740, ML = 112, MR = 46, HF = 74, GAP = 10, MT = 8, MB = 26;
+  const H = MT + filas.length * (HF + GAP) - GAP + MB;
   const x = i => ML + (i * (W - ML - MR)) / Math.max(1, n - 1);
-  const serie = (k, min, max, color, dash) => {
-    const pts = ctrls.map((c,i) => {
-      const v = Number(k === 'tas' ? c.tas : k === 'tad' ? c.tad : c[k]);
-      if(!isFinite(v) || !v) return null;
-      const y = MT + (H - MT - MB) * (1 - (v - min) / (max - min));
-      return [x(i), Math.max(MT, Math.min(H - MB, y))];
-    }).filter(Boolean);
-    if(pts.length < 2) return '';
-    return '<polyline fill="none" stroke="'+color+'" stroke-width="2.2" '+
-      (dash ? 'stroke-dasharray="4 3" ' : '')+
-      'points="'+pts.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')+'"/>'+
-      pts.map(p => '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="2.6" fill="'+color+'"/>').join('');
+
+  const svgFila = (f, k) => {
+    const y0 = MT + k * (HF + GAP);            /* techo de la franja */
+    const py = v => y0 + HF * (1 - (Math.max(f.min, Math.min(f.max, v)) - f.min) / (f.max - f.min));
+    const fuera = v => v < f.nl || v > f.nh;
+
+    /* banda de normalidad */
+    const yb1 = py(f.nh), yb2 = py(f.nl);
+    let g = '<rect x="'+ML+'" y="'+yb1.toFixed(1)+'" width="'+(W-ML-MR)+'" '+
+      'height="'+Math.max(1,(yb2-yb1)).toFixed(1)+'" fill="'+f.color+'" opacity=".08"/>'+
+      '<rect x="'+ML+'" y="'+y0+'" width="'+(W-ML-MR)+'" height="'+HF+'" fill="none" '+
+        'stroke="currentColor" stroke-opacity=".15"/>';
+
+    /* rotulo, unidad y extremos de la escala */
+    g += '<text x="'+(ML-8)+'" y="'+(y0+14)+'" text-anchor="end" font-size="10.5" '+
+        'font-weight="700" fill="currentColor">'+esc(f.t)+'</text>'+
+      '<text x="'+(ML-8)+'" y="'+(y0+27)+'" text-anchor="end" font-size="9" '+
+        'fill="currentColor" opacity=".55">'+esc(f.um)+'</text>'+
+      '<text x="'+(ML-8)+'" y="'+(y0+5)+'" text-anchor="end" font-size="8.5" '+
+        'fill="currentColor" opacity=".45">'+f.max+'</text>'+
+      '<text x="'+(ML-8)+'" y="'+(y0+HF)+'" text-anchor="end" font-size="8.5" '+
+        'fill="currentColor" opacity=".45">'+f.min+'</text>'+
+      '<text x="'+(W-MR+6)+'" y="'+(yb1+3.5).toFixed(1)+'" font-size="8.5" '+
+        'fill="'+f.color+'" opacity=".8">'+f.nh+'</text>'+
+      '<text x="'+(W-MR+6)+'" y="'+(yb2+3.5).toFixed(1)+'" font-size="8.5" '+
+        'fill="'+f.color+'" opacity=".8">'+f.nl+'</text>';
+
+    const linea = (getter, dash, ancho, col) => {
+      const pts = ctrls.map((c,i) => { const v = getter(c);
+        return v === null ? null : [x(i), py(v), v]; }).filter(Boolean);
+      if(!pts.length) return '';
+      let o = '';
+      if(pts.length > 1)
+        o += '<polyline fill="none" stroke="'+(col||f.color)+'" stroke-width="'+(ancho||2)+'" '+
+          'stroke-linejoin="round" '+(dash ? 'stroke-dasharray="4 3" ' : '')+
+          'points="'+pts.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')+'"/>';
+      o += pts.map(p => '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+
+        (fuera(p[2]) ? 3.6 : 2.4)+'" fill="'+(fuera(p[2]) ? '#dc2626' : (col||f.color))+'"/>').join('');
+      return o;
+    };
+
+    if(f.combinada){
+      /* La hoja de anestesia de siempre: sistolica arriba, diastolica abajo,
+         unidas por su barra vertical, y la media punteada en el medio. */
+      g += ctrls.map((c,i) => {
+        const sa = Number(c.tas), da = Number(c.tad);
+        if(!sa || !da) return '';
+        return '<line x1="'+x(i).toFixed(1)+'" y1="'+py(sa).toFixed(1)+'" '+
+          'x2="'+x(i).toFixed(1)+'" y2="'+py(da).toFixed(1)+'" stroke="'+f.color+
+          '" stroke-width="1.2" stroke-opacity=".45"/>';
+      }).join('');
+      g += linea(c => Number(c.tas) || null, false, 2, f.color);
+      g += linea(c => Number(c.tad) || null, true,  1.8, f.color);
+      g += linea(c => { const v = pamDe(c); return v ? Number(v) : null; }, false, 1.4, '#8b1a1a');
+    } else if(f.tof){
+      const pts = ctrls.map((c,i) => { const t = puntoTOF(c);
+        return t ? [x(i), py(t.v), t] : null; }).filter(Boolean);
+      if(pts.length > 1)
+        g += '<polyline fill="none" stroke="'+f.color+'" stroke-width="2" '+
+          'points="'+pts.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')+'"/>';
+      g += pts.map(p => p[2].cociente
+        /* cociente: circulo lleno. recuento: cuadrado hueco. No son lo mismo. */
+        ? '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3" fill="'+
+          (p[2].v < 90 ? '#dc2626' : f.color)+'"/>'
+        : '<rect x="'+(p[0]-3).toFixed(1)+'" y="'+(p[1]-3).toFixed(1)+'" width="6" height="6" '+
+          'fill="none" stroke="'+f.color+'" stroke-width="1.6"/>').join('');
+      g += pts.map(p => '<text x="'+p[0].toFixed(1)+'" y="'+(p[1]-6).toFixed(1)+'" '+
+        'text-anchor="middle" font-size="8" fill="currentColor" opacity=".7">'+
+        esc(p[2].txt)+'</text>').join('');
+    } else {
+      g += linea(c => valorDeFila(c, f.k), false, 2);
+    }
+    return g;
   };
 
-  const ejeY = [0,25,50,75,100].map(pct => {
-    const y = MT + (H - MT - MB) * (1 - pct/100);
-    return '<line x1="'+ML+'" y1="'+y+'" x2="'+(W-MR)+'" y2="'+y+'" stroke="currentColor" '+
-      'stroke-opacity=".12"/><text x="'+(ML-6)+'" y="'+(y+3.5)+'" text-anchor="end" '+
-      'font-size="9" fill="currentColor" opacity=".55">'+Math.round(pct*2)+'</text>';
-  }).join('');
+  const horas = ctrls.map((c,i) => (n <= 12 || i % Math.ceil(n/12) === 0)
+    ? '<text x="'+x(i).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="9" '+
+      'fill="currentColor" opacity=".6">'+esc(c.hora||'')+'</text>'+
+      '<line x1="'+x(i).toFixed(1)+'" y1="'+MT+'" x2="'+x(i).toFixed(1)+'" y2="'+(H-MB)+'" '+
+      'stroke="currentColor" stroke-opacity=".07"/>'
+    : '').join('');
+
+  const alerta = alertasVitales(ctrls);
 
   abrirModal('Evolución intraoperatoria',
     '<div class="grafico-vitales"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+
-      ejeY+
-      serie('tas', 0, 200, '#dc2626')+
-      serie('tad', 0, 200, '#dc2626', true)+
-      serie('fc',  0, 200, '#1b4e85')+
-      serie('spo2',0, 200, '#14b8a6')+
-      ctrls.map((c,i) => (n <= 10 || i % Math.ceil(n/10) === 0)
-        ? '<text x="'+x(i).toFixed(1)+'" y="'+(H-10)+'" text-anchor="middle" font-size="9" '+
-          'fill="currentColor" opacity=".55">'+esc(c.hora||'')+'</text>' : '').join('')+
+      horas + filas.map((f,k) => svgFila(f,k)).join('') +
     '</svg></div>'+
     '<div class="leyenda-vitales">'+
-      '<span><i style="background:#dc2626"></i>TA sistólica</span>'+
-      '<span><i style="background:#dc2626;opacity:.5"></i>TA diastólica</span>'+
-      '<span><i style="background:#1b4e85"></i>FC</span>'+
-      '<span><i style="background:#14b8a6"></i>SpO₂</span>'+
+      (filas.some(f => f.combinada)
+        ? '<span><i style="background:#dc2626"></i>TA sistólica</span>'+
+          '<span><i style="background:#8b1a1a"></i>PAM (calculada)</span>'+
+          '<span><i style="background:#dc2626;opacity:.5"></i>TA diastólica</span>' : '')+
+      filas.filter(f => !f.combinada).map(f =>
+        '<span><i style="background:'+f.color+'"></i>'+esc(f.t)+'</span>').join('')+
+      '<span><i style="background:#dc2626"></i>punto fuera de rango</span>'+
     '</div>'+
-    '<div class="ayuda">Escala común de 0 a 200 para las cuatro curvas.</div>',
-    '<button class="btn ghost" data-cerrar>Cerrar</button>', '760px');
+    '<div class="ayuda"><b>Cada parámetro tiene su propia escala</b>, escrita a la izquierda de su '+
+      'franja; la banda sombreada es el rango normal y sus límites están a la derecha. Los puntos que '+
+      'caen fuera de ese rango se pintan en rojo y se agrandan. Sólo se dibujan los parámetros que '+
+      'tienen datos cargados.</div>'+
+    (filas.some(f => f.tof)
+      ? '<div class="ayuda"><b>TOF:</b> el <b>cociente T4/T1</b> se dibuja como círculo lleno en su '+
+        'valor real; el <b>recuento</b> (0 a 4 respuestas) como cuadrado hueco, llevado a la misma '+
+        'escala a razón de 25 % por respuesta. No son la misma medida: la línea de 90 % es el umbral '+
+        'de extubación y sólo el cociente permite darlo por alcanzado.</div>' : '')+
+    (alerta.length
+      ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Para revisar:</b> '+
+        esc(alerta.join(' · '))+'</div></div>'
+      : '<div class="aviso ok mt8">'+ico('check')+'<div>Ningún parámetro se salió de rango durante '+
+        'el procedimiento.</div></div>'),
+    '<button class="btn ghost" data-cerrar>Cerrar</button>', '860px');
 }
 
 /* =========================================================================

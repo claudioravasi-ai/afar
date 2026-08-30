@@ -2597,3 +2597,258 @@ function duracionTexto(min){
   if(min === null || min === undefined) return '—';
   return Math.floor(min / 60) + ' h ' + (min % 60) + ' min';
 }
+
+/* =========================================================================
+   PROCEDIMIENTOS DE UNA FICHA — 100 % / 75 % / 50 %
+   -------------------------------------------------------------------------
+   Una ficha puede tener MAS DE UNA cirugia. Antes tenia una sola: si en el
+   mismo acto se hacia una colecistectomia y una fimosis, la segunda no se
+   registraba en ningun lado y no se facturaba.
+
+   La regla del nomenclador, tal como se liquida:
+
+     - El procedimiento de MAYOR COMPLEJIDAD se factura al 100 %.
+     - Cada procedimiento adicional se factura al 75 % si su VIA DE ABORDAJE
+       es distinta de la del principal (colecistectomia + fimosis).
+     - Cada procedimiento adicional se factura al 50 % si comparte la via
+       con el principal (colecistectomia laparoscopica + gastrostomia
+       laparoscopica).
+
+   Lo que la app hace sola es PROPONER: ordena por complejidad, marca el
+   principal y reconoce la via por el nombre de la practica. Lo que decide es
+   la persona: el principal se puede cambiar con un clic y la via con un
+   desplegable. Un porcentaje puesto por la maquina en una factura que firma
+   un medico es exactamente lo que no hay que hacer sin que se vea.
+
+   Compatibilidad: la ficha sigue guardando f.cirugia, f.cirugiaUA,
+   f.cirugiaCod, f.cirugiaComp… con los datos del PRINCIPAL. Todo lo que ya
+   leia esos campos —listados, estadisticas, exportaciones, el buscador—
+   sigue funcionando sin cambios y las fichas viejas se leen igual.
+   ========================================================================= */
+
+/* La complejidad del nomenclador es texto: «4», pero tambien «1 + 50%» o
+   «sin cargo» en el anexo de dolor cronico. Se toma el numero que encabeza. */
+function compNumerica(c){
+  const m = String(c === undefined || c === null ? '' : c).match(/\d+(?:[.,]\d+)?/);
+  return m ? Number(m[0].replace(',', '.')) : 0;
+}
+
+/* Devuelve SIEMPRE una lista, aunque la ficha sea vieja y tenga una sola
+   cirugia en los campos sueltos. Nunca devuelve null. */
+function procedimientosDe(f){
+  if(!f) return [];
+  if(f.cirugias && f.cirugias.length) return f.cirugias.slice();
+  if(f.cirugia) return [{
+    id: 'cx0', n: f.cirugia, cod: f.cirugiaCod || '', comp: f.cirugiaComp || '',
+    ua: f.cirugiaUA || 0, grillaB: !!f.cirugiaGrillaB, nota: f.cirugiaNota || '',
+    via: viaSugerida(f.cirugia), principal: true
+  }];
+  return [];
+}
+
+/* Cual es el principal: el que la persona marco, y si no marco ninguno, el de
+   mayor complejidad —y a igual complejidad, el de mas unidades anestesicas—. */
+function indicePrincipal(lista){
+  if(!lista.length) return -1;
+  const marcado = lista.findIndex(x => x.principal);
+  if(marcado >= 0) return marcado;
+  let mejor = 0;
+  for(let i = 1; i < lista.length; i++){
+    const a = lista[i], b = lista[mejor];
+    const ca = compNumerica(a.comp), cb = compNumerica(b.comp);
+    if(ca > cb || (ca === cb && (Number(a.ua)||0) > (Number(b.ua)||0))) mejor = i;
+  }
+  return mejor;
+}
+
+/* La lista ordenada —principal primero— con el porcentaje de cada uno y el
+   motivo escrito, para poder mostrarlo y para que quede en el documento. */
+function procedimientosFacturables(f){
+  const lista = procedimientosDe(f);
+  if(!lista.length) return [];
+  const ip = indicePrincipal(lista);
+  const principal = lista[ip];
+  const resto = lista.filter((x, i) => i !== ip)
+    .sort((a, b) => compNumerica(b.comp) - compNumerica(a.comp) ||
+                    (Number(b.ua)||0) - (Number(a.ua)||0));
+
+  const out = [Object.assign({}, principal, {
+    pct: 100, principal: true, orden: 1,
+    motivo: 'Procedimiento de mayor complejidad: se factura completo.'
+  })];
+
+  resto.forEach((x, i) => {
+    const suya = x.via || '';
+    const suyaP = principal.via || '';
+    /* Sin via declarada en alguno de los dos no se puede afirmar si comparten
+       abordaje. Se propone el 75 % —que es lo que corresponde cuando difieren,
+       el caso mas frecuente— y se DICE que falta el dato, en vez de elegir
+       callado el porcentaje mas alto o el mas bajo. */
+    const sinDato = !suya || !suyaP;
+    const misma = !sinDato && suya === suyaP;
+    out.push(Object.assign({}, x, {
+      pct: misma ? 50 : 75, principal: false, orden: i + 2, viaIncierta: sinDato,
+      motivo: sinDato
+        ? 'Falta declarar la vía de abordaje: hasta que se cargue se propone el 75 %.'
+        : (misma
+          ? 'Misma vía de abordaje que el principal (' + nombreVia(suya) + '): 50 %.'
+          : 'Vía distinta de la del principal (' + nombreVia(suya) + ' frente a ' +
+            nombreVia(suyaP) + '): 75 %.')
+    }));
+  });
+  return out;
+}
+
+/* Las unidades anestesicas EFECTIVAS de la ficha: la suma de las de cada
+   procedimiento afectadas por su porcentaje. Es lo que multiplica el valor
+   de la unidad, asi que todo el calculo de honorarios que ya existia sigue
+   siendo el mismo: ua x valorUnidad. */
+function uaEfectivas(f, uas){
+  const l = procedimientosFacturables(f);
+  return l.reduce((a, x, i) => {
+    const u = uas && uas[i] !== undefined && uas[i] !== '' ? Number(uas[i]) : (Number(x.ua) || 0);
+    return a + (u * x.pct / 100);
+  }, 0);
+}
+
+/* Texto corto para listados y documentos: «Colecistectomía laparoscópica
+   + 2 procedimientos más» */
+function textoProcedimientos(f){
+  const l = procedimientosFacturables(f);
+  if(!l.length) return '';
+  if(l.length === 1) return l[0].n;
+  return l[0].n + ' + ' + (l.length - 1) + ' procedimiento' + (l.length === 2 ? '' : 's') + ' más';
+}
+
+/* Vuelca el principal a los campos sueltos de siempre, para que nada de lo
+   que ya existia tenga que enterarse de que ahora hay una lista. */
+function sincronizarProcedimientoPrincipal(f){
+  const l = procedimientosFacturables(f);
+  const p = l[0];
+  if(!p){ f.cirugia = ''; f.cirugiaUA = 0; f.cirugiaCod = ''; f.cirugiaComp = '';
+          f.cirugiaGrillaB = false; f.cirugiaNota = ''; return f; }
+  f.cirugia       = p.n;
+  f.cirugiaUA     = Number(p.ua) || 0;
+  f.cirugiaCod    = p.cod || '';
+  f.cirugiaComp   = p.comp || '';
+  f.cirugiaGrillaB= !!p.grillaB;
+  f.cirugiaNota   = p.nota || '';
+  return f;
+}
+
+/* =========================================================================
+   SIGNOS VITALES ESPERABLES SEGUN EL PACIENTE
+   -------------------------------------------------------------------------
+   Para poder cargar el control horario de un intraoperatorio sin novedad con
+   un solo toque, en vez de escribir siete numeros cada hora.
+
+   Las franjas etarias no son las seis de uso coloquial (neonato, pediatrico,
+   adolescente, joven, adulto, anciano) sino SIETE, porque «pediatrico» reune
+   edades que no se parecen en nada: un recien nacido tiene una frecuencia
+   cardiaca de 140 y un chico de diez anos, de 85. Meterlos en la misma franja
+   haria que el preseteado fuera falso justo donde mas importa. La division es
+   la de PALS / APLS, que es la que se usa en la practica:
+
+     Neonato        0 a 28 dias
+     Lactante       29 dias a 12 meses
+     Preescolar     1 a 5 anos
+     Escolar        6 a 11 anos
+     Adolescente    12 a 17 anos
+     Adulto         18 a 64 anos
+     Adulto mayor   65 anos en adelante
+
+   «Joven» y «adulto» se unificaron: entre los 20 y los 60 anos los valores
+   normales no cambian, y una franja que no cambia nada es una franja que solo
+   agrega un clic.
+
+   Los valores son los ESPERABLES BAJO ANESTESIA, no los de la sala de espera:
+   con el paciente dormido la tension y la frecuencia bajan entre un 10 y un
+   20 %, y ese es el numero que corresponde asentar en el registro del acto.
+
+   Ajustes sobre la franja, con lo que la ficha ya sabe del paciente:
+     - IMC >= 30      sube la tension (+8 / +5 mmHg) y baja algo la SpO2
+     - IMC >= 40      ademas baja la SpO2 a 96 %
+     - sexo masculino sube 3 mmHg la sistolica en adultos
+     - talla muy baja o muy alta dentro de la franja ajusta la sistolica
+     - adulto mayor   sistolica mas alta y menor tolerancia a la bradicardia
+   ========================================================================= */
+const FRANJAS_VITALES = [
+  { id:'neonato',   n:'Neonato',      d:'0 a 28 días',
+    maxMeses:1,
+    v:{ tas:65, tad:40, fc:135, fr:40, spo2:97, etco2:34, temp:36.8 } },
+  { id:'lactante',  n:'Lactante',     d:'29 días a 12 meses',
+    maxMeses:12,
+    v:{ tas:85, tad:50, fc:125, fr:30, spo2:98, etco2:34, temp:36.8 } },
+  { id:'preescolar',n:'Preescolar',   d:'1 a 5 años',
+    maxMeses:72,
+    v:{ tas:95, tad:55, fc:105, fr:24, spo2:98, etco2:35, temp:36.6 } },
+  { id:'escolar',   n:'Escolar',      d:'6 a 11 años',
+    maxMeses:144,
+    v:{ tas:105, tad:62, fc:88, fr:20, spo2:98, etco2:35, temp:36.5 } },
+  { id:'adolescente',n:'Adolescente', d:'12 a 17 años',
+    maxMeses:216,
+    v:{ tas:112, tad:66, fc:78, fr:16, spo2:98, etco2:35, temp:36.5 } },
+  { id:'adulto',    n:'Adulto',       d:'18 a 64 años',
+    maxMeses:780,
+    v:{ tas:115, tad:70, fc:70, fr:14, spo2:98, etco2:35, temp:36.3 } },
+  { id:'mayor',     n:'Adulto mayor', d:'65 años en adelante',
+    maxMeses:1e9,
+    v:{ tas:125, tad:72, fc:68, fr:15, spo2:96, etco2:35, temp:36.2 } }
+];
+
+function franjaVitalDe(edadAnios, mesesEdad){
+  const m = (mesesEdad !== undefined && mesesEdad !== null)
+    ? mesesEdad
+    : (edadAnios === null || edadAnios === undefined ? 40 * 12 : edadAnios * 12);
+  return FRANJAS_VITALES.find(x => m < x.maxMeses) || FRANJAS_VITALES[FRANJAS_VITALES.length - 1];
+}
+
+/* Edad en meses, para poder distinguir al neonato del lactante */
+function edadEnMeses(fechaNac, hasta){
+  if(!fechaNac) return null;
+  const a = new Date(fechaNac + 'T12:00:00');
+  const b = new Date((hasta || hoyISO()) + 'T12:00:00');
+  if(isNaN(a) || isNaN(b)) return null;
+  return Math.max(0, Math.round((b - a) / 2629800000));   /* mes medio */
+}
+
+/* El preseteado «normal» de ESTE paciente. Devuelve tambien la franja y las
+   razones de cada ajuste, para poder mostrarlas: un numero sin explicacion en
+   una historia clinica no sirve. */
+function vitalesNormalesDe(p, ficha){
+  p = p || {};
+  const fecha = ficha ? (fechaCirugiaDe(ficha) || ficha.fecha) : null;
+  const meses = edadEnMeses(p.fechaNac, fecha);
+  const anios = edadDe(p.fechaNac, fecha);
+  const fr = franjaVitalDe(anios, meses);
+  const v = Object.assign({}, fr.v);
+  const ajustes = [];
+
+  const imc = calcIMC(p.peso, p.talla);
+  if(imc >= 40){
+    v.tas += 10; v.tad += 6; v.spo2 = Math.min(v.spo2, 96);
+    ajustes.push('IMC ' + imc.toFixed(1) + ' (obesidad grado III): +10/+6 mmHg y SpO₂ 96 %');
+  } else if(imc >= 30){
+    v.tas += 8; v.tad += 5; v.spo2 = Math.min(v.spo2, 97);
+    ajustes.push('IMC ' + imc.toFixed(1) + ' (obesidad): +8/+5 mmHg');
+  }
+
+  if(anios !== null && anios >= 18){
+    if(p.sexo === 'M'){ v.tas += 3; ajustes.push('sexo masculino: +3 mmHg de sistólica'); }
+    const talla = Number(p.talla) || 0;
+    if(talla && talla >= 185){ v.tas += 4; ajustes.push('talla ' + talla + ' cm: +4 mmHg'); }
+    else if(talla && talla <= 155){ v.tas -= 4; ajustes.push('talla ' + talla + ' cm: −4 mmHg'); }
+  }
+
+  /* Pediatria: dentro de la franja, el peso corrige la frecuencia. Un chico de
+     cinco anos de 15 kg va mas rapido que uno de 25 kg. */
+  if(anios !== null && anios < 12 && Number(p.peso)){
+    const esperado = anios < 1 ? 7 : (anios * 2 + 8);
+    const dif = Number(p.peso) - esperado;
+    if(dif <= -esperado * 0.2){ v.fc += 8; ajustes.push('peso por debajo de lo esperado para la edad: +8 lpm'); }
+    else if(dif >= esperado * 0.3){ v.fc -= 5; ajustes.push('peso por encima de lo esperado para la edad: −5 lpm'); }
+  }
+
+  v.tas = Math.round(v.tas); v.tad = Math.round(v.tad); v.fc = Math.round(v.fc);
+  return { v, franja:fr, ajustes, imc, edad:anios, meses };
+}

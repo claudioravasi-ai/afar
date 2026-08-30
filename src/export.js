@@ -145,8 +145,23 @@ function documentoFicha(f, opts){
           ? '<span style="font-weight:400"> (en la valoración: '+
             esc(nombreCaracter(caracterValoracion(f)).toLowerCase())+')</span>' : '')+
         '</td></tr>'+
-    '<tr><td colspan="2"><b>Cirugía:</b> '+esc(f.cirugia||'—')+
-      (f.lateralidad && f.lateralidad !== 'No aplica' ? ' ('+esc(f.lateralidad)+')' : '')+'</td></tr>'+
+    /* Una ficha puede tener varios procedimientos. El documento los imprime
+       TODOS, con el porcentaje con el que se factura cada uno: si el registro
+       dice una sola cirugía y la factura tiene tres, la auditoría del
+       financiador debita. Ver procedimientosFacturables() en core.js. */
+    (function(){
+      const l = procedimientosFacturables(f);
+      const lat = f.lateralidad && f.lateralidad !== 'No aplica' ? ' ('+esc(f.lateralidad)+')' : '';
+      if(l.length <= 1)
+        return '<tr><td colspan="2"><b>Cirugía:</b> '+esc((l[0]||{}).n || f.cirugia || '—')+lat+'</td></tr>';
+      return '<tr><td colspan="2"><b>Cirugías ('+l.length+'):</b>'+lat+'<br>'+
+        l.map((x,i) => (i+1)+'. '+esc(x.n)+
+          (x.cod ? ' ['+esc(x.cod)+']' : '')+
+          (x.comp ? ' · complejidad '+esc(x.comp) : '')+
+          ' · '+esc(nombreVia(x.via))+
+          ' · <b>'+x.pct+' %</b>').join('<br>')+
+        '</td></tr>';
+    })()+
     '<tr><td><b>Especialidad:</b> '+esc(f.especialidad||'—')+'</td>'+
       '<td><b>Diagnóstico:</b> '+esc(f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '—')+'</td></tr>'+
     '<tr><td><b>Cirujano/a:</b> '+esc(eq.cirujano || f.cirujano || '—')+
@@ -260,7 +275,7 @@ function documentoFicha(f, opts){
     par('Accesos vasculares', pl.accesos)+
     par('Profilaxis antibiótica', pl.atb === 'Otro' ? pl.atbOtro : pl.atb)+
     par('Tromboprofilaxis', pl.tev) + par('Profilaxis de NVPO', pl.nvpo)+
-    par('Analgesia postoperatoria', pl.analgesia) + par('Esquema analgésico', pl.analgesiaDetalle)+
+
     par('Previsión transfusional', pl.transfusion) + par('Destino postoperatorio', pl.destino)+
     par('Indicaciones al paciente', pl.indicaciones) + par('Observaciones', pl.observaciones)))+
 
@@ -394,13 +409,29 @@ function documentoActo(f){
     /* ------------------------ signos vitales ------------------------ */
     '<h3>Signos vitales intraoperatorios</h3>'+
     (ctrls.length
-      ? '<table><tr><th>Hora</th><th>TA (mmHg)</th><th>FC (lpm)</th><th>SpO₂ (%)</th>'+
+      ? '<table><tr><th>Hora</th><th>TA (mmHg)</th><th>PAM</th><th>FC (lpm)</th>'+
+        '<th>FR (rpm)</th><th>SpO₂ (%)</th>'+
         '<th>EtCO₂ (mmHg)</th><th>Temp (°C)</th><th>TOF</th></tr>'+
-        ctrls.map(c => '<tr><td>'+esc(c.hora||'—')+'</td>'+
-          '<td>'+esc(valorVital(c,'ta')||'—')+'</td><td>'+esc(c.fc||'—')+'</td>'+
+        ctrls.map(c => '<tr><td>'+esc(c.hora||'—')+
+            /* Los controles cargados con el preseteado de valores normales
+               salen marcados tambien en el papel: quien lea la historia tiene
+               que poder distinguir el valor tipeado del preseteado. */
+            (c.preset ? ' <span style="font-size:8px;letter-spacing:.4px">NORMAL</span>' : '')+
+          '</td>'+
+          '<td>'+esc(valorVital(c,'ta')||'—')+'</td>'+
+          '<td>'+esc(valorVital(c,'pam')||'—')+'</td>'+
+          '<td>'+esc(c.fc||'—')+'</td><td>'+esc(c.fr||'—')+'</td>'+
           '<td>'+esc(c.spo2||'—')+'</td><td>'+esc(c.etco2||'—')+'</td>'+
           '<td>'+esc(c.temp||'—')+'</td><td>'+esc(c.tof||'—')+'</td></tr>').join('')+
-        '</table>'
+        '</table>'+
+        (ctrls.some(c => c.preset)
+          ? '<p style="font-size:9.5px">Los controles marcados <b>NORMAL</b> se cargaron con el '+
+            'preseteado de valores normales calculado para este paciente y confirmados por el '+
+            'anestesiólogo actuante.</p>' : '')+
+        (ctrls.some(c => c.tofSitio)
+          ? '<p style="font-size:9.5px">TOF medido en: '+
+            esc(Array.from(new Set(ctrls.map(c => c.tofSitio).filter(Boolean))).join(' · '))+
+            '. El recuento se expresa sobre 4 respuestas; el cociente T4/T1, en por ciento.</p>' : '')
       : '<p style="font-size:10.5px">Sin controles registrados.</p>')+
 
     /* -------------------------- balance ----------------------------- */
@@ -433,7 +464,7 @@ function documentoActo(f){
 
 function documentoRecuperacion(f){
   const r = f.recup || {};
-  if(!r.aldreteTotal && !r.destino && !r.observaciones) return '';
+  if(!r.aldreteTotal && !r.destino && !r.observaciones && !(r.analgesia||[]).length) return '';
   return seccion('Recuperación postanestésica',
     par('Hora de ingreso a la URPA', r.hora)+
     par('Oxigenoterapia', r.oxigeno)+
@@ -449,6 +480,19 @@ function documentoRecuperacion(f){
     par('Náuseas / vómitos', r.nauseas === 'si' ? 'Sí' : (r.nauseas === 'no' ? 'No' : ''))+
     par('Rescate administrado', r.rescate)+
     par('Destino', r.destino) + par('Estado al egreso', r.estado)+
+    /* La analgesia postoperatoria se indica al egreso de la URPA, no en la
+       valoracion prequirurgica: se imprime aca, que es donde se decidio.
+       Las fichas anteriores a la mudanza la tienen en el plan y se imprime
+       igual, para que no desaparezca de ningun documento ya emitido. */
+    par('Analgesia postoperatoria indicada',
+        (r.analgesia && r.analgesia.length) ? r.analgesia : (f.plan||{}).analgesia)+
+    par('Esquema analgésico detallado',
+        r.analgesiaDetalle || (f.plan||{}).analgesiaDetalle)+
+    par('Duración prevista del esquema',
+        r.analgesiaDuracion || (f.plan||{}).analgesiaDuracion)+
+    par('Rescate analgésico indicado',
+        r.analgesiaRescate || (f.plan||{}).analgesiaRescate)+
+    par('Seguimiento del dolor a cargo de', r.analgesiaResponsable)+
     par('Observaciones', r.observaciones));
 }
 
@@ -551,7 +595,10 @@ function docPacienteConsentimiento(f){
       par('Apellido y nombre', (p.apellido||'')+', '+(p.nombre||''))+
       par('DNI', p.dni) + par('Historia clínica', p.hc)+
       par('Edad', ed !== null ? ed+' años' : '')+
-      par('Cirugía propuesta', f.cirugia)+
+      /* El consentimiento es de ESTAS intervenciones. Si se hacen tres y el
+         papel nombra una, el consentimiento no cubre las otras dos
+         (Ley 26.529, art. 5: se informa el procedimiento propuesto). */
+      par('Cirugía propuesta', procedimientosFacturables(f).map(x => x.n).join(' + ') || f.cirugia)+
       par('Diagnóstico', f.diagnostico)+
       par('Lateralidad', f.lateralidad && f.lateralidad !== 'No aplica' ? f.lateralidad : '')+
       par('Institución', nombreInstitucion(f.institucion))+
@@ -611,7 +658,7 @@ function docPacienteIndicaciones(f){
     '<div class="indic">'+
       '<p>Estimado/a <b>'+esc(p.nombre || p.apellido || 'paciente')+'</b>: estas son las '+
       'indicaciones que tiene que cumplir antes de su '+
-      (f.cirugia ? '<b>'+esc(f.cirugia)+'</b>' : 'intervención')+'. '+
+      (f.cirugia ? '<b>'+esc(textoProcedimientos(f) || f.cirugia)+'</b>' : 'intervención')+'. '+
       'Léalas con atención y guarde esta hoja.</p>'+
 
       '<h2>Ayuno</h2>'+
@@ -717,14 +764,24 @@ function tablaExcel(titulo, cabeceras, filas, resumen){
 }
 
 function exportarFacturacionExcel(l, mes){
-  const cab = ['Fecha','Concepto','Paciente','DNI','Cirugía','Diagnóstico','Institución','Financiador',
+  /* «Procedimientos» y «Detalle 100/75/50 %» son la respuesta escrita a la
+     pregunta que hace toda auditoria: de donde salieron las UA de la factura
+     cuando en el mismo acto se hizo mas de una cirugia. */
+  const cab = ['Fecha','Concepto','Paciente','DNI','Cirugía','Procedimientos','Detalle 100/75/50 %',
+    'Diagnóstico','Institución','Financiador',
     'CUIT financiador','Profesional','Carácter','ASA','Modalidad','UA','Valor unidad',
     'Adicionales %','Importe','Estado','Comprobante','Cobrado'];
   const filas = l.map(x => {
     const f = x.ficha, p = DB.pacientes[f.pacienteId] || {}, h = f.hon || {};
     return [ fFecha(f.fecha), x.tipo === 'consulta' ? 'Valoración prequirúrgica' : 'Acto anestésico',
       (p.apellido||'')+', '+(p.nombre||''), p.dni||'',
-      f.cirugia||'', f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '',
+      f.cirugia||'',
+      procedimientosFacturables(f).map(y => y.n).join(' + '),
+      (h.detalleProcedimientos && h.detalleProcedimientos.length
+        ? h.detalleProcedimientos.map(y => y.n+' '+y.ua+' UA al '+y.pct+' % = '+
+            fNum(y.uaEfectiva,2)+' UA').join(' | ')
+        : procedimientosFacturables(f).map(y => y.n+' al '+y.pct+' %').join(' | ')),
+      f.diagnostico || (f.dxQuirurgico ? f.dxQuirurgico.d : '') || '',
       nombreInstitucion(f.institucion), f.obraSocial||'',
       (datosFinanciador(f.obraSocial)||{}).cuit || '', nombreUsuario(x.uid),
       nombreCaracter(caracterActo(f)), ((f.v||{}).scores||{}).asa || '',
@@ -768,7 +825,8 @@ function exportarEstadisticas(l, corteNombre, datos){
     const hv = v ? Number((f.honConsulta||{}).total || 0) : 0;
     const ha = a ? Number((f.hon||{}).total || 0) : 0;
     return [ fFecha(f.fecha), (p.apellido||'')+', '+(p.nombre||''), nombreInstitucion(f.institucion),
-      f.obraSocial||'', f.cirugia||'', f.especialidad||'', nombreCaracter(caracterActo(f)),
+      f.obraSocial||'', procedimientosFacturables(f).map(y => y.n).join(' + ') || f.cirugia || '',
+      f.especialidad||'', nombreCaracter(caracterActo(f)),
       v ? (((f.v||{}).scores||{}).asa || '') : '',
       v ? 'Sí' : 'No', v ? nombreUsuario(f.ownerUid) : '', v ? hv.toFixed(2) : '',
       a ? 'Sí' : 'No', a ? nombreActor(f) : '', a ? ha.toFixed(2) : '',
@@ -835,7 +893,7 @@ function imprimirFacturacion(l, mes, tot, porOS, porInst){
       return '<tr><td>'+fFecha(f.fecha)+'</td>'+
       '<td>'+(x.tipo==='consulta'?'Valoración prequirúrgica':'Acto anestésico')+'</td>'+
       '<td>'+esc((p.apellido||'')+', '+(p.nombre||''))+'</td>'+
-      '<td>'+esc(f.cirugia||'')+'</td><td>'+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+'</td>'+
+      '<td>'+esc(textoProcedimientos(f)||'')+'</td><td>'+esc(nombreInstitucion(f.institucion).split('"')[0].trim())+'</td>'+
       '<td>'+esc(f.obraSocial||'')+'</td><td>'+fMoneda(x.monto)+'</td>'+
       '<td>'+esc(x.estado)+'</td></tr>'; }).join('')+
     '<tr style="font-weight:bold;background:#eef4fa"><td colspan="6">TOTAL</td>'+
