@@ -476,17 +476,19 @@ http://127.0.0.1/*</code></pre>
         <li><b>manifest.webmanifest</b><span>Nombre, colores e íconos para instalarla como app.</span></li>
         <li><b>sw.js</b><span>Service worker: la hace andar sin conexión.</span></li>
         <li><b class="carpeta">icons/</b><span>Los tres PNG: 192, 512 y maskable-512.</span></li>
-        <li><b>.nojekyll</b><span>Archivo vacío. Evita que GitHub procese la carpeta a su manera.</span></li>
+        <li><b class="carpeta">manual/</b><span>Las 11 fotos del manual. <strong>No van adentro de <code>index.html</code></strong>: se cargan por ruta relativa, así que sin esta carpeta el manual se ve con las imágenes rotas.</span></li>
+        <li><b>manual-afaar.pdf<br>manual-afaar-completo.pdf</b><span>El manual en PDF que <strong>la propia app ofrece descargar</strong> desde la vista Manual. Sin ellos, ese botón da error 404. El completo, con el anexo de coordinación, sólo lo ve el coordinador.</span></li>
+        <li><b>.nojekyll</b><span>Archivo vacío. Evita que GitHub procese la carpeta a su manera. Se sube una vez y no cambia nunca.</span></li>
       </ul>
     </div>
     <div class="caja-arch si">
       <h4>Muy recomendable — el código fuente</h4>
       <ul>
-        <li><b class="carpeta">src/</b><span>Los 34 archivos de donde sale <code>index.html</code>. Sin esto no se puede volver a modificar la app desde otra computadora.</span></li>
+        <li><b class="carpeta">src/</b><span>Los 37 archivos de donde sale <code>index.html</code>. Sin esto no se puede volver a modificar la app desde otra computadora.</span></li>
         <li><b>build.py</b><span>El armador.</span></li>
         <li><b class="carpeta">apps-script/</b><span>El programa de los correos.</span></li>
         <li><b>README.md · PUBLICAR.md<br>ENVIO-DE-MAILS.md<br>reglas-firebase.txt</b><span>La documentación.</span></li>
-        <li><b>make-icons.py<br>abrir-afar.command</b><span>Utilidades.</span></li>
+        <li><b>make-icons.py<br>manual-a-word.py<br>abrir-afar.command</b><span>Utilidades. <code>manual-a-word.py</code> rehace los dos Word del manual desde <code>src/data-manual.js</code>.</span></li>
       </ul>
     </div>
   </div>
@@ -498,6 +500,7 @@ http://127.0.0.1/*</code></pre>
       <li><b class="carpeta">.claude/</b><span>Configuración local.</span></li>
       <li><b class="carpeta">respaldos/ · afar-respaldo-*.json</b><span><strong>Contienen historias clínicas.</strong> No van a un repositorio público, nunca.</span></li>
       <li><b>GUÍA COMPLETA… .webarchive</b><span>Pesa 1,6 MB y no sirve para nada en línea.</span></li>
+      <li><b class="carpeta">manual-word/</b><span>La plantilla del generador de Word. La app no la usa.</span></li>
     </ul>
   </div>
 
@@ -508,7 +511,7 @@ http://127.0.0.1/*</code></pre>
   <ol class="pasos">
     <li><p>Entrá a <a href="https://github.com/claudioravasi-ai/afar">github.com/claudioravasi-ai/afar</a>.</p></li>
     <li><p>Botón <strong>Add file</strong> (arriba a la derecha) → <strong>Upload files</strong>.</p></li>
-    <li><p>Abrí el Finder en <code>~/Desktop/Claude/afar</code> y arrastrá al navegador los archivos sueltos y <strong>las carpetas enteras</strong> <code>icons</code>, <code>src</code> y <code>apps-script</code>.</p>
+    <li><p>Abrí el Finder en <code>~/Desktop/Claude/afar</code> y arrastrá al navegador los archivos sueltos —incluidos <code>manual-afaar.pdf</code> y <code>manual-afaar-completo.pdf</code>— y <strong>las carpetas enteras</strong> <code>icons</code>, <code>manual</code>, <code>src</code> y <code>apps-script</code>.</p>
       <div class="nota ojo">
         <span class="nota-rotulo">Arrastrá la carpeta, no lo de adentro</span>
         <p>GitHub respeta la estructura si arrastrás la carpeta. Si la abrís y subís los archivos sueltos, quedan todos en la raíz y la app no los encuentra.</p>
@@ -626,6 +629,7 @@ const CLAVE_CONTABLE    = '2358';</code></pre>
 <footer>
   <p><strong>Marco legal.</strong> Ley 25.326 (datos personales), Leyes 26.529 y 26.742 (derechos del paciente e historia clínica). Conservación mínima: <strong>diez años</strong> desde la última actuación. Los respaldos JSON contienen datos de salud: guardalos cifrados y nunca en un repositorio público.</p>
   <p style="margin-top:1rem">Esta misma guía queda en el repositorio como <code>PUBLICAR.md</code>, y el detalle del envío de correos en <code>ENVIO-DE-MAILS.md</code>.</p>
+  <p style="margin-top:.6rem;font-size:.9rem;color:var(--tinta-3)">Guía revisada el <b>30-08-2026</b>. Si corregís <code>PUBLICAR.md</code>, corregí también esta página: son dos archivos distintos y no se generan uno del otro.</p>
 </footer>
 
 </div>
