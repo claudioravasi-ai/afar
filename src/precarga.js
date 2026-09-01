@@ -65,9 +65,32 @@ let precargaActual = null;
 let precargaPaso   = 'entrada';  /* entrada | enviado | datos | salud | turno | fin */
 let precargaSel    = null;
 let precargaTicket = null;       /* dataURL de la foto, mientras se completa */
+let precargaTicketGuardado = null; /* la que ya esta en la base, para no resubirla */
 
+/* =========================================================================
+   POR QUE LA FOTO NO VIVE EN EL MISMO NODO QUE LA FICHA
+
+   La bandeja se suscribe a la rama para armar la agenda, y una suscripcion de
+   Firebase se baja el nodo ENTERO: si la foto del ticket colgara de la misma
+   ficha, cada anestesiologo se bajaria TODAS las fotos cada vez que abre la
+   aplicacion, sin haber pedido ninguna.
+
+   Con numeros medidos: un ticket sacado con el telefono queda en 76 KB
+   despues de comprimir. Cuarenta precargas pendientes son 3 MB. Ocho socios
+   abriendo la app dos veces por dia son 48 MB por dia, 1,4 GB por mes -de los
+   10 GB gratis- gastados en bajar fotos que nadie miro.
+
+   Separadas, la agenda pesa alrededor de 1 KB por precarga: los mismos ocho
+   socios gastan unos 19 MB por mes. Setenta y cinco veces menos.
+
+   Es el mismo criterio que ya usa `afar/archivos` para los partes
+   quirurgicos fotografiados, y por el mismo motivo. Ver core.js.
+   ========================================================================= */
 function refPrecarga(token){
-  return (fbDb && token) ? fbDb.ref(PRECARGA_RAIZ + '/' + token) : null;
+  return (fbDb && token) ? fbDb.ref(PRECARGA_RAIZ + '/fichas/' + token) : null;
+}
+function refPrecargaFoto(token){
+  return (fbDb && token) ? fbDb.ref(PRECARGA_RAIZ + '/fotos/' + token) : null;
 }
 
 function tokenDeLaUrlPrecarga(){
@@ -117,7 +140,14 @@ function arrancarPrecarga(){
         fFecha(d.vence) + '. Empezá de nuevo y te mandamos uno nuevo.');
 
       precargaActual = d;
-      precargaTicket = d.ticket || null;
+      precargaTicket = null; precargaTicketGuardado = null;
+      /* La foto vive en otra rama: se pide una sola vez, al abrir, para que el
+         paciente vea la que ya habia subido. */
+      if(d.conTicket) refPrecargaFoto(token).once('value')
+        .then(f => { precargaTicket = f.val() || null;
+                     precargaTicketGuardado = precargaTicket;
+                     pintarTicketPrecarga(); })
+        .catch(() => {});
       const s = d.salud || {};
       precargaSel = {
         antecedentes: (s.antecedentes || []).slice(),
@@ -423,13 +453,23 @@ function leerPrecargaTurno(){
    mitad, vuelve con el mismo enlace y encuentra lo cargado. */
 function guardarBorradorPrecarga(){
   if(!precargaActual || !fbDb) return Promise.resolve();
-  return refPrecarga(precargaActual.token).update({
+  const p = [refPrecarga(precargaActual.token).update({
     datos: precargaActual.datos || {},
     salud: precargaActual.salud || {},
     turno: precargaActual.turno || {},
-    ticket: precargaTicket || null,
+    conTicket: !!precargaTicket,
     tocado: new Date().toISOString()
-  }).catch(e => console.warn('borrador precarga', e));
+  })];
+  /* La foto va a su propia rama y solo si cambio: es lo unico pesado de todo
+     esto y no hay razon para reenviarla en cada paso. */
+  if(precargaTicket && precargaTicket !== precargaTicketGuardado){
+    p.push(refPrecargaFoto(precargaActual.token).set(precargaTicket)
+      .then(() => { precargaTicketGuardado = precargaTicket; }));
+  } else if(!precargaTicket && precargaTicketGuardado){
+    p.push(refPrecargaFoto(precargaActual.token).remove()
+      .then(() => { precargaTicketGuardado = null; }));
+  }
+  return Promise.all(p).catch(e => console.warn('borrador precarga', e));
 }
 
 function finalizarPrecarga(){
@@ -452,11 +492,11 @@ function finalizarPrecarga(){
       'cambian el manejo de su anestesia.</p>',
     () => {
       toast('Enviando…');
+      guardarBorradorPrecarga().then(() =>
       refPrecarga(precargaActual.token).update({
         datos: precargaActual.datos || {},
         salud: precargaActual.salud || {},
         turno: t,
-        ticket: precargaTicket || null,
         conTicket: !!precargaTicket,
         /* Denormalizados para que la bandeja pueda ordenar y agrupar sin
            tener que abrir cada precarga entera. */
@@ -466,7 +506,7 @@ function finalizarPrecarga(){
         estado: 'enviada',
         enviada: new Date().toISOString(),
         purga: fechaMasDias(t.fecha, PRECARGA_PURGA)
-      })
+      }))
       .then(() => { precargaActual.estado = 'enviada'; precargaPaso = 'fin'; pintarPrecarga(); })
       .catch(e => {
         console.warn('finalizar precarga', e);
@@ -548,16 +588,19 @@ let escuchaPrecargas = null;
 
 function suscribirPrecargas(){
   if(!fbDb || escuchaPrecargas) return;
-  escuchaPrecargas = fbDb.ref(PRECARGA_RAIZ);
+  escuchaPrecargas = fbDb.ref(PRECARGA_RAIZ + '/fichas');
   escuchaPrecargas.on('value', sn => {
     const d = sn.val() || {};
     /* Los borradores no se muestran: es gente que pidio el enlace y todavia
        no completo nada. Mostrarlos seria una lista de nombres a medio
        escribir que no le sirve a nadie. */
+    /* Solo las pendientes. Los borradores son gente que pidio el enlace y no
+       completo nada, y las tomadas ya son un paciente del padron: ninguna de
+       las dos le sirve a nadie en la bandeja, y tenerlas en memoria seria
+       bajarlas en cada arranque para nada. Quien tomo cada una queda en la
+       auditoria, que es donde corresponde. */
     PRECARGAS = {};
-    Object.keys(d).forEach(k => {
-      if(d[k] && (d[k].estado === 'enviada' || d[k].estado === 'tomada')) PRECARGAS[k] = d[k];
-    });
+    Object.keys(d).forEach(k => { if(d[k] && d[k].estado === 'enviada') PRECARGAS[k] = d[k]; });
     if($('#vPacientes') && $('#vPacientes').classList.contains('on') && alcancePac === 'precargas')
       vistaPacientes();
   }, e => console.warn('precargas', e));
@@ -670,8 +713,10 @@ function abrirPrecarga(token){
     '</div>'+
 
     '<h4 class="mini strong mt14">Ticket del turno</h4>'+
-    (p.ticket
-      ? '<img src="' + p.ticket + '" alt="Ticket del turno" class="ticket-grande">'
+    /* La foto se pide recien acá, no viene con la agenda: ver el comentario de
+       refPrecargaFoto(). Mientras llega se muestra que está cargando. */
+    (p.conTicket
+      ? '<div id="preTicketVer" class="portal-cargando">' + ico('nube') + ' Trayendo el ticket…</div>'
       : '<div class="aviso warn">' + ico('alerta') + '<div><b>No adjuntó el ticket.</b> No hay '+
         'comprobante de que el turno exista. Confirmalo antes de preparar nada.</div></div>')+
 
@@ -685,6 +730,19 @@ function abrirPrecarga(token){
     '<button class="btn pri" id="preTomar">' + ico('check') + ' Tomar este paciente</button>');
 
   $('#preTomar').onclick = () => tomarPrecarga(token);
+
+  if(p.conTicket) refPrecargaFoto(token).once('value')
+    .then(f => {
+      const c = $('#preTicketVer'); if(!c) return;
+      const d = f.val();
+      c.outerHTML = d
+        ? '<img src="' + d + '" alt="Ticket del turno" class="ticket-grande">'
+        : '<div class="aviso warn">' + ico('alerta') + '<div>La foto del ticket no se '+
+          'encontró.</div></div>';
+    })
+    .catch(() => { const c = $('#preTicketVer');
+      if(c) c.outerHTML = '<div class="aviso warn">' + ico('alerta') +
+        '<div>No se pudo traer la foto del ticket.</div></div>'; });
 }
 
 /* -------------------------------------------------------- Tomarla
@@ -734,6 +792,11 @@ function tomarPrecarga(token){
           estado:'tomada', tomadaPor:SESION.uid,
           tomadaEn:new Date().toISOString(), pacienteId:p.id
         }).catch(e => console.warn('tomar precarga', e));
+        /* La foto del ticket ya cumplio: servia para confirmar que el turno
+           existia ANTES de tomarlo. Tomado el paciente, la documentacion es la
+           ficha; el ticket no es historia clinica y no hay razon para
+           guardarlo indefinidamente ocupando la base. */
+        refPrecargaFoto(token).remove().catch(() => {});
 
         auditar('precarga-tomada',
           'Precarga tomada para ' + (p.apellido || '') + ', ' + (p.nombre || '') +
@@ -781,9 +844,8 @@ function purgarPrecargasVencidas(){
   if(!fbDb) return;
   const hoy = hoyISO();
   Object.values(PRECARGAS).forEach(p => {
-    if(p.estado === 'tomada') return;
     if(!p.purga || p.purga >= hoy) return;
-    refPrecarga(p.token).remove()
+    Promise.all([refPrecarga(p.token).remove(), refPrecargaFoto(p.token).remove()])
       .then(() => auditar('precarga-vencida',
         'Precarga sin tomar de ' + (p.apellido || '?') + ' borrada al vencer'))
       .catch(e => console.warn('purga', e));

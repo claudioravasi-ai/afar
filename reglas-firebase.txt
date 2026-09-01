@@ -138,15 +138,38 @@ LA PRECARGA ABIERTA  (obligatorio para esa funcion)
 --------------------------------------------------------------------
 La otra puerta de entrada: la persona que saco turno en una institucion, no
 existe todavia en la app, y entra sola a  .../#precarga  a dejar sus datos.
-Necesita una segunda rama, tambien colgada de la RAIZ:
+Necesita una segunda rama, tambien colgada de la RAIZ, y esa rama tiene DOS
+sub-ramas que conviene entender porque no es un capricho:
+
+  fichas   los datos: filiacion, salud y turno. Livianos, alrededor de 1 KB
+           cada uno. Es lo que la bandeja se suscribe para armar la agenda.
+  fotos    la foto del ticket del turno. Alrededor de 76 KB cada una.
+
+Estan separadas porque una suscripcion de Firebase se baja el nodo ENTERO. Si
+la foto colgara de la misma ficha, cada anestesiologo se bajaria TODAS las
+fotos cada vez que abre la aplicacion, sin haber pedido ninguna: cuarenta
+precargas pendientes son 3 MB por arranque, y ocho socios abriendo la app dos
+veces por dia gastarian 1,4 GB al mes de los 10 GB gratis en fotos que nadie
+miro. Separadas, la agenda pesa unos 40 KB y la foto se pide de a una, cuando
+alguien abre esa precarga. Setenta y cinco veces menos trafico.
+
+Es el mismo criterio que ya usa `afar/archivos` con los partes quirurgicos
+fotografiados.
 
   "afar-precargas": {
-    ".read": false,
-    ".indexOn": ["estado", "fecha"],
-    "$token": {
-      ".read":  "$token.length >= 20",
-      ".write": "$token.length >= 20 &&
-                 (!data.exists() || data.child('estado').val() != 'tomada')"
+    "fichas": {
+      ".read": "auth != null",
+      ".indexOn": ["estado", "fecha"],
+      "$token": {
+        ".write": "$token.length >= 20 &&
+                   (!data.exists() || data.child('estado').val() != 'tomada')"
+      }
+    },
+    "fotos": {
+      "$token": {
+        ".read":  "$token.length >= 20 || auth != null",
+        ".write": "$token.length >= 20"
+      }
     }
   }
 
@@ -200,10 +223,18 @@ QUEDARIA ASI, LAS TRES RAMAS JUNTAS:
       }
     },
     "afar-precargas": {
-      ".read": "auth != null",
-      ".indexOn": ["estado", "fecha"],
-      "$token": {
-        ".write": "$token.length >= 20 && (!data.exists() || data.child('estado').val() != 'tomada')"
+      "fichas": {
+        ".read": "auth != null",
+        ".indexOn": ["estado", "fecha"],
+        "$token": {
+          ".write": "$token.length >= 20 && (!data.exists() || data.child('estado').val() != 'tomada')"
+        }
+      },
+      "fotos": {
+        "$token": {
+          ".read":  "$token.length >= 20 || auth != null",
+          ".write": "$token.length >= 20"
+        }
       }
     }
   }
