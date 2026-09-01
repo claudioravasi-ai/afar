@@ -86,7 +86,7 @@ function gradoTrauma(ctx){
   return GRADOS_TRAUMA.find(x => x.g === g) || GRADOS_TRAUMA[1];
 }
 
-/* Horas de ayuno declaradas en el punto 10 de la valoracion. Si no estan, se
+/* Horas de ayuno declaradas en el punto 6 de la valoracion. Si no estan, se
    usan las 8 h del ayuno habitual, dicho como supuesto. */
 function horasDeAyuno(f){
   const ay = ((f.v || {}).ayuno) || {};
@@ -161,8 +161,8 @@ function planDeFluidos(f){
         : ' Sin vía de abordaje declarada: se asume moderado.') });
   motivos.push({ t:'Ayuno', v: fNum(ayuno.h,1)+' h',
     d: ayuno.supuesto
-      ? 'No hay hora de última ingesta cargada en el punto 10: se asumen 8 h.'
-      : 'Calculado sobre la hora de la última ingesta del punto 10.' });
+      ? 'No hay hora de última ingesta cargada en el punto 6: se asumen 8 h.'
+      : 'Calculado sobre la hora de la última ingesta del punto 6.' });
 
   /* ---------------- correcciones por lo que el paciente tiene ------------ */
   let factor = 1, restrictivo = false;
@@ -215,7 +215,7 @@ function planDeFluidos(f){
         'sin revisar la voluntad del paciente y lo firmado en el consentimiento.' });
   if(tieneMed(ctx.meds, /furosemida|diurético|diuretico/i))
     advertencias.push({ n:'Diurético habitual', c:'warn',
-      d:'Suele llegar hipovolémico y con potasio bajo. Revisar el ionograma del punto 8.' });
+      d:'Suele llegar hipovolémico y con potasio bajo. Revisar el ionograma del punto 4.' });
   if(tieneMed(ctx.meds, /iSGLT2|empagliflozina|dapagliflozina/i))
     advertencias.push({ n:'iSGLT2 sin suspender', c:'warn',
       d:'Riesgo de cetoacidosis euglucémica y de depleción de volumen.' });
@@ -294,7 +294,7 @@ function eventosProbables(f, tope){
   const vaDificilPrevista = (((f.v||{}).va||{}).intubacionPrevia === 'Sí' ) ||
                             Number((((f.v||{}).va||{}).mallampati||'').replace(/\D/g,'')) >= 3;
   if(fl.viaAerea || vaDificilPrevista){
-    sumar('Intubación dificultosa', 5, 'vía aérea prevista dificultosa en el punto 7');
+    sumar('Intubación dificultosa', 5, 'vía aérea prevista dificultosa en el punto 3');
     sumar('Lesión dentaria', 2, 'laringoscopia dificultosa prevista');
   }
   if(fl.saos){ sumar('Desaturación', 5, 'SAHOS'); sumar('Intubación dificultosa', 3, 'SAHOS'); }
@@ -339,7 +339,7 @@ function eventosProbables(f, tope){
   /* --------------------------- otros sistemas ------------------------ */
   if(fl.diabetes) sumar('Isquemia miocárdica', 2, 'diabetes');
   if(((f.v||{}).alergias||[]).length || (f.v||{}).alergiaDetalle)
-    sumar('Reacción alérgica / anafilaxia', 4, 'alergias declaradas en el punto 4');
+    sumar('Reacción alérgica / anafilaxia', 4, 'alergias declaradas en la historia del paciente');
   if(/latex|látex|antibiótic|antibiotic|penicilina/i.test(String((f.v||{}).alergiaDetalle||'') +
       ' ' + ((f.v||{}).alergias||[]).join(' ')))
     sumar('Reacción alérgica / anafilaxia', 2, 'alérgeno de riesgo anestésico');

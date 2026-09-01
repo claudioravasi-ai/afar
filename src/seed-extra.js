@@ -73,6 +73,7 @@ function sembrarEquipoDemo(){
     apellido:'Coronel', nombre:'Héctor Daniel', dni:'16443902', fechaNac:'1963-04-25',
     sexo:'M', peso:'88', talla:'175', obraSocial:'IPAUSS / OSEF (Tierra del Fuego)',
     nroAfiliado:'TF-164439', telefono:'2901-223344', grupoSanguineo:'B+',
+    email:'hd.coronel@ejemplo.com',
     domicilio:'Magallanes 780', localidad:'Ushuaia',
     contactoEmergencia:'Silvia Coronel (esposa) — 2901-223345',
     observaciones:'Tabaquista de 30 paquetes-año. EPOC leve.', creado:diaRel(-30)
@@ -82,6 +83,7 @@ function sembrarEquipoDemo(){
     apellido:'Aguirre', nombre:'Lucía', dni:'42557318', fechaNac:'2000-08-19',
     sexo:'F', peso:'62', talla:'168', obraSocial:'Swiss Medical',
     nroAfiliado:'SM-4255731', telefono:'2964-660011', grupoSanguineo:'A-',
+    email:'lucia.aguirre@ejemplo.com',
     domicilio:'Perito Moreno 45', localidad:'Río Grande',
     contactoEmergencia:'Norma Aguirre (madre) — 2964-660012',
     observaciones:'Sin antecedentes de relevancia.', creado:diaRel(-21)
@@ -91,6 +93,7 @@ function sembrarEquipoDemo(){
     apellido:'Barrientos', nombre:'Omar', dni:'12908744', fechaNac:'1957-12-09',
     sexo:'M', peso:'102', talla:'170', obraSocial:'PAMI - INSSJP',
     nroAfiliado:'150-12908744-01', telefono:'2901-771122', grupoSanguineo:'0+',
+    email:'omar.barrientos@ejemplo.com',
     domicilio:'Yaganes 66', localidad:'Ushuaia',
     contactoEmergencia:'Elsa Barrientos (hija) — 2901-771123',
     observaciones:'Insuficiencia renal crónica en diálisis trisemanal.', creado:diaRel(-150)
@@ -100,6 +103,7 @@ function sembrarEquipoDemo(){
     apellido:'Quiroga', nombre:'Valentina', dni:'45120983', fechaNac:'2003-03-14',
     sexo:'F', peso:'55', talla:'162', obraSocial:'Particular / Privado',
     telefono:'2901-909090', grupoSanguineo:'A+',
+    email:'valen.quiroga@ejemplo.com',
     domicilio:'Fuegia Basket 300', localidad:'Ushuaia',
     contactoEmergencia:'Pablo Quiroga (padre) — 2901-909091',
     observaciones:'', creado:diaRel(-3)
@@ -641,7 +645,7 @@ function sembrarReintervencionDemo(){
     apellido:'Ledesma', nombre:'Ana Clara', dni:'27655310', fechaNac:'1979-03-22',
     sexo:'F', peso:'68', talla:'165', obraSocial:'OSDE', nroAfiliado:'62-2765531-04',
     telefono:'2901-447722', grupoSanguineo:'0+', domicilio:'Karukinka 1180',
-    localidad:'Ushuaia', email:'',
+    localidad:'Ushuaia', email:'anaclara.ledesma@ejemplo.com',
     contactoEmergencia:'Sergio Ledesma (hermano) — 2901-447723',
     observaciones:'Paciente de prueba para el circuito de reintervencion.',
     creado:diaRel(-4)

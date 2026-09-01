@@ -393,9 +393,22 @@ function iniciar(){
   }
   parsearCatalogos();
   parsearNomenclador();
+  aplicarTema(localStorage.getItem(LS_TEMA) || 'claro');
+
+  /* ---- Modo paciente ----
+     Si la direccion trae #p=<token>, esto no es la aplicacion: es la ficha de
+     un paciente que la esta completando desde su casa. No se carga la base
+     local, no se siembra la demostracion y no se muestra el ingreso. Se
+     conecta a Firebase solo para leer y escribir SU pedido, y se corta acá.
+     Ver paciente-portal.js. */
+  if(esModoPaciente()){
+    iniciarNube();
+    arrancarPortalPaciente();
+    return;
+  }
+
   cargarLocal();
   sembrarDemo();                       /* sólo si la base está vacía */
-  aplicarTema(localStorage.getItem(LS_TEMA) || 'claro');
   iniciarNube();
 
   /* pestañas de la pantalla de acceso */

@@ -1294,3 +1294,107 @@ html[data-tema="oscuro"] .falta-chips button:hover{background:rgba(255,255,255,.
 .baja-card{border-color:var(--danger)}
 .baja-card h3{color:var(--danger)}
 .baja-card #bjReloj{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ==================================================================== *
+ *  HISTORIA DEL PACIENTE DENTRO DE LA VALORACION Y CONDUCTA PERIOP.    *
+ *  Ver htmlHistoriaEnValoracion() y pintarConductaPeriop() en          *
+ *  ui-valoracion.js. La primera es una tarjeta de LECTURA: se ve que   *
+ *  es consulta y no formulario. El panel de conducta es un calendario: *
+ *  cada grupo lleva el color de lo que hay que hacer.                  *
+ * ==================================================================== */
+.historia-val{border:1.5px solid var(--borde)}
+.hist-lista{display:grid;gap:2px}
+.hist-lista .par{display:grid;grid-template-columns:150px 1fr;gap:10px;
+  padding:8px 0;border-top:1px solid var(--borde)}
+.hist-lista .par:first-child{border-top:0}
+.hist-lista .par .k{font-size:11.5px;font-weight:600;color:var(--texto-2);
+  text-transform:uppercase;letter-spacing:.03em;padding-top:2px}
+.hist-lista .par .v{font-size:13px;line-height:1.65;display:flex;
+  flex-wrap:wrap;gap:5px;align-items:flex-start}
+@media (max-width:560px){
+  .hist-lista .par{grid-template-columns:1fr;gap:3px}
+}
+
+.periop-grupo{border:1.5px solid var(--borde);border-radius:var(--radio-sm);
+  padding:11px 12px;margin-top:11px}
+.periop-grupo h4{display:flex;align-items:center;gap:8px;margin:0 0 9px;
+  font-size:12.5px;text-transform:uppercase;letter-spacing:.03em}
+.periop-grupo h4 svg{width:16px;height:16px;flex:none}
+.periop-grupo h4 .tag{margin-left:auto}
+.periop-grupo.danger{border-color:var(--danger)}
+.periop-grupo.danger h4{color:var(--danger)}
+.periop-grupo.warn{border-color:var(--warn)}
+.periop-grupo.warn h4{color:var(--warn)}
+.periop-grupo.ok{border-color:var(--ok)}
+.periop-grupo.ok h4{color:var(--ok)}
+
+.periop-item{padding:9px 0;border-top:1px solid var(--borde)}
+.periop-item:first-of-type{border-top:0;padding-top:0}
+.periop-n{font-size:13.5px}
+.periop-n .mini{opacity:.75}
+.periop-cuando{font-size:13px;margin-top:3px}
+.periop-nota{font-size:12px;line-height:1.55;color:var(--texto-2);
+  background:var(--bg-2);border-radius:8px;padding:7px 9px;margin-top:6px}
+.periop-reinicio{display:flex;align-items:center;gap:5px;margin-top:5px;
+  color:var(--texto-2)}
+.periop-reinicio svg{width:13px;height:13px;flex:none}
+
+.periop-alertas{margin:7px 0 0;padding-left:17px}
+.periop-alertas li{margin-bottom:5px;line-height:1.5}
+.periop-alertas li:last-child{margin-bottom:0}
+
+/* ==================================================================== *
+ *  PORTAL DEL PACIENTE                                                 *
+ *  La pantalla que ve alguien que NO es socio: entra con un enlace del *
+ *  mail y completa su propia ficha. No hay barra lateral, ni menu, ni  *
+ *  nada que lo lleve a otra parte, porque no hay otra parte a la que   *
+ *  pueda ir. Tipografia mas grande que en la app: la mitad de los      *
+ *  pacientes que abren esto tienen mas de sesenta anos y lo abren en   *
+ *  el telefono. Ver paciente-portal.js.                                *
+ * ==================================================================== */
+#portalPaciente{min-height:100vh;background:var(--bg)}
+.portal{max-width:720px;margin:0 auto;padding:0 16px 40px}
+.portal-top{display:flex;align-items:center;gap:13px;padding:22px 0 18px;
+  border-bottom:1px solid var(--borde);margin-bottom:22px}
+.portal-logo{width:52px;height:52px;object-fit:contain;flex:none}
+.portal-top .marca{font-size:21px;font-weight:800;letter-spacing:.13em;color:var(--azul-700)}
+.portal-top .sub{font-size:11.5px;color:var(--texto-2);line-height:1.35}
+
+.portal-cuerpo h1{font-size:23px;line-height:1.25;margin:0 0 12px}
+.portal-intro{font-size:15px;line-height:1.65;color:var(--texto-2);margin:0 0 22px}
+.portal-cuerpo .card{margin-bottom:16px}
+.portal-cuerpo label{font-size:14px}
+.portal-cuerpo input,.portal-cuerpo select,.portal-cuerpo textarea{font-size:16px}
+.portal-cuerpo .chip{font-size:13.5px;padding:8px 13px}
+
+.portal-pasos{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.portal-pasos span{font-size:12px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.04em;padding:6px 12px;border-radius:999px;
+  background:var(--bg-2);color:var(--texto-2)}
+.portal-pasos span.on{background:var(--azul-700);color:#fff}
+.portal-pasos span.hecho{background:var(--ok);color:#fff}
+
+.portal-nav{display:flex;gap:10px;align-items:center;justify-content:space-between;
+  padding:18px 0;border-top:1px solid var(--borde);margin-top:8px}
+.portal-nav .btn.grande{min-width:190px;justify-content:center}
+.portal-legal{font-size:11.5px;line-height:1.55;color:var(--texto-2);
+  border-top:1px solid var(--borde);padding-top:16px;margin-top:22px}
+.portal-cargando{display:flex;align-items:center;gap:9px;justify-content:center;
+  padding:60px 0;color:var(--texto-2)}
+.portal-cargando svg{width:20px;height:20px}
+
+.portal-fin{text-align:center;padding:34px 0}
+.portal-fin > svg{width:62px;height:62px;color:var(--ok);margin:0 auto 14px}
+.portal-fin h1{color:var(--ok);letter-spacing:.06em}
+.portal-fin p{font-size:15px;line-height:1.65;max-width:520px;margin:0 auto 12px}
+
+/* -------------------------------------------- sello del pedido al paciente
+   Va debajo de PACIENTE en la barra de pasos de la ficha. Es un estado del
+   pedido, no del paso: por eso no usa los colores del estado del paso. */
+.sello-prellenado{display:flex;align-items:center;gap:5px;justify-content:center;
+  font-size:10.5px;font-weight:700;line-height:1.25;text-align:center;
+  margin-top:5px;padding:3px 6px;border-radius:6px;max-width:150px}
+.sello-prellenado svg{width:12px;height:12px;flex:none}
+.sello-prellenado.warn{background:var(--warn-bg,#fff6e5);color:var(--warn)}
+.sello-prellenado.ok{background:var(--ok-bg,#e8f6ee);color:var(--ok)}
+.sello-prellenado.danger{background:var(--danger-bg,#fdecec);color:var(--danger)}

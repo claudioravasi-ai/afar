@@ -145,7 +145,7 @@ function enviarDocumentacionPaciente(f){
   if(!f.pacienteId) return toast('La ficha no tiene paciente.', 'err');
   if(!p.email)      return toast('El paciente no tiene correo cargado. Agregalo en su ficha.', 'err');
   if(!consentimientoCompleto(f))
-    return toast('Falta completar el punto 15: el consentimiento informado.', 'warn');
+    return toast('Falta completar el punto 11: el consentimiento informado.', 'warn');
   if(!f.valoracionGuardada)
     return toast('Guardá primero la valoración con el botón «Guardar valoración».', 'warn');
 
@@ -217,4 +217,89 @@ function enviarDocumentacionPaciente(f){
         toast('No se pudo enviar: ' + err.message, 'err');
       }
     }, 'Enviar');
+}
+
+/* =========================================================================
+   EL MAIL QUE LLEVA LA FICHA EN BLANCO Y EL ENLACE PARA COMPLETARLA
+   -------------------------------------------------------------------------
+   El correo lleva UNA sola cosa: el enlace para que el paciente complete su
+   ficha dentro de la aplicacion. Sin adjuntos y sin formulario en papel, a
+   proposito: lo que se busca es que el dato entre una sola vez, escrito por
+   quien lo sabe, y llegue a la ficha sin que nadie lo transcriba.
+
+   El enlace es la parte sensible del mensaje: quien lo tiene puede escribir
+   en ese pedido. Por eso el correo lo dice con todas las letras y pide que no
+   se reenvie. Ver paciente-portal.js.
+   ========================================================================= */
+function htmlMailFichaEnBlanco(f, prof, enlace){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const trato = p.nombre ? esc(p.nombre) : 'paciente';
+  const firma = (prof.apellido || '') + ', ' + (prof.nombre || '');
+  const cx = textoProcedimientos(f) || f.cirugia || '';
+
+  return ''+
+  '<div style="font-family:Calibri,Arial,sans-serif;font-size:15px;color:#111;'+
+    'line-height:1.6;max-width:760px;margin:0 auto">'+
+
+    '<p>Estimado/a <b>' + trato + '</b>,</p>'+
+
+    '<p>Soy el/la médico/a anestesiólogo/a que va a hacer su valoración prequirúrgica' +
+      (cx ? ' para su <b>' + esc(cx) + '</b>' : '') + '.</p>'+
+
+    '<p>Para que la consulta se dedique a lo importante y no a copiar datos, le pido que '+
+    '<b>complete su ficha antes de venir</b>. Le lleva unos minutos y puede hacerlo con calma, '+
+    'con las cajas de sus remedios a mano.</p>'+
+
+    '<div style="text-align:center;margin:26px 0">'+
+      '<a href="' + esc(enlace) + '" style="display:inline-block;background:#0b2545;color:#fff;'+
+        'text-decoration:none;font-size:16px;font-weight:bold;padding:14px 30px;border-radius:8px">'+
+        'Completar mi ficha</a>'+
+      '<div style="font-size:12px;color:#556;margin-top:10px">Se abre en el teléfono o en la '+
+        'computadora. No hace falta instalar nada ni crear ninguna cuenta.</div>'+
+    '</div>'+
+
+
+    '<div style="background:#eef4fa;border-radius:8px;padding:12px 14px;margin:18px 0">'+
+      '<b>Qué se le pregunta.</b> Sus datos de filiación, las enfermedades que tuvo, las '+
+      'operaciones que se hizo, cómo le fue con anestesias anteriores, qué remedios toma, a qué '+
+      'es alérgico y sus hábitos. Nada más.'+
+    '</div>'+
+
+    '<div style="background:#fff8e6;border:1px solid #e6d08a;border-radius:8px;padding:12px 14px;margin:18px 0">'+
+      '<b>Importante.</b> Si no está seguro de algo, déjelo vacío y pregúntelo en la consulta. '+
+      'Lo que complete <b>no reemplaza la entrevista</b>: lo vamos a revisar juntos.<br><br>'+
+      '<b>No suspenda ni empiece ningún medicamento por su cuenta.</b> Las indicaciones sobre '+
+      'qué tomar y qué dejar de tomar antes de la cirugía se las doy yo después de la consulta.'+
+    '</div>'+
+
+    '<div style="background:#fdeeee;border:1px solid #e0a8a8;border-radius:8px;padding:12px 14px;margin:18px 0">'+
+      '<b>El enlace es suyo y personal.</b> No lo reenvíe ni lo comparta: cualquiera que lo '+
+      'tenga puede escribir en su ficha. Vence en 30 días.'+
+    '</div>'+
+
+    '<table style="width:100%;border-collapse:collapse;margin:18px 0;font-size:14px">'+
+      '<tr><td style="padding:10px 12px;background:#eef4fa;border-radius:8px">'+
+        '<b style="color:#0b2545">Profesional actuante</b><br>'+
+        esc(firma) + '<br>'+
+        esc(prof.titulo || 'Médico/a Especialista en Anestesiología') + '<br>'+
+        'Matrícula provincial: ' + esc(matriculaTxt(prof.matriculaProvincial, 'M.P.')) + '<br>'+
+        'Correo: ' + esc(prof.email || '—')+
+      '</td></tr>'+
+    '</table>'+
+
+    '<p>Saludos cordiales,<br><b>' + esc(firma) + '</b></p>'+
+
+    '<hr style="border:0;border-top:1px solid #ccd;margin:26px 0 14px">'+
+    '<div style="font-size:11.5px;color:#455;line-height:1.55">'+
+      '<b style="color:#0b2545">AVISO LEGAL Y PROTECCIÓN DE DATOS</b>'+
+      '<p><b>Ley 25.326 de Protección de Datos Personales.</b> Los datos de salud que cargue '+
+      'reciben tratamiento confidencial y se usan únicamente con fines asistenciales. Usted '+
+      'puede acceder a ellos, pedir su rectificación y conocer su destino.</p>'+
+      '<p><b>Ley 17.132 del Ejercicio de la Medicina.</b> El profesional firmante está obligado '+
+      'a guardar secreto sobre todo lo que conoce en razón de su profesión.</p>'+
+      '<p><b>Ley 26.529 de Derechos del Paciente.</b> Lo que usted aporte se incorpora a su '+
+      'historia clínica una vez revisado por el profesional. La historia le pertenece.</p>'+
+      '<p>Si usted no es el destinatario de este correo, elimínelo y avise al remitente.</p>'+
+    '</div>'+
+  '</div>';
 }

@@ -22,7 +22,7 @@ const SOLAPAS_ACTO = [
    -------------------------------------------------------------------------
    Un acto anestesico tiene que tener un dueno con nombre y apellido antes de
    que se escriba una sola linea: es el que firma, el que responde y el que
-   factura. En el punto 14 de la valoracion se DESIGNA a alguien, pero una
+   factura. En el punto 10 de la valoracion se DESIGNA a alguien, pero una
    designacion no es una toma: el que designaron puede no estar, y en una
    urgencia anestesia el que esta. Por eso al entrar al paso el primer
    elemento de la pantalla, imposible de pasar por alto, es este.
@@ -55,12 +55,12 @@ function htmlTomarActo(f){
           ? 'Acto designado a '+esc(quien)
           : 'Este acto anestésico todavía no tiene anestesiólogo')+'</b>'+
       '<span>'+(yoSoyElDesignado
-        ? 'En el punto 14 de la valoración de '+esc(autorFicha(g))+' figurás vos. '+
+        ? 'En el punto 10 de la valoración de '+esc(autorFicha(g))+' figurás vos. '+
           'Confirmalo para empezar el registro: a partir de ahí el acto es tuyo.'
         : quien
-          ? 'Si finalmente lo vas a anestesiar vos, tomalo: la designación del punto 14 es una '+
+          ? 'Si finalmente lo vas a anestesiar vos, tomalo: la designación del punto 10 es una '+
             'previsión y en el quirófano manda quien está.'
-          : 'En el punto 14 quedó como «todavía no se sabe quién opera». Tomalo para poder '+
+          : 'En el punto 10 quedó como «todavía no se sabe quién opera». Tomalo para poder '+
             'registrar el acto y facturarlo.')+'</span></div>'+
     '</div>'+
     '<button class="btn pri grande" id="acTomar">'+ico('firma')+' TOMAR ACTO ANESTÉSICO</button>'+
@@ -111,7 +111,7 @@ function pintarPasoAnestesia(f){
      ventana, sin abrir nada ajeno. */
   const tarjetaVal = deudaValoracion(f) ? htmlValoracionExterna(f) : '';
 
-  /* Mientras el punto 15 esté pendiente, el acto lo recuerda. Es el paso donde
+  /* Mientras el punto 11 esté pendiente, el acto lo recuerda. Es el paso donde
      se pasa el tiempo, y el que no lo vea acá se entera recién en Firmar, con
      el paciente ya en recuperación. El botón abre el consentimiento en su
      ventana, sin obligar a entrar a la valoración. */
@@ -1572,7 +1572,7 @@ function htmlPlanFluidos(f){
         ? kpi('Pérdida admisible', pl.perdidaAdmisible+' mL', 'warn', ico('alerta'),
               'hasta Hto '+pl.htoMin+' % desde '+pl.hto+' %')
         : kpi('Pérdida admisible', '—', '', ico('alerta'),
-              'falta el hematocrito en el punto 8'))+
+              'falta el hematocrito en el punto 4'))+
     '</div>'+
 
     '<div class="resumen mt14">'+ pl.motivos.map(m =>
@@ -1701,7 +1701,7 @@ function cablearActoBalance(f){
    hay.
 
    Asi que arriba van los cinco o seis que este paciente y esta cirugia hacen
-   probables, cada uno con el motivo por el que subio: el asma del punto 1, el
+   probables, cada uno con el motivo por el que subio: el asma de la historia, el
    IMC, la anticoagulacion, la via de abordaje. Un toque abre el evento con el
    tipo ya elegido.
 

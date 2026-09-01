@@ -715,7 +715,7 @@ function docPacienteIndicaciones(f){
    un colega si el acto era de otro.
 
    Ahora hay tres salidas:
-     'valoracion'  el prequirurgico solo: datos del paciente, los quince
+     'valoracion'  el prequirurgico solo: datos del paciente, los once
                    puntos y el consentimiento. Es lo que se firma el dia de
                    la consulta y lo que respalda el honorario de la consulta.
      'acto'        el registro intraoperatorio y la recuperacion. Es lo que

@@ -18,14 +18,14 @@ function acc(id, icono, titulo, cuerpo, abierto){
 /* =========================================================================
    VALORACION EXPRES — lo minimo indispensable, arriba de todo
    -------------------------------------------------------------------------
-   La valoracion tiene quince puntos porque la historia clinica los pide. Pero
+   La valoracion tiene once puntos porque la historia clinica los pide. Pero
    para que una valoracion se pueda dar por CONCLUIDA y sostener un acto
    anestesico hacen falta seis cosas, no quince:
 
      peso · ASA · via aerea · aptitud fundamentada · plan · consentimiento
 
    Esas seis estan ahora en una tarjeta al principio, con su estado a la vista
-   y un boton que lleva a cada una. Los quince puntos siguen abajo, enteros:
+   y un boton que lleva a cada una. Los once puntos siguen abajo, enteros:
    no se saco nada. Lo que cambio es que ya no hay que recorrerlos para saber
    que falta ni para terminar una valoracion sencilla.
 
@@ -57,7 +57,7 @@ function itemsExpres(f){
       v:'', anc:'rgFundamento' },
     { k:'plan',   t:'Plan anestésico (técnica)',    ok:!!(($('#plTecnica') ? leerChks('plTecnica') : (pl.tecnica||[])).length),
       v:'', anc:'acPlan' },
-    { k:'consent',t:'Consentimiento (punto 15)',    ok: consentimientoCompleto(f),
+    { k:'consent',t:'Consentimiento (punto 11)',    ok: consentimientoCompleto(f),
       v:'', anc:'acConsent' }
   ];
 }
@@ -76,8 +76,8 @@ function htmlValoracionExpres(f){
       '<button type="button" class="btn ghost" id="vaPlantilla">'+ico('lista')+
         ' Usar una plantilla</button>'+
     '</div>'+
-    '<div class="ayuda">El autocompletado marca las casillas de las escalas del punto 9 y la '+
-      'profilaxis del punto 13 que se <b>deducen</b> de los antecedentes, la medicación, el '+
+    '<div class="ayuda">El autocompletado marca las casillas de las escalas del punto 5 y la '+
+      'profilaxis del punto 9 que se <b>deducen</b> de los antecedentes, la medicación, el '+
       'laboratorio y la cirugía que ya cargaste. Muestra qué va a marcar y por qué antes de '+
       'hacerlo, y nunca pisa lo que pusiste a mano.</div>'+
 
@@ -91,7 +91,7 @@ function htmlValoracionExpres(f){
         (x.v ? '<span class="v">'+esc(x.v)+'</span>' : '')+
         (x.ok ? '' : '<button type="button" class="btn ghost chico" data-expres="'+esc(x.anc)+'">Ir</button>')+
       '</div>').join('') +'</div>'+
-    '<div class="ayuda">Los quince puntos completos siguen abajo. Esta tarjeta es sólo el atajo: '+
+    '<div class="ayuda">Los once puntos completos siguen abajo. Esta tarjeta es sólo el atajo: '+
       'con estos seis la valoración se puede cerrar y sostiene el acto anestésico.</div>'+
   '</div>';
 }
@@ -141,7 +141,7 @@ function cablearValoracionExpres(f){
       caja.innerHTML = '';
       if(window.__recalcValoracion) window.__recalcValoracion();
       pintarExpres();
-      toast('ASA '+a.v+(a.e?'E':'')+' cargado. Podés cambiarlo en el punto 9.', 'ok');
+      toast('ASA '+a.v+(a.e?'E':'')+' cargado. Podés cambiarlo en el punto 5.', 'ok');
     };
   };
 
@@ -266,7 +266,7 @@ function abrirAutocompletado(f){
     cerrarModal();
     if(window.__recalcValoracion) window.__recalcValoracion();
     pintarExpres();
-    toast(n+' dato'+(n===1?'':'s')+' completado'+(n===1?'':'s')+'. Revisá el punto 9 antes de guardar.', 'ok');
+    toast(n+' dato'+(n===1?'':'s')+' completado'+(n===1?'':'s')+'. Revisá el punto 5 antes de guardar.', 'ok');
   };
 }
 
@@ -287,7 +287,6 @@ const PLANTILLAS_VAL = [
     d:'ASA I-II, sin antecedentes. Examen normal, ayuno cumplido, general balanceada o sedación, '+
       'analgesia multimodal sin opioides.',
     aplica:{
-      sinAntecedentes:true,
       examen:{ cardio:'R1-R2 normofonéticos, silencios libres, sin soplos. Pulsos periféricos presentes y simétricos.',
                respiratorio:'Buena entrada de aire bilateral, murmullo vesicular conservado, sin ruidos agregados.',
                abdomen:'Blando, depresible, indoloro, sin visceromegalias.',
@@ -295,7 +294,6 @@ const PLANTILLAS_VAL = [
                accesos:'Buenos', columna:'Apófisis palpables, sin dificultad' },
       va:{ mallampati:'1', cuelloMov:'normal', protrusion:'clase1', denticion:'Completa y sana',
            intubacionPrevia:'sin_datos' },
-      habitos:{ tabaco:'No fumador', alcohol:'No consume', drogas:'No consume' },
       mets:'10',
       ayuno:'Sólidos / comida liviana',
       tecnica:['Anestesia general balanceada'],
@@ -342,7 +340,6 @@ const PLANTILLAS_VAL = [
     d:'ASA I, inducción inhalatoria, máscara laríngea, analgesia sin AINE fuerte y bloqueo caudal '+
       'o de campo. Ayuno pediátrico.',
     aplica:{
-      sinAntecedentes:true,
       examen:{ cardio:'R1-R2 normofonéticos, sin soplos.',
                respiratorio:'Buena entrada de aire bilateral, sin ruidos agregados.',
                abdomen:'Blando, depresible, indoloro.',
@@ -396,10 +393,11 @@ function aplicarPlantilla(t){
       const d = e.closest('details'); if(d) d.open = true; n++; }
   });
 
-  if(a.sinAntecedentes && $('#dxSin') && !$('#dxSin').checked &&
-     (typeof dxSeleccionados === 'undefined' || !dxSeleccionados.length)){
-    $('#dxSin').checked = true; $('#dxSinL').classList.add('on'); n++;
-  }
+  /* `sinAntecedentes` y los habitos ya no se tocan desde aca: viven en la
+     historia del paciente y una plantilla de valoracion no tiene por que
+     escribir en la historia clinica de la persona. Las plantillas siguen
+     rellenando lo que SI es de esta cirugia: examen, via aerea, ayuno, plan
+     y profilaxis. */
   if(a.examen){
     ponerSi('exCardio', a.examen.cardio); ponerSi('exResp', a.examen.respiratorio);
     ponerSi('exAbd', a.examen.abdomen);   ponerSi('exNeuro', a.examen.neuro);
@@ -409,10 +407,6 @@ function aplicarPlantilla(t){
     ponerSi('vaMallampati', a.va.mallampati); ponerSi('vaCuello', a.va.cuelloMov);
     ponerSi('vaProtrusion', a.va.protrusion); ponerSi('vaDenticion', a.va.denticion);
     ponerSi('vaIntPrev', a.va.intubacionPrevia);
-  }
-  if(a.habitos){
-    ponerSi('habTabaco', a.habitos.tabaco); ponerSi('habAlcohol', a.habitos.alcohol);
-    ponerSi('habDrogas', a.habitos.drogas);
   }
   if(a.mets && $('#mets') && !$('#mets').value) { $('#mets').value = a.mets; n++; }
   ponerSi('ayTipo', a.ayuno);
@@ -436,13 +430,207 @@ function aplicarPlantilla(t){
     n ? 'ok' : 'warn');
 }
 
+/* =========================================================================
+   LA HISTORIA DEL PACIENTE, DE LECTURA
+   -------------------------------------------------------------------------
+   Los cinco primeros puntos de la valoracion -antecedentes patologicos,
+   revision por sistemas, antecedentes anestesicos y familiares, medicacion
+   habitual, alergias y habitos- preguntaban exactamente lo mismo que las
+   cuatro solapas de «anotar nuevo paciente». Eran el mismo formulario dos
+   veces, y esa duplicacion no era neutral: se cargaba una vez en un lado, se
+   corregia en el otro, y despues habia dos versiones del mismo antecedente
+   sin forma de saber cual valia.
+
+   Ahora se carga UNA sola vez, en la historia del paciente, que es su lugar:
+   los antecedentes son de la persona, no de esta cirugia. La valoracion los
+   MUESTRA y no los vuelve a pedir; para corregirlos se va a la historia, con
+   el boton de esta misma tarjeta, y al volver la valoracion los relee.
+
+   Lo que si es de esta cirugia -que hacer con cada farmaco antes de operar-
+   quedo en la valoracion, en el punto 1, y ahora se calcula solo.
+   ========================================================================= */
+function htmlHistoriaEnValoracion(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const h = p.habitos || {};
+  const ant = p.antecedentes || [];
+  const meds = p.medicacion || [];
+  const ale = (p.alergias || []).filter(x => x !== 'Sin alergias conocidas');
+  const sinAle = (p.alergias || []).indexOf('Sin alergias conocidas') >= 0;
+
+  const fila = (t, cont, vacio) =>
+    '<div class="par"><span class="k">'+esc(t)+'</span><span class="v">'+
+      (cont || '<i style="opacity:.6">'+esc(vacio)+'</i>')+'</span></div>';
+  const chips = l => l.map(x => '<span class="tag">'+esc(x)+'</span>').join(' ');
+
+  const habitos = [
+    h.tabaco  ? 'Tabaco: '+h.tabaco+(h.tabacoCant ? ' ('+h.tabacoCant+' paq/año)' : '') : '',
+    h.alcohol ? 'Alcohol: '+h.alcohol : '',
+    h.drogas  ? 'Sustancias: '+h.drogas : '',
+    h.actividad ? 'Actividad: '+h.actividad : ''
+  ].filter(Boolean);
+
+  return ''+
+  '<div class="card plano historia-val"><h3>'+ico('pacientes')+'Historia de '+
+    esc((p.apellido||'') + (p.nombre ? ', '+p.nombre : '') || 'el paciente')+'</h3>'+
+
+    '<div class="ayuda">Esto se carga una sola vez, en la historia del paciente, y se '+
+      'hereda en cada ficha. La valoración ya no lo vuelve a preguntar.</div>'+
+
+    '<div class="hist-lista mt8">'+
+      fila('Antecedentes', ant.length ? chips(ant.map(a => a.n || a))
+            : (p.sinAntecedentes ? '<span class="tag ok">Sin antecedentes relevantes</span>' : ''),
+           'Sin cargar')+
+      fila('Anestésicos y familiares',
+           chips((p.antAnestesicos||[]).concat(p.antFamiliares||[])), 'Sin cargar')+
+      /* Los quirúrgicos se guardan como {n, anio}, no como texto suelto:
+         el año importa —una cirugía cardíaca de hace un mes no es lo mismo
+         que una de hace veinte años— y por eso tiene campo propio. */
+      fila('Quirúrgicos', chips((p.antQuirurgicos||[]).map(q =>
+        (q.n || q) + (q.anio ? ' (' + q.anio + ')' : ''))), 'Sin cargar')+
+      fila('Medicación habitual',
+           meds.length ? chips(meds.map(m => m.n + (m.dosis ? ' '+m.dosis : ''))) : '',
+           'Sin medicación cargada')+
+      fila('Alergias',
+           ale.length ? '<span class="tag danger">'+esc(ale.join(' · '))+'</span>'
+                      : (sinAle ? '<span class="tag ok">Sin alergias conocidas</span>' : ''),
+           'Sin cargar')+
+      fila('Hábitos', esc(habitos.join(' · ')), 'Sin cargar')+
+    '</div>'+
+
+    '<button type="button" class="btn ghost chico mt14" id="valEditarHistoria">'+
+      ico('editar')+' Editar la historia del paciente</button>'+
+  '</div>';
+}
+
+/* =========================================================================
+   EL PANEL DE CONDUCTA PERIOPERATORIA
+   -------------------------------------------------------------------------
+   Lo calcula periop.js. Aca solo se dibuja: primero lo que no se puede pasar
+   por alto, despues las esperas del neuroeje si la tecnica lo pide, y al
+   final el calendario repartido en los cuatro cajones.
+   ========================================================================= */
+function pintarConductaPeriop(){
+  const cont = $('#periopPanel');
+  if(!cont || !fichaActual) return;
+  const f = fichaActual;
+  const c = conductaPerioperatoria(f);
+  const v = f.v || {};
+
+  const fechaBox =
+    '<div class="campo"><label>Fecha prevista de la cirugía <span class="mini" '+
+      'style="font-weight:400;opacity:.75">(opcional)</span></label>'+
+      '<input type="date" id="periopFecha" value="'+esc(v.fechaPrevistaCx || '')+'">'+
+      '<div class="ayuda">Sólo sirve para poner fechas al calendario de suspensiones que se le '+
+        'entrega al paciente. No es la fecha del acto: ésa se carga el día de la cirugía en el '+
+        'paso <b>Anestesia</b>.</div></div>';
+
+  if(!c.total){
+    cont.innerHTML = fechaBox +
+      '<div class="aviso info">'+ico('info')+'<div><b>Sin medicación habitual cargada.</b> '+
+      'Si el paciente toma algo, cargalo en la historia del paciente y la conducta '+
+      'perioperatoria se arma sola.</div></div>';
+    cablearConductaPeriop();
+    return;
+  }
+
+  const cuando = it => it.fecha
+    ? 'Sin tomarlo desde el <b>'+fFecha(it.fecha)+'</b>'
+    : (typeof it.dias === 'number' && it.dias > 0
+        ? 'Suspender <b>'+it.dias+' día'+(it.dias===1?'':'s')+'</b> antes de la cirugía'
+        : 'Anticipación a definir');
+
+  const grupo = (titulo, icono, clase, lista, pie) => lista.length
+    ? '<div class="periop-grupo '+clase+'"><h4>'+ico(icono)+esc(titulo)+
+        '<span class="tag">'+lista.length+'</span></h4>'+
+        lista.map(it =>
+          '<div class="periop-item">'+
+            '<div class="periop-n"><b>'+esc(it.n)+'</b>'+
+              (it.dosis ? '<span class="mini"> · '+esc(it.dosis)+'</span>' : '')+'</div>'+
+            (pie ? '<div class="periop-cuando">'+pie(it)+'</div>' : '')+
+            (it.nota ? '<div class="periop-nota">'+esc(it.nota)+'</div>' : '')+
+            (it.reinicio ? '<div class="mini periop-reinicio">'+ico('atras')+
+              ' Reinicio: '+esc(it.reinicio)+'</div>' : '')+
+          '</div>').join('')+
+      '</div>'
+    : '';
+
+  cont.innerHTML =
+    fechaBox +
+
+    (c.alertas.length
+      ? '<div class="aviso danger">'+ico('alerta')+'<div><b>Lo que no se puede pasar por alto</b>'+
+          '<ul class="periop-alertas">'+ c.alertas.map(a =>
+            '<li><b>'+esc(a.n)+'.</b> '+esc(a.txt)+'</li>').join('') +'</ul></div></div>'
+      : '')+
+
+    (c.neuroaxial && c.esperas.length
+      ? '<div class="aviso warn">'+ico('vena')+'<div><b>El plan incluye una técnica neuroaxial o un '+
+          'bloqueo profundo.</b> Esperas mínimas desde la última dosis (ASRA, 4.ª ed.):'+
+          '<ul class="periop-alertas">'+ c.esperas.map(e =>
+            '<li><b>'+esc(e.n)+':</b> '+esc(textoEspera(e.horas))+'</li>').join('') +'</ul>'+
+          'Si la espera no se puede cumplir, la indicación es cambiar de técnica, no acortarla.'+
+          '</div></div>'
+      : '')+
+
+    (c.conFecha
+      ? '<div class="aviso ok">'+ico('calendario')+'<div>Calendario calculado sobre el <b>'+
+          fFecha(c.fechaCx)+'</b>.</div></div>'
+      : '<div class="aviso info">'+ico('calendario')+'<div>Sin fecha de cirugía: la conducta se '+
+          'expresa en <b>días de anticipación</b>. Cargá la fecha prevista arriba y se convierte '+
+          'en fechas.</div></div>')+
+
+    grupo('Suspender antes de la cirugía','alerta','danger', c.suspender, cuando)+
+    grupo('Omitir sólo la dosis de la mañana','reloj','warn', c.omitir,
+          () => 'No toma la dosis del día de la cirugía; el resto sigue igual')+
+    grupo('Continuar, incluida la mañana de la cirugía','check','ok', c.continuar,
+          () => 'Con un sorbo de agua, sin romper el ayuno')+
+    grupo('A definir por el anestesiólogo','info','warn', c.evaluar, cuando)+
+
+    '<div class="btn-row mt14">'+
+      '<button type="button" class="btn ghost" id="periopAIndic">'+ico('lista')+
+        ' Pasar a las indicaciones del paciente</button>'+
+    '</div>'+
+    '<div class="ayuda">La conducta de cada fármaco se cambia en la historia del paciente, en la '+
+      'solapa <b>Medicación</b>. Lo que se ve acá es lo que dicen las guías, con las fechas ya '+
+      'hechas: la decisión sigue siendo del anestesiólogo.</div>';
+
+  cablearConductaPeriop();
+}
+
+function cablearConductaPeriop(){
+  const fe = $('#periopFecha');
+  if(fe) fe.onchange = () => {
+    fichaActual.v = fichaActual.v || {};
+    fichaActual.v.fechaPrevistaCx = fe.value;
+    pintarConductaPeriop();
+  };
+  const b = $('#periopAIndic');
+  if(b) b.onclick = () => {
+    const l = conductaEnTextoPaciente(fichaActual);
+    if(!l.length) return toast('No hay conducta para pasar.', 'warn');
+    const campo = $('#plIndicaciones');
+    const txt = l.join('\n');
+    if(campo){
+      campo.value = campo.value ? (campo.value.replace(/\s+$/,'') + '\n' + txt) : txt;
+      campo.dispatchEvent(new Event('input'));
+      const acc = campo.closest('details'); if(acc) acc.open = true;
+      campo.scrollIntoView({ behavior:'smooth', block:'center' });
+      toast(l.length+' indicación'+(l.length===1?'':'es')+' agregada'+(l.length===1?'':'s')+
+            ' al punto 9. Revisalas antes de guardar.', 'ok');
+    } else {
+      fichaActual.plan = fichaActual.plan || {};
+      fichaActual.plan.indicaciones =
+        (fichaActual.plan.indicaciones ? fichaActual.plan.indicaciones + '\n' : '') + txt;
+      toast('Indicaciones agregadas al plan.', 'ok');
+    }
+  };
+}
+
 /* =================================================== HTML de la seccion */
 function htmlValoracion(f){
   const v = f.v || {};
   const p = DB.pacientes[f.pacienteId] || {};
   const ed = edadDe(p.fechaNac, f.fecha);
-
-  const desdePaciente = (p.antecedentes || []).length || (p.medicacion || []).length;
 
   return ''+
   /* Si se declaro que el acto arranco sin valoracion, la deuda se cobra aca:
@@ -450,91 +638,15 @@ function htmlValoracion(f){
   htmlValoracionExterna(f)+
   htmlValoracionExpres(f)+
 
-  /* -------- 1. Antecedentes patologicos -------- */
-  acc('acDx','lista','1 · Antecedentes patológicos',
-    (desdePaciente ? '<div class="aviso ok">'+ico('pacientes')+'<div>'+
-      '<b>Traído de la historia de '+esc(p.apellido||'el paciente')+'.</b> '+
-      'Lo que cambies acá vale sólo para esta ficha; para dejarlo asentado en la historia, '+
-      'editá el paciente.<br>'+
-      '<button type="button" class="btn ghost chico mt8" id="dxTraer">'+ico('atras')+
-      ' Volver a traer de la historia</button></div></div>' : '')+
+  /* -------- La historia del paciente, de lectura -------- */
+  htmlHistoriaEnValoracion(f)+
 
-    '<label class="toggle-verde'+(v.sinAntecedentes?' on':'')+'" id="dxSinL">'+
-      '<input type="checkbox" id="dxSin"'+(v.sinAntecedentes?' checked':'')+'>'+
-      ico('check')+' Sin antecedentes relevantes</label>'+
+  /* -------- 1. Conducta perioperatoria -------- */
+  acc('acPeriop','jeringa','1 · Conducta perioperatoria de la medicación habitual',
+    '<div id="periopPanel"></div>', true)+
 
-    '<label class="mini strong mt14" style="display:block">Antecedentes relevantes</label>'+
-    '<div class="chips" id="dxChips">'+ PATOLOGIAS_CHIP.map(x =>
-      '<button type="button" class="chip" data-dxchip="'+esc(x.n)+'">'+esc(x.chip)+'</button>').join('')+
-    '</div>'+
-
-    '<div class="campo mt14"><label>Buscar en el catálogo de antecedentes</label>'+
-      '<div class="buscador"><input type="search" id="dxBuscar" placeholder="Ej.: hipertensión, diabetes, asma…" autocomplete="off">'+
-      '<div class="res" id="dxRes"></div></div>'+
-      '<div class="ayuda">Escribí al menos 2 letras. Si el antecedente no figura, podés agregarlo '+
-      'manualmente desde el propio buscador.</div>'+
-      '<div class="seleccionados" id="dxSel"></div></div>'+
-    '<div id="dxMeds"></div>'+
-    '<hr class="sep">'+
-    '<details class="acc"><summary><span class="n">'+ico('corazon')+'</span>'+
-      'Revisión por sistemas<span class="flecha">'+ico('flecha')+'</span></summary>'+
-      '<div class="cuerpo">'+ Object.keys(ANTECEDENTES_SISTEMAS).map(s =>
-        '<div class="mt8"><div class="mini strong" style="margin-bottom:5px">'+esc(s)+'</div>'+
-        '<div class="chks">'+ ANTECEDENTES_SISTEMAS[s].map(n =>
-          '<label class="chk"><input type="checkbox" class="dx-sis" value="'+esc(n)+'">'+
-          esc(n)+'</label>').join('') +'</div></div>').join('') +'</div></details>'+
-    campoArea('antOtros','Otros antecedentes y detalles', v.antecedentesOtros,
-      'Cronología, tratamientos, cirugías previas, internaciones…'), true)+
-
-  /* -------- 2. Antecedentes anestésicos -------- */
-  acc('acAnest','jeringa','2 · Antecedentes anestésicos y familiares',
-    chksHTML('antAnest', ANTECEDENTES_ANESTESICOS, v.antAnestesicos)+
-    campoArea('antAnestDet','Detalle de eventos anestésicos previos', v.antAnestDetalle,
-      'Fecha, procedimiento, institución, qué ocurrió y cómo se resolvió')+
-    '<div class="aviso warn" id="alertaHM" style="display:none">'+ico('fuego')+
-      '<div><b>Antecedente de hipertermia maligna.</b> Planificar técnica libre de gatillantes (TIVA), '+
-      'máquina purgada o con filtros de carbón activado, dantrolene disponible y monitoreo de temperatura y EtCO₂. '+
-      'Consultá el protocolo completo en la sección Guías.</div></div>')+
-
-  /* -------- 3. Medicación habitual -------- */
-  acc('acMed','jeringa','3 · Medicación habitual y manejo perioperatorio',
-    (desdePaciente ? '<div class="ayuda">La medicación viene de la historia del paciente. '+
-      'Acá se ajusta para esta cirugía.</div>' : '')+
-    '<div class="campo"><label>Buscar fármaco</label>'+
-      '<div class="buscador"><input type="search" id="medBuscar" placeholder="Ej.: aspirina, metformina, enalapril…" autocomplete="off">'+
-      '<div class="res" id="medRes"></div></div>'+
-      '<div class="ayuda">Cada fármaco trae la conducta perioperatoria sugerida según las guías vigentes; podés modificarla.</div></div>'+
-      '<div id="medLista" class="mt8"></div>'+
-    campoArea('medOtros','Otra medicación o aclaraciones', v.medicacionOtros))+
-
-  /* -------- 4. Alergias -------- */
-  acc('acAlergias','alerta','4 · Alergias e intolerancias',
-    chksHTML('alerg', ALERGENOS, v.alergias)+
-    campoArea('alergDet','Detalle de la reacción', v.alergiaDetalle,
-      'Tipo de reacción, gravedad, fecha, estudio alergológico realizado'))+
-
-  /* -------- 5. Hábitos -------- */
-  acc('acHabitos','hoja','5 · Hábitos y estilo de vida',
-    '<div class="grid c2">'+
-      campoSel('habTabaco','Tabaquismo', ['No fumador','Ex fumador','Fumador activo'], (v.habitos||{}).tabaco)+
-      campoTxt('habTabacoCant','Carga tabáquica (paquetes/año)', (v.habitos||{}).tabacoCant)+
-    '</div>'+
-    '<div class="grid c2">'+
-      campoSel('habAlcohol','Alcohol', ['No consume','Social','Consumo de riesgo','Dependencia'], (v.habitos||{}).alcohol)+
-      campoSel('habDrogas','Otras sustancias', ['No consume','Cannabis','Cocaína','Opioides','Múltiples','Prefiere no informar'], (v.habitos||{}).drogas)+
-    '</div>'+
-    '<div class="campo"><label>Capacidad funcional (MET)</label>'+
-      '<select id="mets">'+MET_OPCIONES.map(m =>
-        '<option value="'+m.v+'"'+(String((v.scores||{}).mets)===String(m.v)?' selected':'')+'>'+
-        m.v+' MET — '+esc(m.t)+'</option>').join('')+'</select></div>'+
-    '<div id="metsOut"></div>'+
-    '<div class="campo"><label>Escala clínica de fragilidad (Rockwood)</label>'+
-      '<select id="fragilidad"><option value="">No evaluada</option>'+
-      FRAGILIDAD.map(fr => '<option value="'+fr[0]+'"'+(String((v.scores||{}).fragilidad)===String(fr[0])?' selected':'')+'>'+
-        fr[0]+' — '+esc(fr[1])+'</option>').join('')+'</select></div>')+
-
-  /* -------- 6. Examen físico -------- */
-  acc('acExamen','corazon','6 · Examen físico y semiología',
+  /* -------- 2. Examen físico -------- */
+  acc('acExamen','corazon','2 · Examen físico y semiología',
     '<div class="grid c4">'+
       campoTxt('exTA','TA (mmHg)', (v.examen||{}).ta)+
       campoNum('exFC','FC (lpm)', (v.examen||{}).fc)+
@@ -563,8 +675,8 @@ function htmlValoracion(f){
         ['Apófisis palpables, sin dificultad','Palpación dificultosa','Escoliosis / cirugía previa','Contraindicado','No evaluada'], (v.examen||{}).columna)+
     '</div>')+
 
-  /* -------- 7. Vía aérea -------- */
-  acc('acVA','aire','7 · Evaluación de la vía aérea',
+  /* -------- 3. Vía aérea -------- */
+  acc('acVA','aire','3 · Evaluación de la vía aérea',
     '<div class="grid c2">'+
       campoSel('vaMallampati','Mallampati modificado (Samsoon-Young)',
         [{v:'',t:'No evaluado'},{v:'1',t:'Clase I — paladar blando, úvula, pilares'},
@@ -603,8 +715,8 @@ function htmlValoracion(f){
     campoArea('vaPlan','Plan de manejo de la vía aérea', (v.va||{}).plan,
       'Dispositivo primario, plan B, quién asiste, material preparado'))+
 
-  /* -------- 8. Laboratorio y estudios -------- */
-  acc('acLab','gota','8 · Laboratorio y estudios complementarios',
+  /* -------- 4. Laboratorio y estudios -------- */
+  acc('acLab','gota','4 · Laboratorio y estudios complementarios',
     '<div class="grid c4">'+
       campoNum('labHb','Hb (g/dl)', (v.lab||{}).hb, 'step="0.1"')+
       campoNum('labHto','Hto (%)', (v.lab||{}).hto, 'step="0.1"')+
@@ -647,8 +759,8 @@ function htmlValoracion(f){
     '</div>'+
     '<div id="esSugeridos"></div>')+
 
-  /* -------- 9. Escalas de riesgo -------- */
-  acc('acScores','stats','9 · Estratificación del riesgo',
+  /* -------- 5. Escalas de riesgo -------- */
+  acc('acScores','stats','5 · Estratificación del riesgo',
     '<div class="card plano" style="border:1.5px solid var(--borde)"><h3>'+ico('escudo')+'ASA Physical Status</h3>'+
       '<div class="campo"><select id="scAsa">'+
         '<option value="">— Seleccionar —</option>'+
@@ -658,10 +770,28 @@ function htmlValoracion(f){
         ((v.scores||{}).asaE?' checked':'')+'>Modificador E — procedimiento de emergencia</label>'+
       '<div id="scAsaDesc" class="mini mt8"></div></div>'+
 
+    /* Capacidad funcional y fragilidad estaban en «Hábitos y estilo de vida»,
+       que se fue entero a la historia del paciente porque ahi se cargaba dos
+       veces. Estas dos no: no son un habito, son dos escalas de riesgo, y
+       este es su lugar. Alimentan el RCRI, el ARISCAT y la conclusion. */
+    '<div class="card plano" style="border:1.5px solid var(--borde)"><h3>'+ico('corazon')+
+      'Capacidad funcional y fragilidad</h3>'+
+      '<div class="campo"><label>Capacidad funcional (MET)</label>'+
+        '<select id="mets">'+MET_OPCIONES.map(m =>
+          '<option value="'+m.v+'"'+(String((v.scores||{}).mets)===String(m.v)?' selected':'')+'>'+
+          m.v+' MET — '+esc(m.t)+'</option>').join('')+'</select></div>'+
+      '<div id="metsOut"></div>'+
+      '<div class="campo"><label>Escala clínica de fragilidad (Rockwood)</label>'+
+        '<select id="fragilidad"><option value="">No evaluada</option>'+
+        FRAGILIDAD.map(fr => '<option value="'+fr[0]+'"'+(String((v.scores||{}).fragilidad)===String(fr[0])?' selected':'')+'>'+
+          fr[0]+' — '+esc(fr[1])+'</option>').join('')+'</select>'+
+        '<div class="ayuda">Rockwood ≥ 5 predice complicaciones, estadía prolongada y mortalidad '+
+        'mejor que la edad sola.</div></div></div>'+
+
     /* Las cinco escalas muestran el RESULTADO arriba y esconden sus ítems
        detrás de «Revisar los ítems». Eran cincuenta y tres casillas siempre a
-       la vista, y casi todas repiten algo que ya está cargado en los puntos 1,
-       3, 5, 7 y 8: el autocompletado de arriba las marca solo. Los ítems
+       la vista, y casi todas repiten algo que ya está cargado en la historia del
+       paciente y en los puntos 2, 3 y 4: el autocompletado de arriba las marca solo. Los ítems
        siguen estando —y en el DOM, así que se guardan igual—: se abren cuando
        hay que corregir uno. */
     tarjetaEscala('corazon','RCRI — índice de riesgo cardíaco revisado (Lee)','rcriOut',
@@ -695,8 +825,8 @@ function htmlValoracion(f){
         esc(it.t)+' <b style="opacity:.6">('+it.p+')</b></label>').join('')+'</div>',
       CAPRINI_ITEMS.length))+
 
-  /* -------- 10. Ayuno -------- */
-  acc('acAyuno','reloj','10 · Ayuno preoperatorio y profilaxis de aspiración',
+  /* -------- 6. Ayuno -------- */
+  acc('acAyuno','reloj','6 · Ayuno preoperatorio y profilaxis de aspiración',
     '<div class="grid c2">'+
       campoSel('ayTipo','Última ingesta', AYUNO_ASA.map(a => a.t), (v.ayuno||{}).tipo)+
       '<div class="campo"><label>Hora de la última ingesta</label>'+
@@ -710,8 +840,8 @@ function htmlValoracion(f){
       'Metoclopramida 10 mg','Secuencia de intubación rápida','Ecografía gástrica',
       'Sonda nasogástrica previa'], (v.ayuno||{}).profilaxis))+
 
-  /* -------- 11. Conclusión -------- */
-  acc('acConclusion','check','11 · Conclusión y aptitud anestésica',
+  /* -------- 7. Conclusión -------- */
+  acc('acConclusion','check','7 · Conclusión y aptitud anestésica',
     '<div id="resumenRiesgo"></div>'+
     '<div class="campo"><label>Aptitud para el acto anestésico</label>'+
       '<div class="seg" id="segAptitud">'+
@@ -752,7 +882,7 @@ function htmlValoracion(f){
 function htmlPlan(f){
   const pl = f.plan || {};
   return ''+
-  acc('acPlan','jeringa','12 · Plan anestésico propuesto',
+  acc('acPlan','jeringa','8 · Plan anestésico propuesto',
     '<label class="mini strong">Técnica</label>'+
     chksHTML('plTecnica', TECNICAS_ANESTESICAS, pl.tecnica)+
     '<label class="mini strong mt14" style="display:block">Manejo de la vía aérea</label>'+
@@ -763,7 +893,7 @@ function htmlPlan(f){
     chksHTML('plMonAv', MONITOREO_AVANZADO, pl.monitoreoAvanzado)+
     campoTxt('plAccesos','Accesos vasculares previstos', pl.accesos))+
 
-  acc('acProfilaxis','escudo','13 · Profilaxis, analgesia y destino',
+  acc('acProfilaxis','escudo','9 · Profilaxis, analgesia y destino',
     '<div class="campo"><label>Profilaxis antibiótica</label><select id="plATB">'+
       '<option value="">— No indicada —</option>'+
       PROFILAXIS_ATB.map(a => '<option value="'+esc(a.c)+'"'+(pl.atb===a.c?' selected':'')+'>'+
@@ -787,7 +917,7 @@ function htmlPlan(f){
        funciono o no y el EVA que el paciente tiene delante. Preguntarlo aca
        obligaba a decidirlo a ciegas y despues nadie volvia a corregirlo.
 
-       Lo que queda en el punto 13 es lo que SI se decide antes: profilaxis
+       Lo que queda en el punto 9 es lo que SI se decide antes: profilaxis
        antibiotica, tromboprofilaxis, profilaxis de nauseas y vomitos,
        destino previsto y prevision transfusional. */
     '<div class="aviso info">'+ico('info')+'<div><b>La analgesia postoperatoria se indica en el paso '+
@@ -817,7 +947,7 @@ function htmlPlan(f){
      cirugia y a nombre de quien se factura el acto (la consulta
      prequirurgica sigue siendo de quien firma esta valoracion).
      -------------------------------------------------------------------- */
-  acc('acActuante','jeringa','14 · Anestesiólogo que realiza el acto anestésico',
+  acc('acActuante','jeringa','10 · Anestesiólogo que realiza el acto anestésico',
     '<div class="campo"><label>Profesional designado</label><select id="qxAsignado">'+
       socios().map(u => '<option value="'+esc(u.uid)+'"'+
         (!f.actorExterno && actorFicha(f) === u.uid ? ' selected' : '')+'>'+
@@ -848,7 +978,7 @@ function htmlPlan(f){
    -------------------------------------------------------------------------
    Estaba en una ventana aparte, a la que se llegaba por un boton perdido al
    pie de la ficha. Ahi se olvidaba: quedaban valoraciones completas y bien
-   hechas sin el papel que la ley exige. Ahora es el punto 15 de la propia
+   hechas sin el papel que la ley exige. Ahora es el punto 11 de la propia
    valoracion y es CONDICION para darla por concluida (ver
    consentimientoCompleto() en ui-ficha.js): la Ley 26.529 lo pide por
    escrito para todo procedimiento con riesgo relevante, y la anestesia lo
@@ -866,7 +996,7 @@ function htmlConsentimiento(f, abierto){
   const completo = consentimientoCompleto(f);
   const sinFirma = consentSinFirma(c.quien);
 
-  return acc('acConsent','firma','15 · Consentimiento informado anestésico',
+  return acc('acConsent','firma','11 · Consentimiento informado anestésico',
     (completo
       ? '<div class="aviso ok">'+ico('check')+'<div><b>Consentimiento otorgado.</b> '+
         (sinFirma
@@ -923,7 +1053,7 @@ function htmlConsentimiento(f, abierto){
     !completo || abierto);
 }
 
-/* ---- Lo que el punto 15 escribe en f.consent (no dentro de f.v) ---- */
+/* ---- Lo que el punto 11 escribe en f.consent (no dentro de f.v) ---- */
 let coFirmaPac = '', coFirmaAnest = '';
 
 function leerConsentimiento(f){
@@ -961,7 +1091,7 @@ function cablearConsentimiento(f){
         'transfusión al mismo tiempo.</b> Dejá una sola: el documento no puede decir las dos cosas.</div></div>'
       : (no ? '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>El paciente rechaza la '+
         'transfusión de hemoderivados.</b> Queda asentado en el consentimiento y se imprime '+
-        'destacado en la ficha. Preveé las alternativas de ahorro de sangre en el punto 13.</div></div>' : '');
+        'destacado en la ficha. Preveé las alternativas de ahorro de sangre en el punto 9.</div></div>' : '');
   };
   $$('#coItems input').forEach(i => i.addEventListener('change', revisarTransf));
   revisarTransf();
@@ -1020,7 +1150,7 @@ function cablearConsentimiento(f){
   });
 }
 
-/* Lo que el punto 14 escribe en la raíz de la ficha (no dentro de f.plan) */
+/* Lo que el punto 10 escribe en la raíz de la ficha (no dentro de f.plan) */
 function leerAsignacionActo(){
   if(!$('#qxAsignado')) return {};       /* el paso no está en pantalla */
   const v = val('qxAsignado');
@@ -1059,7 +1189,7 @@ function leerPlan(){
     monitoreoEstandar: leerChks('plMonEst'), monitoreoAvanzado: leerChks('plMonAv'),
     accesos: val('plAccesos'), atb: val('plATB'), atbOtro: val('plATBOtro'),
     tev: val('plTEV'), nvpo: leerChks('plNVPO'),
-    /* La analgesia ya no se edita en el punto 13. Se conserva lo que tenga la
+    /* La analgesia ya no se edita en el punto 9. Se conserva lo que tenga la
        ficha para no perder nada de lo cargado antes de la mudanza: el paso
        Recuperacion lo lee como propuesta. */
     analgesia: (fichaActual.plan || {}).analgesia || [],
@@ -1070,89 +1200,120 @@ function leerPlan(){
 }
 
 /* ============================== Cableado ============================== */
-let dxSeleccionados = [], medSeleccionados = [];
+
+/* Los antecedentes y la medicacion que valen para ESTA ficha. Siguen siendo
+   una foto: la ficha guarda su propia copia -ver leerValoracion()- para que
+   una valoracion firmada diga lo que decia el dia que se firmo, aunque la
+   historia del paciente cambie despues. Lo que se fue es la pantalla para
+   editarlos aca; la fuente es la historia. */
+function antecedentesDeLaFicha(f){
+  const v = (f && f.v) || {}, p = (f && DB.pacientes[f.pacienteId]) || {};
+  return (v.antecedentes2 && v.antecedentes2.length)
+    ? v.antecedentes2.slice()
+    : (p.antecedentes || []).map(a => ({ n:a.n, sis:a.sis }));
+}
+
+/* =========================================================================
+   LO QUE QUEDO ATRAPADO EN LAS FICHAS VIEJAS
+   -------------------------------------------------------------------------
+   En el modelo anterior los antecedentes se cargaban en la ficha, asi que hay
+   fichas de hace meses con alergias, medicacion y habitos que su paciente no
+   tiene en la historia. Con la valoracion nueva esos datos siguen guardados
+   -no se pierde nada, salen en el PDF igual- pero no se ven en la tarjeta de
+   historia ni alimentan la conducta perioperatoria, porque esas dos leen la
+   historia del paciente.
+
+   Asi que al abrir una valoracion se suben. Solo lo que FALTA: nunca pisa un
+   dato de la historia, nunca borra. Es estrictamente aditivo, y es la misma
+   afirmacion clinica que la ficha ya hacia sobre ese paciente, solo que
+   guardada donde ahora corresponde.
+   ========================================================================= */
+function subirHistoriaDeFichaVieja(f){
+  const p = DB.pacientes[f.pacienteId];
+  const v = f.v || {};
+  if(!p) return 0;
+  let n = 0;
+
+  (v.antecedentes2 || []).forEach(a => {
+    const nom = a.n || a.d; if(!nom) return;
+    p.antecedentes = p.antecedentes || [];
+    if(p.antecedentes.some(x => (x.n || x) === nom)) return;
+    p.antecedentes.push({ n:nom, sis: a.sis || 'Otros' }); n++;
+  });
+
+  (v.medicacion || []).forEach(m => {
+    const nom = m.n || m; if(!nom) return;
+    p.medicacion = p.medicacion || [];
+    if(p.medicacion.some(x => x.n === nom)) return;
+    p.medicacion.push(Object.assign({}, typeof m === 'string' ? { n:m } : m)); n++;
+  });
+
+  [['antAnestesicos','antAnestesicos'], ['alergias','alergias']]
+    .forEach(([enFicha, enPaciente]) => {
+      (v[enFicha] || []).forEach(x => {
+        p[enPaciente] = p[enPaciente] || [];
+        if(p[enPaciente].indexOf(x) < 0){ p[enPaciente].push(x); n++; }
+      });
+    });
+
+  /* Los quirúrgicos van aparte porque en la historia son {n, anio} */
+  (v.antQuirurgicos || []).forEach(q => {
+    const nom = q.n || q; if(!nom) return;
+    p.antQuirurgicos = p.antQuirurgicos || [];
+    if(p.antQuirurgicos.some(x => (x.n || x) === nom)) return;
+    p.antQuirurgicos.push({ n:nom, anio:(q && q.anio) || '' }); n++;
+  });
+
+  [['antecedentesOtros','antecedentesOtros'], ['medicacionOtros','medicacionOtros'],
+   ['alergiaDetalle','alergiaDetalle'], ['antAnestDetalle','antAnestDetalle']]
+    .forEach(([a,b]) => { if(v[a] && !p[b]){ p[b] = v[a]; n++; } });
+
+  const hv = v.habitos || {};
+  p.habitos = p.habitos || {};
+  ['tabaco','tabacoCant','alcohol','drogas','actividad'].forEach(k => {
+    if(hv[k] && !p.habitos[k]){ p.habitos[k] = hv[k]; n++; }
+  });
+
+  if(v.sinAntecedentes && !p.sinAntecedentes && !(p.antecedentes || []).length){
+    p.sinAntecedentes = true; n++;
+  }
+
+  if(n){
+    p.modificado = new Date().toISOString();
+    p.modificadoPor = SESION ? SESION.uid : '-';
+    escribir('pacientes', p.id, p);
+    auditar('historia-migrada',
+      n + ' dato(s) de la ficha ' + f.id + ' subidos a la historia de ' + p.id);
+  }
+  return n;
+}
 
 function cablearValoracion(f){
   cablearValoracionExterna(f);
   const v = f.v || {};
   const p = DB.pacientes[f.pacienteId] || {};
 
-  /* La ficha arranca con lo que ya esta en la historia del paciente. Si el
-     anestesiologo despues lo cambia, el cambio vale para esta ficha. */
-  const traerDelPaciente = () => {
-    dxSeleccionados  = (p.antecedentes || []).map(a => ({ n:a.n, sis:a.sis }));
-    medSeleccionados = (p.medicacion || []).map(m => Object.assign({}, m));
-  };
-  if(v.antecedentes2 || v.medicacion){
-    dxSeleccionados  = (v.antecedentes2 || []).slice();
-    medSeleccionados = (v.medicacion || []).slice();
-  } else traerDelPaciente();
+  /* Fichas del modelo viejo: lo que tenian cargado sube a la historia, que es
+     donde la valoracion nueva lo lee. Ver el comentario de arriba. */
+  const migrados = subirHistoriaDeFichaVieja(f);
+  if(migrados) toast(migrados + ' dato' + (migrados===1?'':'s') + ' de esta ficha se '+
+    'pasaron a la historia del paciente, que es donde se cargan ahora.', 'ok');
 
-  const alternarDx = n => {
-    const i = dxSeleccionados.findIndex(d => (d.n || d.d) === n);
-    if(i >= 0) dxSeleccionados.splice(i, 1);
-    else {
-      const cat = patologiaPorNombre(n);
-      dxSeleccionados.push({ n:n, sis: cat ? cat.sis : 'Otros' });
-    }
-    pintarDx();
-    if(window.__recalcValoracion) window.__recalcValoracion();
+  /* La historia se lee, no se edita: el boton lleva a la solapa donde si se
+     edita y, al volver, la valoracion se repinta con lo nuevo. */
+  if($('#valEditarHistoria')) $('#valEditarHistoria').onclick = () => {
+    guardarPasoActual();
+    editarPaciente(f.pacienteId, () => pintarFicha());
   };
-  window.__alternarDx = alternarDx;
 
-  /* --- buscador de antecedentes patologicos --- */
-  montarBuscador({
-    input: $('#dxBuscar'), caja: $('#dxRes'), manual: true,
-    fuente: () => todasPatologias().map(x => ({
-      etiqueta:x.n, sub:x.sis, busca: norm(x.n+' '+x.sis+' '+(x.chip||'')), dato:x })),
-    onElegir: x => { if(!dxSeleccionados.some(d => (d.n||d.d) === x.dato.n)) alternarDx(x.dato.n); },
-    onManual: txt => {
-      if(!txt) return;
-      agregarExtra('pat', { n:txt, sis:'Agregado manualmente' });
-      if(!dxSeleccionados.some(d => (d.n||d.d) === txt))
-        dxSeleccionados.push({ n:txt, sis:'Agregado manualmente' });
-      pintarDx();
-      toast('Antecedente agregado al catálogo.', 'ok');
-    }
-  });
-  $$('#dxChips [data-dxchip]').forEach(b => b.onclick = () => alternarDx(b.dataset.dxchip));
-  $$('.dx-sis').forEach(i => i.onclick = e => { e.preventDefault(); alternarDx(i.value); });
-  if($('#dxTraer')) $('#dxTraer').onclick = () => {
-    traerDelPaciente(); pintarDx(); pintarMed();
-    toast('Antecedentes y medicación traídos de la historia.', 'ok');
-    if(window.__recalcValoracion) window.__recalcValoracion();
-  };
-  $('#dxSinL').onclick = () => setTimeout(() =>
-    $('#dxSinL').classList.toggle('on', chk('dxSin')), 0);
-  pintarDx();
-
-  /* --- buscador de fármacos --- */
-  montarBuscador({
-    input: $('#medBuscar'), caja: $('#medRes'), manual: true,
-    fuente: () => FARMACOS_PERIOP.map(x => ({
-      etiqueta:x.n, sub:x.g+' · '+({continuar:'Continuar',suspender:'Suspender',evaluar:'Evaluar'}[x.accion]),
-      busca: norm(x.n+' '+x.g), dato:x })),
-    onElegir: x => { if(!medSeleccionados.some(m => m.n === x.dato.n))
-        medSeleccionados.push({ n:x.dato.n, g:x.dato.g, accion:x.dato.accion, nota:x.dato.nota, dosis:'' });
-      pintarMed(); },
-    onManual: txt => { if(!txt) return;
-      medSeleccionados.push({ n:txt, g:'Otro', accion:'evaluar', nota:'', dosis:'' }); pintarMed(); }
-  });
-  pintarMed();
+  pintarConductaPeriop();
 
   /* --- checkboxes con estilo --- */
-  ['antAnest','alerg','vaOtros','ayRiesgo','ayProfilaxis'].forEach(cablearChks);
+  ['vaOtros','ayRiesgo','ayProfilaxis'].forEach(cablearChks);
   ['plTecnica','plVA','plMonEst','plMonAv','plNVPO'].forEach(cablearChks);
   $$('#vFicha .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
   });
-
-  /* --- alerta de hipertermia maligna --- */
-  const revisarHM = () => {
-    const marcado = $$('#antAnest input:checked').some(i => i.value.indexOf('Hipertermia maligna') >= 0);
-    $('#alertaHM').style.display = marcado ? '' : 'none';
-  };
-  $('#antAnest').addEventListener('change', revisarHM); revisarHM();
 
   /* --- recalcular todo --- */
   const recalcular = () => {
@@ -1242,17 +1403,20 @@ function cablearValoracion(f){
 
     /* estudios sugeridos */
     /* Las marcas salen del catálogo de patologías, no de adivinar por texto */
-    const fl = flagsDeAntecedentes(dxSeleccionados);
+    const dxF = antecedentesDeLaFicha(f);
+    const medF = medicacionDeLaFicha(f);
+    const habF = (DB.pacientes[f.pacienteId] || {}).habitos || {};
+    const fl = flagsDeAntecedentes(dxF);
     const cond = {
       anticoagulado: fl.anticoagulado ||
-        medSeleccionados.some(m => /anticoagul|warfar|rivarox|apix|dabig|edox|heparin/i.test(m.n+m.g)),
+        medF.some(m => /anticoagul|warfar|rivarox|apix|dabig|edox|heparin/i.test(m.n+m.g)),
       renal: fl.renal || (!!val('labCrea') && Number(val('labCrea')) > 1.5),
       hta: !!fl.hta,
       diabetes: !!fl.diabetes,
       cardiopatia: rc.cardiopatia || rc.icc || !!fl.cardiopatia,
       arritmia: !!fl.arritmia,
       respiratorio: !!fl.respiratorio,
-      tabaquismo: val('habTabaco') === 'Fumador activo' || !!fl.tabaquismo,
+      tabaquismo: habF.tabaco === 'Fumador activo' || !!fl.tabaquismo,
       hepatopatia: !!fl.hepatopatia,
       sangrado: ar.nivel === 'alto' || !!fl.sangrado,
       soplo: false, disnea: false,
@@ -1302,8 +1466,8 @@ function cablearValoracion(f){
     $('#scAsaEL').classList.toggle('sel', $('#scAsaE').checked), 0);
 
   cablearValoracionExpres(f);   /* tarjeta exprés, autocompletado y plantillas */
-  cablearAsignacionActo();      /* punto 14 */
-  cablearConsentimiento(f);     /* punto 15 */
+  cablearAsignacionActo();      /* punto 10 */
+  cablearConsentimiento(f);     /* punto 11 */
   cablearEnvioValoracion(f);    /* envío de la valoración a contaduría */
 
   recalcular();
@@ -1311,85 +1475,40 @@ function cablearValoracion(f){
 
 function nombreAnt(d){ return d.n || d.d || ''; }
 
-function pintarDx(){
-  const c = $('#dxSel'); if(!c) return;
-  c.innerHTML = dxSeleccionados.length
-    ? dxSeleccionados.map((d,i) =>
-        '<span class="pill"><span>'+esc(nombreAnt(d))+'</span>'+
-        (d.sis ? '<b class="comp">'+esc(d.sis)+'</b>' : '')+
-        '<button data-dx="'+i+'">&times;</button></span>').join('')
-    : '<span class="mini">Sin antecedentes cargados.</span>';
-  $$('#dxSel button').forEach(b => b.onclick = () => {
-    dxSeleccionados.splice(Number(b.dataset.dx), 1); pintarDx();
-    if(window.__recalcValoracion) window.__recalcValoracion();
-  });
-  /* los chips y la revisión por sistemas reflejan lo mismo */
-  const tiene = n => dxSeleccionados.some(d => nombreAnt(d) === n);
-  $$('#dxChips [data-dxchip]').forEach(b => b.classList.toggle('on', tiene(b.dataset.dxchip)));
-  $$('.dx-sis').forEach(i => {
-    const on = tiene(i.value);
-    i.checked = on;
-    const l = i.closest('.chk'); if(l) l.classList.toggle('sel', on);
-  });
-  pintarMedsDeAntecedentes();
-}
-
-/* Al cargar una patología se ofrece la medicación que suele acompañarla */
-function pintarMedsDeAntecedentes(){
-  const c = $('#dxMeds'); if(!c) return;
-  const sug = medicacionSugerida(dxSeleccionados)
-    .filter(m => !medSeleccionados.some(x => x.n === m.n));
-  if(!sug.length){ c.innerHTML = ''; return; }
-  c.innerHTML = '<div class="aviso info">'+ico('jeringa')+'<div>'+
-    '<b>Medicación habitual asociada a estos antecedentes.</b> Tocá la que el paciente toma; '+
-    'cada una trae su conducta perioperatoria.<div class="chips mt8">'+
-    sug.map((m,i) => '<button type="button" class="chip" data-vsug="'+i+'">'+ico('mas')+
-      esc(m.n)+'</button>').join('')+'</div></div></div>';
-  $$('#dxMeds [data-vsug]').forEach(b => b.onclick = () => {
-    const m = sug[Number(b.dataset.vsug)];
-    medSeleccionados.push({ n:m.n, g:m.g, accion:m.accion, nota:m.nota, dosis:'', porque:m.porque });
-    pintarMed(); pintarMedsDeAntecedentes();
-    if(window.__recalcValoracion) window.__recalcValoracion();
-  });
-}
-
-function pintarMed(){
-  const cont = $('#medLista');
-  if(!medSeleccionados.length){
-    cont.innerHTML = '<p class="mini">Sin medicación cargada.</p>'; return;
-  }
-  const color = { continuar:'ok', suspender:'danger', evaluar:'warn' };
-  const txt = { continuar:'CONTINUAR', suspender:'SUSPENDER', evaluar:'EVALUAR' };
-  cont.innerHTML = medSeleccionados.map((m,i) =>
-    '<div class="card plano" style="border:1.5px solid var(--borde);padding:12px;margin-bottom:9px">'+
-      '<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap">'+
-        '<b style="flex:1;min-width:120px">'+esc(m.n)+'</b>'+
-        '<span class="tag '+color[m.accion]+'">'+txt[m.accion]+'</span>'+
-        '<button class="btn ghost chico" data-quitar="'+i+'">'+ico('borrar')+'</button>'+
-      '</div>'+
-      '<div class="grid c2">'+
-        '<div class="campo" style="margin:0"><label>Dosis y frecuencia</label>'+
-          '<input type="text" data-dosis="'+i+'" value="'+esc(m.dosis||'')+'" placeholder="Ej.: 10 mg/día"></div>'+
-        '<div class="campo" style="margin:0"><label>Conducta</label><select data-accion="'+i+'">'+
-          ['continuar','suspender','evaluar'].map(a =>
-            '<option value="'+a+'"'+(m.accion===a?' selected':'')+'>'+txt[a]+'</option>').join('')+
-        '</select></div>'+
-      '</div>'+
-      (m.nota ? '<div class="mini mt8" style="background:var(--bg-2);padding:8px 10px;border-radius:8px">'+esc(m.nota)+'</div>' : '')+
-    '</div>').join('');
-  $$('#medLista [data-quitar]').forEach(b => b.onclick = () => {
-    medSeleccionados.splice(Number(b.dataset.quitar), 1); pintarMed(); });
-  $$('#medLista [data-dosis]').forEach(i => i.oninput = () =>
-    medSeleccionados[Number(i.dataset.dosis)].dosis = i.value);
-  $$('#medLista [data-accion]').forEach(s => s.onchange = () => {
-    medSeleccionados[Number(s.dataset.accion)].accion = s.value; pintarMed(); });
-}
+/* pintarDx(), pintarMedsDeAntecedentes() y pintarMed() vivian aca y dibujaban
+   los antecedentes y la medicacion dentro de la valoracion. Se fueron con los
+   puntos 1 a 5: la unica pantalla que los edita es ahora la historia del
+   paciente -pintarMedPaciente() en ui-pacientes.js-. Lo que quedo de este
+   lado es de lectura y lo dibuja htmlHistoriaEnValoracion(). */
 
 /* ============================ Lectura de datos ========================= */
+/* =========================================================================
+   POR QUE LA FICHA SIGUE GUARDANDO LOS ANTECEDENTES SI YA NO LOS PIDE
+
+   Podria no guardarlos y leerlos siempre de la historia del paciente. Seria
+   mas prolijo y estaria mal: una valoracion firmada es un documento con
+   valor medico-legal y tiene que decir lo que decia el dia que se firmo. Si
+   dentro de ocho meses al paciente le diagnostican una insuficiencia
+   cardiaca, esa valoracion no puede pasar a decir retroactivamente que la
+   tenia. Asi que se guarda una FOTO del momento -eso hacia antes tambien-,
+   solo que ahora la foto se saca de la historia del paciente en vez de una
+   pantalla que preguntaba lo mismo dos veces.
+
+   La foto se refresca en cada guardado mientras la valoracion este abierta.
+   Al cerrarla queda congelada, que es lo que se busca.
+   ========================================================================= */
 function leerValoracion(){
+  const f = fichaActual || {};
+  const p = DB.pacientes[f.pacienteId] || {};
+  const dx = antecedentesDeLaFicha(f);
+  const meds = (p.medicacion && p.medicacion.length)
+    ? p.medicacion.map(m => Object.assign({}, m))
+    : ((f.v || {}).medicacion || []);
+  const h = p.habitos || {};
+
   /* La agrupación por sistemas se deriva de lo cargado, no se pide aparte */
   const antecedentes = {};
-  dxSeleccionados.forEach(d => {
+  dx.forEach(d => {
     const sis = d.sis || 'Otros';
     (antecedentes[sis] = antecedentes[sis] || []).push(nombreAnt(d));
   });
@@ -1399,15 +1518,40 @@ function leerValoracion(){
   const caprini = $$('.cap:checked').map(i => Number(i.dataset.i));
   const aptBtn = $('#segAptitud button.on');
 
+  /* La historia del paciente manda, PERO SOLO SI TIENE ALGO QUE DECIR.
+     Una ficha vieja guarda cosas que su paciente todavia no tiene cargadas
+     -asi era el modelo anterior: se cargaba en la ficha-. Si se sobrescribiera
+     con el vacio de la historia, volver a guardar una ficha de hace un ano le
+     borraria las alergias. Nunca se pisa un dato con nada. */
+  const previo = fichaActual && fichaActual.v ? fichaActual.v : {};
+  const mandaLista = (deLaHistoria, deLaFicha) =>
+    (deLaHistoria && deLaHistoria.length) ? deLaHistoria : (deLaFicha || []);
+  const mandaTexto = (deLaHistoria, deLaFicha) => deLaHistoria || deLaFicha || '';
+
+  const habPrevio = previo.habitos || {};
+  const habitos = {};
+  ['tabaco','tabacoCant','alcohol','drogas','actividad'].forEach(k => {
+    habitos[k] = mandaTexto(h[k], habPrevio[k]);
+  });
+
   return {
-    antecedentes2: dxSeleccionados,
-    sinAntecedentes: chk('dxSin'),
-    antecedentes, antecedentesOtros: val('antOtros'),
-    antAnestesicos: leerChks('antAnest'), antAnestDetalle: val('antAnestDet'),
-    medicacion: medSeleccionados, medicacionOtros: val('medOtros'),
-    alergias: leerChks('alerg'), alergiaDetalle: val('alergDet'),
-    habitos: { tabaco: val('habTabaco'), tabacoCant: val('habTabacoCant'),
-               alcohol: val('habAlcohol'), drogas: val('habDrogas') },
+    /* --- foto de la historia del paciente, ver el comentario de arriba --- */
+    antecedentes2: dx,
+    sinAntecedentes: !!(p.sinAntecedentes || previo.sinAntecedentes),
+    antecedentes,
+    antecedentesOtros: mandaTexto(p.antecedentesOtros, previo.antecedentesOtros),
+    antAnestesicos: mandaLista((p.antAnestesicos || []).concat(p.antFamiliares || []),
+                               previo.antAnestesicos),
+    antAnestDetalle: mandaTexto([p.antAnestDetalle, p.antFamDetalle].filter(Boolean).join(' — '),
+                                previo.antAnestDetalle),
+    antQuirurgicos: mandaLista(p.antQuirurgicos, previo.antQuirurgicos),
+    medicacion: meds,
+    medicacionOtros: mandaTexto(p.medicacionOtros, previo.medicacionOtros),
+    alergias: mandaLista(p.alergias, previo.alergias),
+    alergiaDetalle: mandaTexto(p.alergiaDetalle, previo.alergiaDetalle),
+    habitos,
+    /* --- fecha prevista sólo para el calendario de suspensiones (punto 1) --- */
+    fechaPrevistaCx: ($('#periopFecha') ? val('periopFecha') : (f.v || {}).fechaPrevistaCx) || '',
     examen: { ta:val('exTA'), fc:val('exFC'), fr:val('exFR'), spo2:val('exSpo2'), temp:val('exTemp'),
               peso:val('exPeso'), talla:val('exTalla'), cardio:val('exCardio'), respiratorio:val('exResp'),
               abdomen:val('exAbd'), neuro:val('exNeuro'), accesos:val('exAccesos'), columna:val('exColumna') },

@@ -2,19 +2,19 @@
    VALORACION PREQUIRURGICA — LO QUE LA APP PUEDE DEDUCIR SOLA
    =========================================================================
    El problema que resuelve este archivo, dicho sin vueltas: la valoracion
-   tiene quince puntos y, entre las cinco escalas del punto 9, mas de
-   cincuenta casillas. Casi todas preguntan algo que la app YA SABE porque se
-   cargo dos pantallas antes.
+   tiene once puntos y, entre las cinco escalas del punto 5, mas de cincuenta
+   casillas. Casi todas preguntan algo que la app YA SABE porque se cargo dos
+   pantallas antes.
 
    Ejemplos reales de la duplicacion que habia:
 
      El RCRI pregunta «cardiopatia isquemica», «insuficiencia cardiaca»,
-     «ACV», «diabetes en tratamiento con insulina» y «creatinina > 2».
-     Las cinco estan en el punto 1 (antecedentes), en el punto 3
-     (medicacion) y en el punto 8 (laboratorio).
+     «ACV», «diabetes en tratamiento con insulina» y «creatinina > 2». Las
+     cinco estan en la historia del paciente -antecedentes y medicacion- y en
+     el laboratorio del punto 4.
 
      El STOP-BANG pregunta IMC > 35, edad > 50, circunferencia del cuello y
-     sexo. Los cuatro salen del paciente y del punto 7.
+     sexo. Los cuatro salen del paciente y del punto 3.
 
      El Apfel pregunta sexo, si fuma y si va a llevar opioides. Los tres
      estan cargados.
@@ -33,7 +33,14 @@
      - Ronquido, somnolencia y apneas observadas del STOP-BANG solo se
        marcan si hay diagnostico de SAHOS cargado. Son sintomas que se
        preguntan, no se calculan.
-     - La aptitud del punto 11 no se deduce nunca. La firma una persona.
+     - La aptitud del punto 7 no se deduce nunca. La firma una persona.
+
+   NOTA SOBRE LA REESTRUCTURACION
+   Los antecedentes, la medicacion, las alergias y los habitos ya no se
+   cargan en la valoracion: se cargan una sola vez en la historia del
+   paciente y la valoracion los lee. Este archivo los toma de ahi a traves de
+   antecedentesDeLaFicha() y medicacionDeLaFicha(), asi que las deducciones
+   funcionan igual y sin la pantalla duplicada que las alimentaba antes.
    ========================================================================= */
 
 /* Contexto: todo lo que hay cargado ahora mismo, mirando el DOM si el paso
@@ -43,10 +50,12 @@ function contextoValoracion(f){
   const v = f.v || {}, pl = f.plan || {};
   const enPantalla = !!$('#scAsa');
 
-  const dx = enPantalla ? (typeof dxSeleccionados !== 'undefined' ? dxSeleccionados : [])
-                        : (v.antecedentes2 || []);
-  const meds = enPantalla ? (typeof medSeleccionados !== 'undefined' ? medSeleccionados : [])
-                          : (v.medicacion || []);
+  /* Los antecedentes y la medicacion ya no se editan en la valoracion: la
+     fuente es la historia del paciente. antecedentesDeLaFicha() y
+     medicacionDeLaFicha() resuelven cual manda -la foto de la ficha si ya
+     hay una guardada, la historia si todavia no-. */
+  const dx = antecedentesDeLaFicha(f);
+  const meds = medicacionDeLaFicha(f);
   const gv = (id, alt) => enPantalla ? val(id) : (alt === undefined ? '' : alt);
 
   const ed = edadDe(p.fechaNac, f.fecha);
@@ -65,14 +74,14 @@ function contextoValoracion(f){
     hb:   gv('labHb', (v.lab||{}).hb),
     creatinina: gv('labCrea', (v.lab||{}).creatinina),
     cuelloCirc: gv('vaCuelloCirc', (v.va||{}).cuelloCirc),
-    tabaco: gv('habTabaco', (v.habitos||{}).tabaco),
+    tabaco: (p.habitos || {}).tabaco || (v.habitos||{}).tabaco || '',
     mets: gv('mets', (v.scores||{}).mets),
     procs,
     principal: procs[0] || null,
     caracter: caracterActo(f),
     urgente: esNoProgramado(caracterActo(f)),
     tecnicas: enPantalla ? leerChks('plTecnica') : (pl.tecnica || []),
-    /* La analgesia ya no vive en el punto 13: se indica en Recuperacion.
+    /* La analgesia ya no vive en el punto 9: se indica en Recuperacion.
        Para el Apfel alcanza con lo que la ficha tenga guardado. */
     analgesia: (pl.analgesia || []).concat((f.recup||{}).analgesia || [])
   };
@@ -155,23 +164,23 @@ function derivarValoracion(f){
                reemplaza: e.value ? etiquetaDe(e.value) : '' });
   };
 
-  /* ---------------- Punto 9 · RCRI ---------------- */
+  /* ---------------- Punto 5 · RCRI ---------------- */
   const G9 = '9 · Escalas de riesgo';
   if(cirugiaAltoRiesgoCardiaco(c))
     marcar('rcri0', 'La cirugía es ' + nombreVia(c.principal ? c.principal.via : '').toLowerCase() +
       ': entra en el criterio de alto riesgo del índice de Lee.', G9);
   if(c.flags.cardiopatia)
-    marcar('rcri1', 'Hay cardiopatía isquémica en los antecedentes del punto 1.', G9);
+    marcar('rcri1', 'Hay cardiopatía isquémica en los antecedentes de la historia.', G9);
   if(c.flags.icc)
-    marcar('rcri2', 'Hay insuficiencia cardíaca en los antecedentes del punto 1.', G9);
+    marcar('rcri2', 'Hay insuficiencia cardíaca en los antecedentes de la historia.', G9);
   if(c.flags.acv)
-    marcar('rcri3', 'Hay enfermedad cerebrovascular en los antecedentes del punto 1.', G9);
+    marcar('rcri3', 'Hay enfermedad cerebrovascular en los antecedentes de la historia.', G9);
   if(c.flags.diabetes && tieneMed(c.meds, /insulina/i))
-    marcar('rcri4', 'Diabetes en el punto 1 e insulina en la medicación del punto 3.', G9);
+    marcar('rcri4', 'Diabetes en la historia e insulina en la medicación.', G9);
   if(Number(c.creatinina) > 2)
-    marcar('rcri5', 'Creatinina ' + c.creatinina + ' mg/dl en el laboratorio del punto 8.', G9);
+    marcar('rcri5', 'Creatinina ' + c.creatinina + ' mg/dl en el laboratorio del punto 4.', G9);
 
-  /* ---------------- Punto 9 · ARISCAT ---------------- */
+  /* ---------------- Punto 5 · ARISCAT ---------------- */
   if(c.principal){
     const inc = incisionDeVia(c.principal.via);
     poner('arIncision', inc, 'La vía de abordaje declarada en el paso 1 es ' +
@@ -182,34 +191,34 @@ function derivarValoracion(f){
       '. Corregila si sabés la duración real.', G9);
   }
   if(c.flags.infeccionRespiratoria)
-    marcar('arInf', 'Hay infección respiratoria en los antecedentes del punto 1.', G9);
+    marcar('arInf', 'Hay infección respiratoria en los antecedentes de la historia.', G9);
 
-  /* ---------------- Punto 9 · STOP-BANG ---------------- */
-  if(c.flags.hta) marcar('sb_presion', 'Hipertensión arterial en el punto 1.', G9);
+  /* ---------------- Punto 5 · STOP-BANG ---------------- */
+  if(c.flags.hta) marcar('sb_presion', 'Hipertensión arterial en los antecedentes.', G9);
   if(c.imc > 35)  marcar('sb_imc', 'IMC ' + c.imc.toFixed(1) + ' calculado con el peso y la talla.', G9);
   if(c.edad !== null && c.edad > 50)
     marcar('sb_edad', 'El paciente tiene ' + c.edad + ' años.', G9);
   const cc = Number(c.cuelloCirc);
   if(cc && ((c.sexo === 'M' && cc > 43) || (c.sexo !== 'M' && cc > 41)))
-    marcar('sb_cuello', 'Circunferencia del cuello ' + cc + ' cm, cargada en el punto 7.', G9);
+    marcar('sb_cuello', 'Circunferencia del cuello ' + cc + ' cm, cargada en el punto 3.', G9);
   if(c.sexo === 'M') marcar('sb_sexo', 'El paciente es de sexo masculino.', G9);
   if(c.flags.saos){
-    marcar('sb_ronquido', 'Hay apnea obstructiva del sueño diagnosticada en el punto 1.', G9);
-    marcar('sb_cansancio','Hay apnea obstructiva del sueño diagnosticada en el punto 1.', G9);
-    marcar('sb_apneas',   'Hay apnea obstructiva del sueño diagnosticada en el punto 1.', G9);
+    marcar('sb_ronquido', 'Hay apnea obstructiva del sueño diagnosticada en los antecedentes.', G9);
+    marcar('sb_cansancio','Hay apnea obstructiva del sueño diagnosticada en los antecedentes.', G9);
+    marcar('sb_apneas',   'Hay apnea obstructiva del sueño diagnosticada en los antecedentes.', G9);
   }
 
-  /* ---------------- Punto 9 · Apfel ---------------- */
+  /* ---------------- Punto 5 · Apfel ---------------- */
   if(c.sexo === 'F') marcar('ap_mujer', 'La paciente es de sexo femenino.', G9);
   if(c.tabaco && c.tabaco !== 'Fumador activo')
-    marcar('ap_nofuma', 'En el punto 5 figura «' + c.tabaco + '».', G9);
+    marcar('ap_nofuma', 'En los hábitos de la historia figura «' + c.tabaco + '».', G9);
   if(tieneAnt(c.dx, /náusea|nausea|vómito|vomito|cinetosis|NVPO/i))
-    marcar('ap_antNVPO', 'Hay antecedente de náuseas, vómitos o cinetosis en el punto 1.', G9);
+    marcar('ap_antNVPO', 'Hay antecedente de náuseas, vómitos o cinetosis en los antecedentes.', G9);
   if(c.analgesia.some(x => /morfina|nalbufina|tramadol|oxicodona|fentanilo|buprenorfina|PCA/i.test(x)) ||
      c.tecnicas.some(x => /general/i.test(x)))
-    marcar('ap_opioides', 'El plan del punto 12-13 prevé opioides postoperatorios.', G9);
+    marcar('ap_opioides', 'El plan del punto 8-13 prevé opioides postoperatorios.', G9);
 
-  /* ---------------- Punto 9 · Caprini ---------------- */
+  /* ---------------- Punto 5 · Caprini ---------------- */
   const cap = (i, porque) => {
     const e = $$('.cap').find(x => Number(x.dataset.i) === i);
     if(!e || e.checked) return;
@@ -224,16 +233,16 @@ function derivarValoracion(f){
   if(dur >= 45) cap(4, 'Duración prevista ' + dur + ' min por la complejidad del procedimiento.');
   else if(dur)  cap(3, 'Procedimiento programado de menos de 45 minutos.');
   if(c.imc > 25) cap(5, 'IMC ' + c.imc.toFixed(1) + '.');
-  if(c.flags.embarazo)   cap(8,  'Embarazo o puerperio en el punto 1.');
-  if(c.flags.epoc)       cap(12, 'EPOC en el punto 1.');
-  if(c.flags.oncologico) cap(17, 'Neoplasia maligna en el punto 1.');
-  if(c.flags.tev)        cap(21, 'Antecedente de TVP o TEP en el punto 1.');
+  if(c.flags.embarazo)   cap(8,  'Embarazo o puerperio en los antecedentes.');
+  if(c.flags.epoc)       cap(12, 'EPOC en los antecedentes.');
+  if(c.flags.oncologico) cap(17, 'Neoplasia maligna en los antecedentes.');
+  if(c.flags.tev)        cap(21, 'Antecedente de TVP o TEP en los antecedentes.');
   if((c.procs||[]).some(x => /artroplast|protesis|prótesis de (cadera|rodilla)/i.test(x.n||'')))
     cap(26, 'El procedimiento cargado es una artroplastia mayor programada.');
   if((c.procs||[]).some(x => /fractura de (cadera|pelvis|femur|fémur|pierna|tibia)/i.test(x.n||'')))
     cap(27, 'El procedimiento cargado es una fractura de cadera, pelvis o pierna.');
 
-  /* ---------------- Punto 10 · Ayuno y riesgo de aspiración ---------------- */
+  /* ---------------- Punto 6 · Ayuno y riesgo de aspiración ---------------- */
   const G10 = '10 · Ayuno';
   const marcarChk = (cont, texto, porque, grupo) => {
     const e = $$('#'+cont+' input').find(x => x.value === texto);
@@ -245,18 +254,18 @@ function derivarValoracion(f){
       'El acto está registrado como ' + nombreCaracter(c.caracter).toLowerCase() + '.', G10);
   if(tieneMed(c.meds, /semaglutida|liraglutida|dulaglutida|GLP-?1|ozempic|saxenda|trulicity/i))
     marcarChk('ayRiesgo', 'Agonista GLP-1 sin suspender',
-      'Hay un agonista GLP-1 en la medicación del punto 3: retrasa el vaciamiento gástrico.', G10);
+      'Hay un agonista GLP-1 en la medicación habitual: retrasa el vaciamiento gástrico.', G10);
   if(c.flags.reflujo)
-    marcarChk('ayRiesgo', 'Reflujo severo', 'Hay reflujo gastroesofágico en el punto 1.', G10);
+    marcarChk('ayRiesgo', 'Reflujo severo', 'Hay reflujo gastroesofágico en los antecedentes.', G10);
   if(c.flags.embarazo)
-    marcarChk('ayRiesgo', 'Embarazo con trabajo de parto', 'Embarazo en el punto 1.', G10);
+    marcarChk('ayRiesgo', 'Embarazo con trabajo de parto', 'Embarazo en los antecedentes.', G10);
   if(c.imc >= 40)
     marcarChk('ayRiesgo', 'Obesidad mórbida', 'IMC ' + c.imc.toFixed(1) + '.', G10);
   if(c.flags.diabetes && c.edad !== null && c.edad > 50)
     marcarChk('ayRiesgo', 'Diabetes de larga evolución',
-      'Diabetes en el punto 1 en un paciente de ' + c.edad + ' años.', G10);
+      'Diabetes en los antecedentes, en un paciente de ' + c.edad + ' años.', G10);
 
-  /* ---------------- Punto 13 · Profilaxis que se deduce de las escalas ------ */
+  /* ---------------- Punto 9 · Profilaxis que se deduce de las escalas ------ */
   const G13 = '13 · Profilaxis';
   const apv = {}; APFEL_ITEMS.forEach(it => apv[it.k] = yaTildado('ap_'+it.k) ||
     out.some(o => o.id === 'ap_'+it.k));
@@ -321,7 +330,7 @@ function asaPropuesto(f){
   if(c.flags.dialisis)    sube(4, 'diálisis crónica');
   if(c.flags.inmunosupresion && c.flags.oncologico) sube(4, 'enfermedad oncológica en inmunosupresión');
 
-  /* El desplegable del punto 9 usa numeros ROMANOS —los valores de ASA_PS son
+  /* El desplegable del punto 5 usa numeros ROMANOS —los valores de ASA_PS son
      'I','II','III'…—, asi que la propuesta tiene que devolver el mismo
      formato: con «2» el select no seleccionaba nada y el boton «Aceptar»
      dejaba el ASA vacio. */
@@ -343,7 +352,7 @@ function asaPropuesto(f){
 }
 
 /* =========================================================================
-   REDACCION AUTOMATICA DE LA CONCLUSION (punto 11)
+   REDACCION AUTOMATICA DE LA CONCLUSION (punto 7)
    -------------------------------------------------------------------------
    Es el campo que mas tiempo lleva y el unico enteramente derivable: la
    fundamentacion es el resumen de lo que ya esta cargado. Se redacta con un
@@ -377,7 +386,7 @@ function redactarConclusion(f){
   /* --- antecedentes y medicación --- */
   if((c.dx||[]).length)
     L.push('Antecedentes: ' + c.dx.map(d => (d.n || d.d)).join(', ') + '.');
-  else if((c.v||{}).sinAntecedentes || $('#dxSin') && $('#dxSin').checked)
+  else if((c.v||{}).sinAntecedentes || (c.p||{}).sinAntecedentes)
     L.push('Sin antecedentes patológicos relevantes.');
   if((c.meds||[]).length){
     const susp = c.meds.filter(m => m.accion === 'suspender').map(m => m.n);
@@ -441,7 +450,7 @@ function redactarConclusion(f){
 
   /* --- lo que hay que optimizar, deducido de los dominios en alto --- */
   const pend = [];
-  if(eg.nivel === 'alto')   pend.push('preparar vía aérea difícil según el plan del punto 7');
+  if(eg.nivel === 'alto')   pend.push('preparar vía aérea difícil según el plan del punto 3');
   if(rcri.nivel !== 'bajo') pend.push('evaluación cardiológica y troponina perioperatoria');
   if(ar.nivel === 'alto')   pend.push('ventilación protectora y kinesiología perioperatoria');
   if(sb.nivel === 'alto')   pend.push('minimizar opioides y monitoreo prolongado en recuperación');

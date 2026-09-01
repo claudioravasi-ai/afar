@@ -381,7 +381,7 @@ function faltantesFicha(f){
   if(!(v.ayuno || {}).tipo)                m.push({ t:'control de ayuno', s:'preanestesia', anc:'acAyuno' });
   if(!(v.riesgo || {}).fundamento)         m.push({ t:'conclusión de aptitud', s:'preanestesia', anc:'acConclusion', critico:true });
   if(!(pl.tecnica || []).length)           m.push({ t:'plan anestésico', s:'preanestesia', anc:'acPlan', critico:true });
-  if(!consentimientoCompleto(f))           m.push({ t:'consentimiento informado (punto 15)',
+  if(!consentimientoCompleto(f))           m.push({ t:'consentimiento informado (punto 11)',
                                                     s:'preanestesia', anc:'acConsent', critico:true });
   if(!cx && (f.valoracionGuardada || (f.v||{}).scores))
                                            m.push({ t:'fecha de la cirugía', s:'anestesia', sol:'resumen', anc:'acFechaCx' });

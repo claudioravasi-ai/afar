@@ -206,7 +206,7 @@ function htmlValoracionExterna(f){
       (s.origenTxt ? '<br>Viene de la ficha de <b>'+esc(s.origenTxt)+'</b>.' : '')+
       (s.tipo ? '<br>Tipo: <b>'+esc(s.tipo)+'</b>.' : '')+
       (s.nota ? '<br>'+esc(s.nota) : '')+
-      '<br>Esta ficha <b>no se puede firmar</b> hasta que estos quince puntos estén completos, y '+
+      '<br>Esta ficha <b>no se puede firmar</b> hasta que estos once puntos estén completos, y '+
       'una vez terminado el acto se te va a recordar cada diez minutos.'+
     '</div></div>'+
 
@@ -276,7 +276,7 @@ function htmlValoracionExterna(f){
 function cablearValoracionExterna(f){
   const s = sinValoracion(f) || {};
   if($('#svVerOrigen')) $('#svVerOrigen').onclick = () => verFichaSoloLectura(s.fichaOrigen);
-  /* Atajo directo al punto 15, sin vueltas: abre el consentimiento ya
+  /* Atajo directo al punto 11, sin vueltas: abre el consentimiento ya
      desplegado y con el paciente y la cirugía de esta ficha adentro. */
   if($('#svConsent')) $('#svConsent').onclick = () => abrirConsentimientoModal(f);
   if($('#svFoto')) $('#svFoto').onclick = () =>
@@ -721,7 +721,7 @@ function registrarEnvio(f, tipo, nota){
    3. TARJETAS DENTRO DE LA FICHA
    ========================================================================= */
 
-/* Al final de la valoracion (paso Preanestesia, despues del punto 14) */
+/* Al final de la valoracion (paso Preanestesia, despues del punto 10) */
 function htmlEnvioValoracion(f){
   const env = enviosDeFicha(f.id, 'valoracion')[0];
   const puede = puedeEnviar(f, 'valoracion');

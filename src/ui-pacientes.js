@@ -427,11 +427,13 @@ function htmlPacFiliatorios(p){
       campoSel('paGrupo','Grupo y factor',
         ['','0+','0-','A+','A-','B+','B-','AB+','AB-'], p.grupoSanguineo)+
     '</div>'+
-    '<div class="campo"><label>Correo electrónico</label>'+
+    '<div class="campo"><label>Correo electrónico <span class="req">*</span></label>'+
       '<input type="email" id="paEmail" value="'+esc(p.email||'')+'" '+
-        'placeholder="nombre@correo.com" autocomplete="off">'+
+        'placeholder="nombre@correo.com" autocomplete="off" required>'+
       '<div class="ayuda">A esta dirección se le envía la copia de la valoración '+
-      'prequirúrgica y del consentimiento informado.</div></div>'+
+      'prequirúrgica y del consentimiento informado, y la ficha para completar en casa. '+
+      'Sin correo no hay forma de entregarle su documentación: por eso es obligatorio. '+
+      'Si el paciente no tiene casilla propia, cargá la de un familiar responsable.</div></div>'+
     '<div class="grid c2">'+
       campoTxt('paDom','Domicilio', p.domicilio)+
       campoSel('paLocalidad','Localidad',
@@ -731,7 +733,10 @@ function cablearPacMedicacion(){
     input: $('#paMedBuscar'), caja: $('#paMedRes'), manual: true,
     fuente: () => FARMACOS_PERIOP.map(x => ({
       etiqueta:x.n, sub:x.g+' · '+({continuar:'Continuar',suspender:'Suspender',evaluar:'Evaluar'}[x.accion]),
-      busca: norm(x.n+' '+x.g), dato:x })),
+      /* `sin` son los nombres comerciales y los sinonimos del vademecum: sin
+         esto, buscar «xarelto» o «jardiance» no encuentra nada y el fármaco
+         termina cargado a mano, sin conducta perioperatoria. */
+      busca: norm(x.n+' '+x.g+' '+(x.sin||'')), dato:x })),
     onElegir: x => { if(!p.medicacion.some(m => m.n === x.dato.n))
         p.medicacion.push({ n:x.dato.n, g:x.dato.g, accion:x.dato.accion, nota:x.dato.nota, dosis:'' });
       pintarMedPaciente(); },
@@ -882,6 +887,22 @@ function guardarPacienteEditado(){
   if(!p.dni){
     solapaPac = 'fil'; pintarEditorPaciente();
     return toast('El DNI es obligatorio.', 'err');
+  }
+  /* El correo es obligatorio desde que la app le entrega documentacion al
+     paciente: la valoracion, el consentimiento, las indicaciones y la ficha
+     para completar en casa viajan por mail y no hay otro canal. Unica
+     excepcion: el NN provisional de una urgencia, que se abre sin identidad y
+     todavia no tiene a quien escribirle. Al dejar de ser provisional entra por
+     esta misma puerta. Ver crearPacienteProvisional() en core.js. */
+  if(!p.provisional){
+    if(!p.email){
+      solapaPac = 'fil'; pintarEditorPaciente();
+      return toast('El correo electrónico es obligatorio.', 'err');
+    }
+    if(!mailValido(p.email)){
+      solapaPac = 'fil'; pintarEditorPaciente();
+      return toast('Revisá el correo electrónico: no tiene forma de dirección válida.', 'err');
+    }
   }
   const dup = lista('pacientes').find(x => x.id !== id && norm(x.dni) === norm(p.dni));
   if(dup && !id) return toast('Ya existe un paciente con ese DNI: '+dup.apellido+', '+dup.nombre, 'err');

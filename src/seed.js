@@ -112,7 +112,8 @@ function sembrarDemo(forzar){
     id:P1, demo:true, ownerUid:U,
     apellido:'Pérez', nombre:'María Elena', dni:'20114872', fechaNac:'1968-07-14',
     sexo:'F', peso:'94', talla:'161', obraSocial:'OSDE', nroAfiliado:'62-4471903-01',
-    telefono:'2901-556677', grupoSanguineo:'A+', domicilio:'Gobernador Paz 845',
+    telefono:'2901-556677', grupoSanguineo:'A+', email:'maria.perez@ejemplo.com',
+    domicilio:'Gobernador Paz 845',
     localidad:'Ushuaia', contactoEmergencia:'Jorge Pérez (hijo) — 2901-554433',
     observaciones:'Ansiedad marcada frente a procedimientos. Prefiere premedicación.',
     creado:diaRel(-60)
@@ -122,7 +123,8 @@ function sembrarDemo(forzar){
     id:P2, demo:true, ownerUid:U,
     apellido:'Suárez', nombre:'Roberto Carlos', dni:'10874336', fechaNac:'1949-11-03',
     sexo:'M', peso:'71', talla:'173', obraSocial:'PAMI - INSSJP', nroAfiliado:'150-10874336-00',
-    telefono:'2964-421188', grupoSanguineo:'0+', domicilio:'Piedrabuena 120',
+    telefono:'2964-421188', grupoSanguineo:'0+', email:'rc.suarez@ejemplo.com',
+    domicilio:'Piedrabuena 120',
     localidad:'Río Grande', contactoEmergencia:'Marta Suárez (esposa) — 2964-421189',
     observaciones:'Portador de marcapasos DDD desde 2019. Anticoagulado por FA.',
     creado:diaRel(-2)
@@ -133,6 +135,7 @@ function sembrarDemo(forzar){
     apellido:'Ramírez', nombre:'Sofía', dni:'38992104', fechaNac:'1996-02-18',
     sexo:'F', peso:'78', talla:'166', obraSocial:'IPAUSS / OSEF (Tierra del Fuego)',
     nroAfiliado:'TF-889210', telefono:'2901-667788', grupoSanguineo:'0-',
+    email:'sofia.ramirez@ejemplo.com',
     domicilio:'Kuanip 330', localidad:'Ushuaia',
     contactoEmergencia:'Diego Ramírez (pareja) — 2901-667789',
     observaciones:'Cursando 38 semanas. Cesárea anterior en 2022.',

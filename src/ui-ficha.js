@@ -260,7 +260,7 @@ function migrarFicha(f){
 
        · la fecha de la cirugía es la que estaba en f.fecha, siempre que
          haya un acto registrado o que la fecha ya haya pasado;
-       · la de la valoración es la que quedó asentada en el punto 11, y si
+       · la de la valoración es la que quedó asentada en el punto 7, y si
          no hay, la de creación de la ficha.
 
      Una ficha vieja que nunca llegó al quirófano y con fecha futura no
@@ -682,7 +682,7 @@ function pedirFichaDeOrigen(f){
         'color:var(--texto-3)">'+ico('buscar')+'</span></div></div>')+
     '<div class="hon-pend-lista" id="svLista2">'+ filas() +'</div>'+
     '<p class="mini mt8">El <b>consentimiento informado no se copia</b>: es de aquel procedimiento '+
-      'y de aquel riesgo. Hay que firmar el del punto 15 para esta intervención.</p>',
+      'y de aquel riesgo. Hay que firmar el del punto 11 para esta intervención.</p>',
     '<button class="btn ghost" id="svVolver">Volver</button>', '640px');
   modalSinSalida();
   $('#svVolver').onclick = () => pedirMotivoSinValoracion(f, true);
@@ -809,7 +809,7 @@ function estadoPaso(f, k){
     const arranco = !!(f.valoracionGuardada || sc.asa || co.quien ||
                        (v.antecedentes2||[]).length || v.sinAntecedentes);
     if(!arranco) return 'pend';
-    /* el consentimiento es el punto 15 y es condicion para cerrar */
+    /* el consentimiento es el punto 11 y es condicion para cerrar */
     const cerrada = sc.asa && (v.riesgo||{}).fundamento && (pl.tecnica||[]).length &&
                     consentimientoCompleto(f);
     if(cerrada) return 'ok';
@@ -877,7 +877,7 @@ function consentimientoCompleto(f){
   if(consentSinFirma(c.quien)) return true;      /* documentado, sin firma */
   return !!(c.firmante && c.firmaPaciente && c.firmaAnestesiologo);
 }
-/* Que le falta al punto 15, en palabras, para poder decirselo al usuario */
+/* Que le falta al punto 11, en palabras, para poder decirselo al usuario */
 function faltaDelConsentimiento(f){
   const c = f.consent || {};
   if(!c.quien) return 'elegí quién firma el consentimiento';
@@ -905,7 +905,7 @@ function faltaDelConsentimiento(f){
      Recuperacion  Siguiente.                        Autoguarda al pasar.
      Firmar        Guardar + documentos del ACTO.
 
-   El consentimiento ya no es un boton en ningun paso: es el punto 15 de la
+   El consentimiento ya no es un boton en ningun paso: es el punto 11 de la
    Preanestesia. Y en Firmar no vuelve a aparecer porque ya se le entrego al
    paciente con la valoracion: repetirlo ahi no agrega nada.
    ========================================================================= */
@@ -956,6 +956,9 @@ function pintarFicha(){
       '<span class="dot">'+(est==='ok' ? ico('check') : est==='alerta' ? ico('alerta') : ico(s.ico))+'</span>'+
       '<span class="lbl">'+esc(s.t)+'</span>'+
       '<span class="est '+est+'">'+esc(ROTULO_ESTADO[est])+'</span>'+
+      /* Debajo de PACIENTE, si se le mandó la ficha por mail, el estado de
+         ese pedido: pendiente, completada o vencida. Ver paciente-portal.js */
+      (s.k === 'paciente' ? selloPrellenado(f) : '')+
       (i < PASOS_FICHA.length-1 ? '<span class="linea"></span>' : '')+
       '</button>';
   }).join('') +'</div>'+
@@ -1023,11 +1026,29 @@ function pintarFicha(){
     /* Mismo criterio que «Anterior»: si el paso siguiente está cerrado, el
        botón saltearía el recorrido. En el arranque del acto no hay nada que
        avanzar hasta tomarlo. */
+    /* «Enviarle la ficha al paciente» vive acá, al lado de Siguiente, porque
+       éste es el momento en que se decide: ya está identificado el paciente y
+       todavía no empezó la valoración, que es justamente lo que se quiere
+       encontrar medio completo. Ver enviarFichaEnBlancoAlPaciente(). */
+    (pasoFicha === 'paciente' && f.pacienteId && !firmada
+      ? '<button class="btn ghost" id="fiEnviarPac">'+ico('correo')+
+        (estadoPrellenado(f) === 'no' ? ' Enviarle la ficha por mail' : ' Reenviar la ficha')+
+        '</button>'
+      : '')+
     (pasoVecino(1) && pasoHabilitado(f, pasoVecino(1))
       ? '<button class="btn '+(PASO_GUARDA[pasoFicha] ? 'ghost' : 'pri grande')+'" id="fiSiguiente">'+
         'Siguiente '+ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg)"')+'</button>'
       : '<span></span>')+
   '</div>'+
+
+  /* Cuando el paciente ya devolvió su ficha, la puerta para revisarla está
+     donde se la mandó: en el paso Paciente, arriba de todo lo demás. */
+  (pasoFicha === 'paciente' && estadoPrellenado(f) === 'finalizado'
+    ? '<div class="aviso ok no-print">'+ico('check')+'<div><b>El paciente completó su ficha.</b> '+
+      'Lo que cargó <b>no entró solo</b> en su historia: revisalo y elegí qué incorporar.'+
+      '<br><button class="btn pri chico mt8" id="fiRevisarPrell">'+ico('lista')+
+      ' Revisar lo que cargó</button></div></div>'
+    : '')+
 
   /* Los pasos que no guardan a mano lo dicen, para que nadie salga de la
      pantalla con la duda de si lo que cargó quedó grabado. */
@@ -1061,6 +1082,14 @@ function pintarFicha(){
   $$('#vFicha [data-modo]').forEach(b => b.onclick = () => cambiarModoFicha(b.dataset.modo));
   if($('#fiAtras'))     $('#fiAtras').onclick = () => irAPaso(pasoVecino(-1));
   if($('#fiSiguiente')) $('#fiSiguiente').onclick = () => avanzarPaso();
+  if($('#fiEnviarPac')) $('#fiEnviarPac').onclick = () => {
+    guardarPasoActual();
+    enviarFichaEnBlancoAlPaciente(fichaActual);
+  };
+  if($('#fiRevisarPrell')) $('#fiRevisarPrell').onclick = () => revisarPrellenado(fichaActual);
+  /* Si hay un pedido abierto, la ficha se queda escuchando: cuando el
+     paciente toca FINALIZADO, el sello cambia sin recargar nada. */
+  if(estadoPrellenado(f) === 'pendiente') escucharPrellenado(f);
   if($('#fiGuardar'))   $('#fiGuardar').onclick = () => guardarPasoConCierre();
   cablearExtrasDePaso();
   cablearBajaDeFicha(guardada || f);
@@ -1238,10 +1267,10 @@ function htmlExtrasDePaso(f, soloActo){
           fFechaLarga(String(guardada.valoracionGuardada).slice(0,10))+' a las '+
           esc(String(guardada.valoracionGuardada).slice(11,16))+' h.</div>'
         : '<div class="aviso warn mt8">'+ico('candado')+'<div><b>Todavía no se puede documentar.</b> '+
-          'Completá la valoración —incluido el punto 15, el consentimiento informado— y tocá '+
+          'Completá la valoración —incluido el punto 11, el consentimiento informado— y tocá '+
           '<b>«Guardar valoración»</b>. Recién ahí se habilitan estos cuatro botones.</div></div>')+
       /* Los dos botones de descarga bajan SOLO la valoracion: datos del
-         paciente, los quince puntos y el consentimiento. El registro del
+         paciente, los once puntos y el consentimiento. El registro del
          acto no entra —el dia de la consulta todavia no existe— y el
          honorario que se abre es el de la consulta, sin el del acto. */
       '<div class="btn-row mt8 fi-extras">'+
@@ -1282,7 +1311,7 @@ function htmlExtrasDePaso(f, soloActo){
       '<button class="btn ghost chico" id="fiWordTodo"'+off+'>'+ico('word')+
         ' Word · ficha completa</button>'+
     '</div>'+
-    /* El consentimiento NO vuelve a aparecer acá: se firmó en el punto 15 de
+    /* El consentimiento NO vuelve a aparecer acá: se firmó en el punto 11 de
        la Preanestesia y ya se le entregó al paciente con su valoración.
        Repetirlo en el cierre no agrega nada y confunde sobre cuál es el que
        vale. */
@@ -1290,7 +1319,7 @@ function htmlExtrasDePaso(f, soloActo){
       'sin repetir la valoración: son dos documentos y dos honorarios distintos. '+
       '«Ficha completa» baja los dos juntos, para el legajo.<br>'+
       'El consentimiento informado ya se firmó y se entregó con la valoración prequirúrgica '+
-      '(punto 15).</div>'+
+      '(punto 11).</div>'+
     (enBase ? htmlAvisoHonorario(f, 'acto') : '')+
   '</div>';
 }
@@ -1357,10 +1386,10 @@ function avanzarPaso(){
   }
 
   const mio = puedeEditarSeccion(DB.fichas[f.id] || f, seccionDePaso(pasoFicha));
-  /* Salir de la valoración sin el punto 15 no se impide —el acto puede estar
+  /* Salir de la valoración sin el punto 11 no se impide —el acto puede estar
      empezando— pero se dice, y se dice dónde va a doler: en Firmar. */
   const avisoConsent = (pasoFicha === 'preanestesia' && mio && !consentimientoCompleto(f))
-    ? 'Falta el consentimiento informado (punto 15). Sin él no vas a poder firmar la ficha.'
+    ? 'Falta el consentimiento informado (punto 11). Sin él no vas a poder firmar la ficha.'
     : '';
   /* Lo que falta del paso que se está DEJANDO se dice acá, que es el momento
      en que corresponde decirlo: la persona ya trabajó en él y decide si lo
@@ -1424,13 +1453,13 @@ function guardarPasoConCierre(){
     if(!f.pacienteId){ pasoFicha = 'paciente'; pintarFicha();
       return toast('Elegí un paciente para poder continuar.', 'err'); }
 
-    /* --- El punto 15 es condicion para dar la valoracion por concluida --- */
+    /* --- El punto 11 es condicion para dar la valoracion por concluida --- */
     if(!consentimientoCompleto(f)){
       const falta = faltaDelConsentimiento(f);
       pintarFicha();
       const acc = $('#acConsent');
       if(acc){ acc.open = true; acc.scrollIntoView({ behavior:'smooth', block:'center' }); }
-      return toast('Falta el punto 15, consentimiento informado: ' + falta + '.', 'err');
+      return toast('Falta el punto 11, consentimiento informado: ' + falta + '.', 'err');
     }
 
     f.fechaValoracion = f.fechaValoracion || (f.v && f.v.riesgo && f.v.riesgo.fecha) || hoyISO();
@@ -1602,7 +1631,7 @@ function guardarPasoActual(){
   if(pasoFicha === 'paciente'){         Object.assign(f, leerPasoPaciente());
                                         sincronizarProcedimientoPrincipal(f); }
   else if(pasoFicha === 'preanestesia'){ f.v = leerValoracion(); f.plan = leerPlan();
-                                        f.consent = leerConsentimiento(f);   /* punto 15 */
+                                        f.consent = leerConsentimiento(f);   /* punto 11 */
                                         Object.assign(f, leerAsignacionActo()); }
   else if(pasoFicha === 'anestesia')     f.acto = leerPasoAnestesia();
   else if(pasoFicha === 'recuperacion')  f.recup = leerPasoRecuperacion();
@@ -1778,7 +1807,7 @@ function htmlPasoPaciente(f){
     /* Fecha, hora y turno NO se piden acá: cuando el anestesiólogo hace la
        valoración prequirúrgica todavía no los sabe —la cirugía se programa
        después—. La fecha real del acto se carga en el paso Anestesia, y la
-       de esta consulta queda registrada sola en el punto 11 de la
+       de esta consulta queda registrada sola en el punto 7 de la
        Preanestesia. Son dos fechas distintas y casi nunca coinciden. */
     '<div class="aviso info">'+ico('calendario')+'<div><b>La fecha de la cirugía se carga en el '+
       'paso Anestesia</b>, el día del acto. Esta valoración queda fechada '+
@@ -1816,7 +1845,7 @@ function htmlPasoPaciente(f){
 
   '<div class="aviso info">'+ico('info')+'<div>El <b>equipo quirúrgico</b> se carga en el paso '+
     '<b>Anestesia</b>, donde queda asentado quién operó de verdad. El <b>anestesiólogo que realiza '+
-    'el acto</b> se designa en el paso <b>Preanestesia</b>, punto 14.</div></div>';
+    'el acto</b> se designa en el paso <b>Preanestesia</b>, punto 10.</div></div>';
 }
 
 function cablearPasoPaciente(f){
@@ -2128,7 +2157,7 @@ function leerPasoPaciente(){
     cirugias: cxLista.slice(),
     lateralidad: val('qxLateralidad')
     /* El equipo quirúrgico se lee en el paso Anestesia (acto.equipo) y la
-       designación del actuante en el paso Preanestesia (punto 14). Si se
+       designación del actuante en el paso Preanestesia (punto 10). Si se
        leyeran acá, cada vez que se guarda el paso 1 se borrarían. */
   };
 }
@@ -2165,7 +2194,7 @@ function tomarActo(f){
     '<b>'+esc((USUARIO ? USUARIO.apellido+', '+USUARIO.nombre : 'Vos'))+'</b> queda registrado como '+
     'el anestesiólogo que realiza este acto.<br><br>'+
     (pisando
-      ? '<b>Ojo:</b> en el punto 14 estaba designado <b>'+esc(nombreActor(g || f))+'</b>. '+
+      ? '<b>Ojo:</b> en el punto 10 estaba designado <b>'+esc(nombreActor(g || f))+'</b>. '+
         'Al tomarlo, el acto y su honorario pasan a tu nombre y queda asentado en la auditoría.<br><br>'
       : '')+
     'El honorario del acto pasa a ser tuyo; la consulta prequirúrgica sigue siendo de '+
@@ -2282,7 +2311,7 @@ function htmlPasoRecuperacion(f){
   /* =====================================================================
      ANALGESIA POSTOPERATORIA INDICADA
      ---------------------------------------------------------------------
-     Estaba en el punto 13 de la valoracion prequirurgica, semanas antes del
+     Estaba en el punto 9 de la valoracion prequirurgica, semanas antes del
      acto. Ahi se decidia a ciegas: todavia no se sabia como iba a salir la
      cirugia, si el bloqueo iba a funcionar ni con cuanto dolor iba a
      despertar el paciente. Y una vez escrita, nadie volvia a corregirla.
@@ -2291,7 +2320,7 @@ function htmlPasoRecuperacion(f){
      despues del destino, con el Aldrete y el EVA de esta misma pantalla
      delante. Lo que se marque aca es la INDICACION, no el plan.
 
-     Si la ficha traia un esquema del punto 13 —o de una plantilla— se
+     Si la ficha traia un esquema del punto 9 —o de una plantilla— se
      propone marcado, para confirmarlo o cambiarlo. No se pierde nada.
      ===================================================================== */
   (function(){
@@ -2369,7 +2398,7 @@ function cablearPasoRecuperacion(f){
   });
   recalc();
 
-  /* Nauseas: si las tuvo, hay que decir que se hace. Y si el Apfel del punto 9
+  /* Nauseas: si las tuvo, hay que decir que se hace. Y si el Apfel del punto 5
      era alto, decirlo tambien cuando NO las tuvo sirve: confirma que la
      profilaxis funciono, que es lo que despues explica por que se indicó. */
   const pintarNauseas = () => {
@@ -2385,7 +2414,7 @@ function cablearPasoRecuperacion(f){
         'alta.</div></div>'
       : (ap.n >= 3
         ? '<div class="aviso ok mt8">'+ico('check')+'<div><b>Sin náuseas, con Apfel '+ap.n+'/4 '+
-          '(riesgo alto).</b> La profilaxis del punto 13 cumplió. Si el paciente sigue con opioides '+
+          '(riesgo alto).</b> La profilaxis del punto 9 cumplió. Si el paciente sigue con opioides '+
           'en sala, conviene continuarla.</div></div>'
         : '');
   };
@@ -2408,8 +2437,8 @@ function cablearPasoRecuperacion(f){
     setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0));
 
   /* Bloqueo neuroaxial en un paciente anticoagulado: es la contraindicación
-     que sale más cara y la que se pasa por alto justo acá, lejos del punto 3
-     donde está cargada la medicación. La marca viaja desde la valoración. */
+     que sale más cara y la que se pasa por alto justo acá, lejos de la historia
+     del paciente, donde está cargada la medicación. La marca viaja desde la valoración. */
   const anticoag = () => {
     const meds = ((f.v||{}).medicacion || []);
     return fichaActual.__anticoagulado ||
@@ -3073,7 +3102,7 @@ function leerHonorarios(){
 /* =========================================================================
    ATAJO AL PUNTO 15
    El consentimiento dejo de ser una ventana aparte: vive dentro de la
-   valoracion, como punto 15, porque es parte de ella y no un tramite suelto.
+   valoracion, como punto 11, porque es parte de ella y no un tramite suelto.
    Esta funcion queda porque los avisos y los enlaces viejos apuntan al
    consentimiento: en vez de abrir un modal, lleva al punto donde ahora esta.
    ========================================================================= */
@@ -3085,7 +3114,7 @@ function leerHonorarios(){
    colega, o de una intervencion anterior, y entrar ahi invita a tocar lo que
    no es de uno.
 
-   El punto 15 se monta tal cual en una ventana: es el mismo formulario, con
+   El punto 11 se monta tal cual en una ventana: es el mismo formulario, con
    el mismo texto legal, las mismas declaraciones y las mismas dos firmas. Lo
    que cambia es de donde se lo abre.
 

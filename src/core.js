@@ -37,6 +37,11 @@ function esc(s){
   return String(s).replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+/* Forma de una direccion de correo. No verifica que exista: eso solo lo dice
+   el mail que rebota. Alcanza para atajar el dedazo. */
+function mailValido(s){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s||'').trim());
+}
 function hoyISO(){ const d = new Date(); return d.toISOString().slice(0,10); }
 function ahoraHora(){ return new Date().toTimeString().slice(0,5); }
 
@@ -2028,7 +2033,7 @@ function faltaDeLaValoracion(f){
    Se copian los antecedentes, el examen, el laboratorio, las escalas y el
    plan. NO se copia el consentimiento: es de aquel procedimiento y de aquel
    riesgo, y la Ley 26.529 lo pide para ESTA intervencion. Por eso la ficha
-   sigue sin poder firmarse hasta que se firme el punto 15 nuevo, que es
+   sigue sin poder firmarse hasta que se firme el punto 11 nuevo, que es
    exactamente lo que corresponde.
 
    Tampoco se copian los honorarios: son de aquel acto. */
