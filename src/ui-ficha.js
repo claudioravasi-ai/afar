@@ -1029,8 +1029,13 @@ function pintarFicha(){
     /* «Enviarle la ficha al paciente» vive acá, al lado de Siguiente, porque
        éste es el momento en que se decide: ya está identificado el paciente y
        todavía no empezó la valoración, que es justamente lo que se quiere
-       encontrar medio completo. Ver enviarFichaEnBlancoAlPaciente(). */
-    (pasoFicha === 'paciente' && f.pacienteId && !firmada
+       encontrar medio completo. Ver enviarFichaEnBlancoAlPaciente().
+
+       NO se ofrece si la ficha nació de una precarga: el botón existe para
+       pedirle al paciente los datos que no tenemos, y de un precargado los
+       tenemos todos. Mandarle el mail sería pedirle que complete por segunda
+       vez exactamente lo mismo que ya completó en su casa. */
+    (pasoFicha === 'paciente' && f.pacienteId && !firmada && !f.desdePrecarga
       ? '<button class="btn ghost" id="fiEnviarPac">'+ico('correo')+
         (estadoPrellenado(f) === 'no' ? ' Enviarle la ficha por mail' : ' Reenviar la ficha')+
         '</button>'
@@ -1040,6 +1045,20 @@ function pintarFicha(){
         'Siguiente '+ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg)"')+'</button>'
       : '<span></span>')+
   '</div>'+
+
+  /* Un botón que desaparece sin decir por qué deja al usuario buscándolo. Si
+     la ficha vino de una precarga se dice, y de paso queda asentado en la
+     pantalla de dónde salieron estos datos. */
+  (pasoFicha === 'paciente' && f.desdePrecarga
+    ? '<div class="aviso ok no-print">'+ico('check')+'<div>'+
+      '<b>Este paciente cargó sus datos por su cuenta antes de venir.</b> '+
+      (f.desdePrecarga.fecha
+        ? 'Declaró turno para el <b>'+fFecha(f.desdePrecarga.fecha)+'</b>'+
+          (f.desdePrecarga.inst ? ' en <b>'+esc(nombreInstitucion(f.desdePrecarga.inst))+'</b>' : '')+
+          (f.desdePrecarga.conTicket ? ', con foto del ticket' : ', <b>sin</b> foto del ticket')+'. '
+        : '')+
+      'Por eso no aparece el botón de enviarle la ficha por mail: ya la completó.</div></div>'
+    : '')+
 
   /* Cuando el paciente ya devolvió su ficha, la puerta para revisarla está
      donde se la mandó: en el paso Paciente, arriba de todo lo demás. */

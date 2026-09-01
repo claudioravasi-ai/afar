@@ -829,10 +829,25 @@ function tomarPrecarga(token){
 function nuevaFichaPara(pacienteId, pre){
   const t = (pre && pre.turno) || {};
   abrirFicha(null, pacienteId);
-  if(fichaActual && t.inst && !fichaActual.institucion){
-    fichaActual.institucion = t.inst;
-    pintarFicha();
-  }
+  if(!fichaActual) return;
+  if(t.inst && !fichaActual.institucion) fichaActual.institucion = t.inst;
+
+  /* La ficha se queda con la marca de que nacio de una precarga. No es un
+     dato decorativo: es lo que le permite al paso Paciente NO ofrecer
+     «enviarle la ficha por mail». Ese boton sirve para pedirle al paciente
+     los datos que no tenemos, y de un precargado los tenemos todos: mandarle
+     el mail seria hacerlo completar dos veces lo mismo.
+
+     Va en la FICHA y no en el paciente a proposito. Si el año que viene el
+     mismo paciente se opera de otra cosa, esa ficha nueva no tiene la marca y
+     el boton vuelve a aparecer, que es lo correcto: la precarga vieja no dice
+     nada de la intervencion nueva. */
+  fichaActual.desdePrecarga = {
+    fecha: t.fecha || '', inst: t.inst || '',
+    conTicket: !!(pre && pre.conTicket),
+    tomadaEn: new Date().toISOString()
+  };
+  pintarFicha();
 }
 
 /* ------------------------------------------------------------- Purga
