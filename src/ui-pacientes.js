@@ -9,7 +9,7 @@
 let filtroPac = '';
 let pacEdit = null;          /* borrador del paciente en edicion */
 let solapaPac = 'fil';
-let alcancePac = 'mios';     /* mios | padron */
+let alcancePac = 'mios';     /* mios | padron | precargas */
 
 /* =========================================================================
    QUE PACIENTES VE CADA ANESTESIOLOGO
@@ -65,13 +65,18 @@ function vistaPacientes(){
     (q ? ' · '+l.length+' coinciden con la búsqueda' : '')+'.</p></div>'+
     '<div class="acciones"><button class="btn pri" id="btnNuevoPac">'+ico('mas')+' Nuevo paciente</button></div></div>'+
 
-  (esCoordinador() ? '' :
     '<div class="seg mb8" id="pacAlcance">'+
       [['mios','Mis pacientes', propios.length],
-       ['padron','Padrón de la asociación', padron.length]].map(a =>
+       ['padron','Padrón de la asociación', padron.length],
+       /* Los que se anotaron solos y todavía no tomó nadie. Ver precarga.js */
+       ['precargas','Precargados', precargasPendientes().length]].map(a =>
         '<button type="button" data-v="'+a[0]+'"'+(alcancePac===a[0]?' class="on"':'')+'>'+
         a[1]+'<span class="badge">'+a[2]+'</span></button>').join('')+
-    '</div>')+
+    '</div>'+
+
+  /* La bandeja de precargados no es una lista de pacientes: es una agenda por
+     institución y día, y se dibuja entera aparte. Ver precarga.js */
+  (alcancePac === 'precargas' ? htmlBandejaPrecargas() : (
 
   '<div class="campo"><div style="position:relative">'+
     '<input type="search" id="pacBuscar" placeholder="Buscar por apellido, nombre, DNI o HC…" value="'+esc(filtroPac)+'" style="padding-left:38px" autocomplete="off">'+
@@ -128,11 +133,14 @@ function vistaPacientes(){
       '<span>'+(q ? 'Probá con otro apellido o DNI'+(enPadron?'.':', o buscá en el padrón de la asociación.')
                   : enPadron ? 'Tocá «Nuevo paciente» para empezar.'
                   : 'Los pacientes aparecen acá cuando les hacés la valoración prequirúrgica o el acto anestésico.')+
-      '</span></div>');
+      '</span></div>')));
 
   $('#btnNuevoPac').onclick = () => editarPaciente(null);
   $$('#pacAlcance button').forEach(b => b.onclick = () => {
     alcancePac = b.dataset.v; vistaPacientes(); });
+
+  if(alcancePac === 'precargas'){ cablearBandejaPrecargas(); purgarPrecargasVencidas(); return; }
+
   $('#pacBuscar').oninput = debounce(e => { filtroPac = e.target.value; vistaPacientes();
     const i = $('#pacBuscar'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }, 260);
   $$('#vPacientes .item').forEach(it => {

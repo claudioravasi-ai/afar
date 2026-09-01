@@ -346,6 +346,10 @@ function arrancarApp(){
   pintarEncabezado();
   irA(vistaInicial());
   if(verDatosClinicos()){
+    /* La bandeja de precargados se queda escuchando desde el ingreso: asi el
+       contador de la solapa está al dia sin que nadie entre a mirar. Solo
+       para quien ve datos clinicos: al contable no le corresponde. */
+    suscribirPrecargas();
     notificarCirugias();
     /* Los honorarios que el anestesiólogo dejó para después se le recuerdan
        cada tres horas hasta que los cargue. */
@@ -386,6 +390,15 @@ function aplicarTema(t){
   if(m) m.setAttribute('content', t === 'oscuro' ? '#050f1e' : '#0b2545');
 }
 
+/* Cual de los tres modos pide la direccion actual. Ver el comentario del
+   hashchange, mas abajo. */
+let modoArranque = 'app';
+function modoDeLaUrl(){
+  if(esModoPaciente())  return 'paciente';
+  if(esModoPrecarga())  return 'precarga';
+  return 'app';
+}
+
 function iniciar(){
   /* El logo va incrustado como data URI, no como archivo suelto */
   if(typeof LOGO_AFAAR === 'string'){
@@ -394,6 +407,31 @@ function iniciar(){
   parsearCatalogos();
   parsearNomenclador();
   aplicarTema(localStorage.getItem(LS_TEMA) || 'claro');
+
+  modoArranque = modoDeLaUrl();
+
+  /* =======================================================================
+     EL HASH PUEDE CAMBIAR SIN QUE LA PAGINA SE RECARGUE
+     -----------------------------------------------------------------------
+     Un navegador NO recarga cuando lo unico que cambia es el `#...`. Asi que
+     si alguien ya tiene la aplicacion abierta y pega  .../#precarga  en la
+     barra de direcciones, iniciar() no se vuelve a ejecutar y sigue viendo la
+     aplicacion: el sintoma es exactamente «hago clic en el enlace y me lleva
+     a la app».
+
+     Pasa mas de lo que parece: el anestesiologo que prueba el enlace desde la
+     misma pestaña en la que estaba trabajando, o el paciente que vuelve a su
+     enlace del mail con la pestaña ya abierta.
+
+     Los tres modos —aplicacion, portal por invitacion y precarga— arrancan de
+     forma tan distinta que no vale la pena intentar cambiar de uno a otro en
+     caliente: se recarga y listo. Es instantaneo, porque el archivo ya esta
+     en el navegador.
+     ======================================================================= */
+  window.addEventListener('hashchange', () => {
+    const ahora = modoDeLaUrl();
+    if(ahora !== modoArranque) location.reload();
+  });
 
   /* ---- Modo paciente ----
      Si la direccion trae #p=<token>, esto no es la aplicacion: es la ficha de
@@ -404,6 +442,16 @@ function iniciar(){
   if(esModoPaciente()){
     iniciarNube();
     arrancarPortalPaciente();
+    return;
+  }
+
+  /* ---- Modo precarga ----
+     Igual que el anterior, pero sin invitacion: la persona llego sola a
+     #precarga porque saco turno y quiere dejar sus datos antes de venir.
+     Ver precarga.js. */
+  if(esModoPrecarga()){
+    iniciarNube();
+    arrancarPrecarga();
     return;
   }
 

@@ -134,6 +134,83 @@ Mientras tanto, la proteccion real es que la direccion de la base no circule.
 
 
 --------------------------------------------------------------------
+LA PRECARGA ABIERTA  (obligatorio para esa funcion)
+--------------------------------------------------------------------
+La otra puerta de entrada: la persona que saco turno en una institucion, no
+existe todavia en la app, y entra sola a  .../#precarga  a dejar sus datos.
+Necesita una segunda rama, tambien colgada de la RAIZ:
+
+  "afar-precargas": {
+    ".read": false,
+    ".indexOn": ["estado", "fecha"],
+    "$token": {
+      ".read":  "$token.length >= 20",
+      ".write": "$token.length >= 20 &&
+                 (!data.exists() || data.child('estado').val() != 'tomada')"
+    }
+  }
+
+DIFERENCIA IMPORTANTE CON LA RAMA DEL PRELLENADO
+Aca SI hace falta que el profesional pueda leer la rama entera, porque la
+bandeja es una AGENDA: muestra quienes vienen el martes al HRU, y para eso
+tiene que poder listar. Con `".read": false` a la altura de la rama eso no se
+puede, asi que hay que ABRIRLO, pero solo para quien esta identificado:
+
+  "afar-precargas": {
+    ".read": "auth != null",
+    ...
+
+Y ahi esta el problema, dicho sin vueltas: el pase que la app consigue sola es
+ANONIMO. Con `auth != null`, cualquiera que lea el index.html publico puede
+pedir un pase anonimo y listar la rama entera: nombres, documentos y datos de
+salud de todos los que se precargaron.
+
+Eso YA PASA HOY con la rama `afar` -toda la historia clinica de la asociacion
+esta igual de expuesta-, asi que la precarga no empeora nada; pero es la
+funcion que hace que se vuelva urgente arreglarlo. El dia que cada socio se
+identifique en Firebase con su propia cuenta, la regla pasa a ser:
+
+  ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous'"
+
+y con esa sola linea quedan cerradas las dos ramas.
+
+MIENTRAS TANTO, LO QUE SI PROTEGE
+  - El paciente escribe SOLO en su propio pedido, por el token de 32
+    caracteres que le llego al mail. No puede leer ni tocar el de otro.
+  - Una precarga que un anestesiologo ya tomo deja de aceptar escrituras: a
+    partir de ahi es historia clinica y la corrige el profesional.
+  - Las precargas que nadie toma se borran solas pasados 15 dias del turno.
+
+QUEDARIA ASI, LAS TRES RAMAS JUNTAS:
+
+{
+  "rules": {
+    "afar": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "fichas":    { ".indexOn": ["ownerUid", "fecha"] },
+      "pacientes": { ".indexOn": ["ownerUid"] }
+    },
+    "afar-prellenado": {
+      ".read": false,
+      ".write": false,
+      "$token": {
+        ".read":  "$token.length >= 20",
+        ".write": "$token.length >= 20 && (!data.exists() || data.child('estado').val() != 'finalizado')"
+      }
+    },
+    "afar-precargas": {
+      ".read": "auth != null",
+      ".indexOn": ["estado", "fecha"],
+      "$token": {
+        ".write": "$token.length >= 20 && (!data.exists() || data.child('estado').val() != 'tomada')"
+      }
+    }
+  }
+}
+
+
+--------------------------------------------------------------------
 RECOMENDACIONES ADICIONALES
 --------------------------------------------------------------------
 1. Restringí la clave de API por dominio en:

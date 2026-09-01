@@ -256,6 +256,36 @@ function revisarPrellenado(f){
 
 function abrirRevisionPrellenado(f, d){
   const p = DB.pacientes[f.pacienteId] || {};
+  abrirRevisionDatosPaciente(p, d, marcados => {
+    const n = incorporarDatosDePaciente(p, d, marcados);
+    f.prellenado = Object.assign({}, f.prellenado, {
+      estado:'incorporado', incorporado:new Date().toISOString() });
+    guardarPedidoEnLaFicha(f);
+    auditar('prellenado-incorporado',
+      n + ' dato(s) aportados por el paciente incorporados a su historia (ficha ' + f.id + ')');
+    cerrarModal();
+    toast(n ? (n + ' dato' + (n===1?'':'s') + ' incorporado' + (n===1?'':'s') +
+               ' a la historia del paciente.')
+            : 'No se incorporó nada.', n ? 'ok' : 'warn');
+    pintarFicha();
+  });
+}
+
+/* =========================================================================
+   LA REVISION, COMPARTIDA POR LOS DOS CAMINOS DE ENTRADA
+   -------------------------------------------------------------------------
+   La usan el portal por invitacion y la precarga abierta de precarga.js. Es
+   la pantalla donde un profesional decide, campo por campo, que entra a la
+   historia clinica. Es el unico lugar por el que pasan los datos que escribio
+   un paciente, y por eso vale la pena que sea uno solo: si hubiera dos, en
+   algun momento una de las dos deja de preguntar algo.
+
+   `p`   el paciente destino (puede ser uno nuevo, todavia sin guardar)
+   `d`   { datos, salud, finalizado }
+   `alConfirmar(marcados)`  que hacer con lo tildado
+   ========================================================================= */
+function abrirRevisionDatosPaciente(p, d, alConfirmar){
+  p = p || {};
   const dat = d.datos || {}, sal = d.salud || {};
 
   /* Cada campo con su valor actual y el que propone el paciente. Se marcan
@@ -334,14 +364,14 @@ function abrirRevisionPrellenado(f, d){
     '<button class="btn ghost" data-cerrar>Cerrar</button>'+
     '<button class="btn pri" id="prellOK">' + ico('check') + ' Incorporar lo marcado</button>');
 
-  $('#prellOK').onclick = () => incorporarPrellenado(f, d);
+  $('#prellOK').onclick = () =>
+    alConfirmar($$('#modal .prellChk:checked').map(i => i.dataset.k));
 }
 
-function incorporarPrellenado(f, d){
-  const p = DB.pacientes[f.pacienteId];
-  if(!p) return toast('No se encuentra el paciente.', 'err');
+/* Vuelca en `p` lo que el profesional dejo tildado. Devuelve cuantos datos
+   entraron. NO guarda la ficha ni cierra el modal: eso es de cada llamador. */
+function incorporarDatosDePaciente(p, d, marcados){
   const dat = d.datos || {}, sal = d.salud || {};
-  const marcados = $$('#modal .prellChk:checked').map(i => i.dataset.k);
   let n = 0;
 
   marcados.forEach(k => {
@@ -401,18 +431,7 @@ function incorporarPrellenado(f, d){
   p.modificado = new Date().toISOString();
   p.modificadoPor = SESION.uid;
   escribir('pacientes', p.id, p);
-
-  f.prellenado = Object.assign({}, f.prellenado, {
-    estado:'incorporado', incorporado:new Date().toISOString() });
-  guardarPedidoEnLaFicha(f);
-  auditar('prellenado-incorporado',
-    n + ' dato(s) aportados por el paciente incorporados a su historia (ficha ' + f.id + ')');
-
-  cerrarModal();
-  toast(n ? (n + ' dato' + (n===1?'':'s') + ' incorporado' + (n===1?'':'s') +
-             ' a la historia del paciente.')
-          : 'No se incorporó nada.', n ? 'ok' : 'warn');
-  pintarFicha();
+  return n;
 }
 
 /* =========================================================================
@@ -523,9 +542,7 @@ function piePortal(){
 
 /* ------------------------------------------------- Paso 1: filiatorios */
 function htmlPortalDatos(){
-  const d = (portalPedido && portalPedido.datos) || {};
-  return ''+
-  '<div class="portal-pasos"><span class="on">1 · Sus datos</span>'+
+  return '<div class="portal-pasos"><span class="on">1 · Sus datos</span>'+
     '<span>2 · Su salud</span></div>'+
 
   '<h1>Complete su ficha antes de la consulta</h1>'+
@@ -538,6 +555,25 @@ function htmlPortalDatos(){
     '<br><br>Lo que escriba <b>no reemplaza la consulta</b>: el profesional lo revisa con usted '+
     'antes de la cirugía. Si duda de algo, déjelo vacío y pregúntelo en la consulta.</p>'+
 
+  htmlFormDatosPaciente((portalPedido && portalPedido.datos) || {});
+}
+
+/* =========================================================================
+   EL FORMULARIO DEL PACIENTE, COMPARTIDO
+   -------------------------------------------------------------------------
+   Estas cuatro funciones las usan LOS DOS caminos de entrada: el portal por
+   invitacion de este archivo y la precarga abierta de precarga.js. Es el
+   mismo formulario y tiene que seguir siendo el mismo: si se duplicara, en
+   tres meses una de las dos copias pregunta algo que la otra no y los datos
+   dejan de ser comparables.
+
+   Trabajan sobre los ids `pt*`, asi que leerFormDatosPaciente() y
+   leerFormSaludPaciente() leen lo que haya en pantalla sin importar quien lo
+   dibujo.
+   ========================================================================= */
+function htmlFormDatosPaciente(d){
+  d = d || {};
+  return ''+
   '<div class="card plano"><h3>' + ico('paciente') + 'Quién es usted</h3>'+
     '<div class="grid c2">'+
       campoTxt('ptApellido','Apellido', d.apellido)+
@@ -575,6 +611,18 @@ function htmlPortalDatos(){
   '</div>';
 }
 
+/* Lo que hay escrito ahora mismo en el formulario de filiacion */
+function leerFormDatosPaciente(){
+  const g = id => { const e = $('#' + id); return e ? e.value.trim() : ''; };
+  return {
+    apellido:g('ptApellido'), nombre:g('ptNombre'), dni:g('ptDni'),
+    fechaNac:g('ptNac'), sexo:g('ptSexo'), grupoSanguineo:g('ptGrupo'),
+    peso:g('ptPeso'), talla:g('ptTalla'), telefono:g('ptTel'), email:g('ptEmail'),
+    domicilio:g('ptDom'), localidad:g('ptLocalidad'),
+    contactoEmergencia:g('ptEmergencia'), ocupacion:g('ptOcupacion')
+  };
+}
+
 function cablearPortalDatos(){
   $('#ptSiguiente').onclick = () => {
     leerPortalDatos();
@@ -588,14 +636,7 @@ function cablearPortalDatos(){
 }
 
 function leerPortalDatos(){
-  const g = id => { const e = $('#' + id); return e ? e.value.trim() : ''; };
-  portalPedido.datos = Object.assign({}, portalPedido.datos || {}, {
-    apellido:g('ptApellido'), nombre:g('ptNombre'), dni:g('ptDni'),
-    fechaNac:g('ptNac'), sexo:g('ptSexo'), grupoSanguineo:g('ptGrupo'),
-    peso:g('ptPeso'), talla:g('ptTalla'), telefono:g('ptTel'), email:g('ptEmail'),
-    domicilio:g('ptDom'), localidad:g('ptLocalidad'),
-    contactoEmergencia:g('ptEmergencia'), ocupacion:g('ptOcupacion')
-  });
+  portalPedido.datos = Object.assign({}, portalPedido.datos || {}, leerFormDatosPaciente());
 }
 
 /* ------------------------------------------------------ Paso 2: salud */
@@ -629,20 +670,26 @@ const PORTAL_FAMILIARES = [
 ];
 
 function htmlPortalSalud(){
-  const s = (portalPedido && portalPedido.salud) || {};
+  return '<div class="portal-pasos"><span class="hecho">1 · Sus datos</span>'+
+    '<span class="on">2 · Su salud</span></div>'+
+    htmlFormSaludPaciente((portalPedido && portalPedido.salud) || {}, portalSel);
+}
+
+/* El cuestionario de salud. `sel` es el objeto de selecciones que el llamador
+   mantiene: {antecedentes, quirurgicos, anestesicos, familiares, medicacion,
+   alergias}. Se muta en el lugar, para que el que lo pasa vea los cambios. */
+function htmlFormSaludPaciente(s, sel){
+  s = s || {};
   const h = s.habitos || {};
   const pat = (typeof PATOLOGIAS_CHIP !== 'undefined' ? PATOLOGIAS_CHIP : [])
     .map(x => x.n);
 
   const bloqueChips = (clave, lista) =>
     '<div class="chips portal-chips" data-sel="' + clave + '">' + lista.map(x =>
-      '<button type="button" class="chip' + (portalSel[clave].indexOf(x) >= 0 ? ' on' : '') +
+      '<button type="button" class="chip' + (sel[clave].indexOf(x) >= 0 ? ' on' : '') +
       '" data-v="' + esc(x) + '">' + esc(x) + '</button>').join('') + '</div>';
 
   return ''+
-  '<div class="portal-pasos"><span class="hecho">1 · Sus datos</span>'+
-    '<span class="on">2 · Su salud</span></div>'+
-
   '<h1>Su salud</h1>'+
   '<p class="portal-intro">Toque todo lo que le corresponda. Si algo no aparece en las listas, '+
     'escríbalo en el recuadro que hay debajo de cada una. <b>Si no está seguro, no lo marque y '+
@@ -712,13 +759,23 @@ function htmlPortalSalud(){
 }
 
 function cablearPortalSalud(){
+  cablearFormSaludPaciente(portalSel);
+  $('#ptAtras').onclick = () => { leerPortalSalud(); guardarBorradorPortal();
+                                  portalPaso = 'datos'; pintarPortal(); };
+  $('#ptFinalizar').onclick = finalizarPortal;
+}
+
+/* Cablea los chips y los dos buscadores del cuestionario de salud sobre el
+   objeto de selecciones que le pasen. No cablea la navegacion: esa la pone
+   cada camino de entrada, que tiene sus propios botones. */
+function cablearFormSaludPaciente(sel){
   /* chips de seleccion multiple */
   $$('.portal-chips').forEach(cont => {
     const clave = cont.dataset.sel;
     $$('[data-v]', cont).forEach(b => b.onclick = () => {
       const v = b.dataset.v;
-      const i = portalSel[clave].indexOf(v);
-      if(i >= 0) portalSel[clave].splice(i, 1); else portalSel[clave].push(v);
+      const i = sel[clave].indexOf(v);
+      if(i >= 0) sel[clave].splice(i, 1); else sel[clave].push(v);
       b.classList.toggle('on', i < 0);
     });
   });
@@ -731,16 +788,16 @@ function cablearPortalSalud(){
     fuente: () => todasPatologias().map(x => ({
       etiqueta:x.n, sub:x.sis, busca: norm(x.n + ' ' + x.sis + ' ' + (x.chip || '')), dato:x })),
     onElegir: x => {
-      if(portalSel.antecedentes.indexOf(x.dato.n) < 0) portalSel.antecedentes.push(x.dato.n);
-      pintarAntPortal();
+      if(sel.antecedentes.indexOf(x.dato.n) < 0) sel.antecedentes.push(x.dato.n);
+      pintarAntPortal(sel);
     },
     onManual: txt => {
       if(!txt) return;
-      if(portalSel.antecedentes.indexOf(txt) < 0) portalSel.antecedentes.push(txt);
-      pintarAntPortal();
+      if(sel.antecedentes.indexOf(txt) < 0) sel.antecedentes.push(txt);
+      pintarAntPortal(sel);
     }
   });
-  pintarAntPortal();
+  pintarAntPortal(sel);
 
   /* buscador de medicacion, con el mismo catalogo que usa el profesional */
   montarBuscador({
@@ -750,49 +807,47 @@ function cablearPortalSalud(){
       .map(x => ({ etiqueta:x.n, sub:x.g, busca: norm(x.n + ' ' + x.g + ' ' + (x.sin || '')),
                    dato:x })),
     onElegir: x => {
-      if(!portalSel.medicacion.some(m => (m.n || m) === x.dato.n))
-        portalSel.medicacion.push({ n:x.dato.n, dosis:'' });
-      pintarMedPortal();
+      if(!sel.medicacion.some(m => (m.n || m) === x.dato.n))
+        sel.medicacion.push({ n:x.dato.n, dosis:'' });
+      pintarMedPortal(sel);
     },
     onManual: txt => {
       if(!txt) return;
-      if(!portalSel.medicacion.some(m => (m.n || m) === txt))
-        portalSel.medicacion.push({ n:txt, dosis:'' });
-      pintarMedPortal();
+      if(!sel.medicacion.some(m => (m.n || m) === txt))
+        sel.medicacion.push({ n:txt, dosis:'' });
+      pintarMedPortal(sel);
     }
   });
-  pintarMedPortal();
-
-  $('#ptAtras').onclick = () => { leerPortalSalud(); guardarBorradorPortal();
-                                  portalPaso = 'datos'; pintarPortal(); };
-  $('#ptFinalizar').onclick = finalizarPortal;
+  pintarMedPortal(sel);
 }
 
 /* Lo que se eligio por el buscador -no por los chips-, para poder sacarlo.
    Los chips se despintan tocandolos otra vez; esto no tiene chip. */
-function pintarAntPortal(){
+function pintarAntPortal(sel){
+  sel = sel || portalSel;
   const c = $('#ptAntSel'); if(!c) return;
   const chips = new Set((typeof PATOLOGIAS_CHIP !== 'undefined' ? PATOLOGIAS_CHIP : [])
     .map(x => x.n));
-  const extra = portalSel.antecedentes.filter(x => !chips.has(x));
+  const extra = sel.antecedentes.filter(x => !chips.has(x));
   c.innerHTML = extra.length
     ? '<div class="seleccionados mt8">' + extra.map(x =>
         '<span class="pill"><span>' + esc(x) + '</span>'+
         '<button type="button" data-ant="' + esc(x) + '">×</button></span>').join('') + '</div>'
     : '';
   $$('#ptAntSel [data-ant]').forEach(b => b.onclick = () => {
-    const i = portalSel.antecedentes.indexOf(b.dataset.ant);
-    if(i >= 0) portalSel.antecedentes.splice(i, 1);
-    pintarAntPortal();
+    const i = sel.antecedentes.indexOf(b.dataset.ant);
+    if(i >= 0) sel.antecedentes.splice(i, 1);
+    pintarAntPortal(sel);
   });
 }
 
-function pintarMedPortal(){
+function pintarMedPortal(sel){
+  sel = sel || portalSel;
   const c = $('#ptMedLista'); if(!c) return;
-  if(!portalSel.medicacion.length){
+  if(!sel.medicacion.length){
     c.innerHTML = '<p class="mini">Todavía no agregó ningún remedio.</p>'; return;
   }
-  c.innerHTML = portalSel.medicacion.map((m, i) =>
+  c.innerHTML = sel.medicacion.map((m, i) =>
     '<div class="med-card">'+
       '<div class="med-head"><b>' + esc(m.n || m) + '</b>'+
         '<button class="btn ghost chico" data-mq="' + i + '">' + ico('borrar') + '</button></div>'+
@@ -801,20 +856,25 @@ function pintarMedPortal(){
           'placeholder="Ej.: 1 comprimido a la mañana"></div>'+
     '</div>').join('');
   $$('#ptMedLista [data-mq]').forEach(b => b.onclick = () => {
-    portalSel.medicacion.splice(Number(b.dataset.mq), 1); pintarMedPortal(); });
+    sel.medicacion.splice(Number(b.dataset.mq), 1); pintarMedPortal(sel); });
   $$('#ptMedLista [data-md]').forEach(i => i.oninput = () =>
-    portalSel.medicacion[Number(i.dataset.md)].dosis = i.value);
+    sel.medicacion[Number(i.dataset.md)].dosis = i.value);
 }
 
 function leerPortalSalud(){
+  portalPedido.salud = leerFormSaludPaciente(portalSel);
+}
+
+/* Lo que hay contestado ahora mismo en el cuestionario de salud */
+function leerFormSaludPaciente(sel){
   const g = id => { const e = $('#' + id); return e ? e.value.trim() : ''; };
-  portalPedido.salud = {
-    antecedentes: portalSel.antecedentes.slice(),
-    quirurgicos:  portalSel.quirurgicos.slice(),
-    anestesicos:  portalSel.anestesicos.slice(),
-    familiares:   portalSel.familiares.slice(),
-    medicacion:   portalSel.medicacion.slice(),
-    alergias:     portalSel.alergias.slice(),
+  return {
+    antecedentes: sel.antecedentes.slice(),
+    quirurgicos:  sel.quirurgicos.slice(),
+    anestesicos:  sel.anestesicos.slice(),
+    familiares:   sel.familiares.slice(),
+    medicacion:   sel.medicacion.slice(),
+    alergias:     sel.alergias.slice(),
     antecedentesOtros: g('ptAntOtros'),
     medicacionOtros:   g('ptMedOtros'),
     alergiaDetalle:    g('ptAleDet'),

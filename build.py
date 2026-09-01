@@ -52,6 +52,7 @@ JS_FILES = [
     'export.js',
     'email-paciente.js',
     'paciente-portal.js',
+    'precarga.js',
     'ui-envios.js',
     'app.js',
 ]
