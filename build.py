@@ -35,6 +35,7 @@ JS_FILES = [
     'ui-auth.js',
     'ui-pacientes.js',
     'valoracion-auto.js',
+    'periop.js',
     'acto-auto.js',
     'ui-valoracion.js',
     'ui-ficha.js',
@@ -50,6 +51,7 @@ JS_FILES = [
     'ui-manual.js',
     'export.js',
     'email-paciente.js',
+    'paciente-portal.js',
     'ui-envios.js',
     'app.js',
 ]

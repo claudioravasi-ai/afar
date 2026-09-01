@@ -55,6 +55,85 @@ a la aplicación.
 
 
 --------------------------------------------------------------------
+LA FICHA QUE COMPLETA EL PACIENTE  (obligatorio para esa funcion)
+--------------------------------------------------------------------
+Desde que el anestesiologo puede mandarle al paciente un enlace para que
+complete su ficha, hace falta UNA rama mas. Sin estas reglas el envio falla
+con "La base rechazo el pedido" y no se rompe nada mas.
+
+La rama se llama "afar-prellenado" y cuelga de la RAIZ, al lado de "afar", NO
+adentro. Es a proposito y es lo que hace segura la funcion: el navegador del
+paciente escribe ahi y no tiene forma de llegar a la historia clinica de
+nadie, porque "afar" es otra rama y sus reglas no lo alcanzan.
+
+Cada pedido se guarda bajo un token de 32 caracteres al azar que viaja en el
+enlace del correo. Quien tiene el enlace puede leer y escribir ESE pedido y
+ningun otro: no hay listado, no se puede recorrer la rama, y adivinar un
+token de 32 caracteres no es una posibilidad practica. Es el mismo criterio
+de los enlaces "para quien tenga el vinculo" de Drive.
+
+Pegá esto DENTRO de "rules", como hermano de "afar":
+
+  "afar-prellenado": {
+    ".read": false,
+    ".write": false,
+    "$token": {
+      ".read":  "$token.length >= 20",
+      ".write": "$token.length >= 20 &&
+                 (!data.exists() || data.child('estado').val() != 'finalizado')"
+    }
+  }
+
+Que hace cada linea:
+
+  ".read": false / ".write": false  a la altura de la rama
+      Nadie puede leer la rama entera ni listarla. Sin esto, cualquiera
+      pediria "afar-prellenado" y se llevaria TODOS los pedidos de una vez.
+      Es la linea que hace que el resto sirva.
+
+  ".read" y ".write" en "$token"
+      Se entra por un pedido concreto y solo por su token. El largo minimo
+      evita que alguien pruebe con tokens de una o dos letras.
+
+  data.child('estado').val() != 'finalizado'
+      Una vez que el paciente toca FINALIZADO, su ficha queda cerrada y el
+      enlace deja de poder escribir. Si hay que corregir algo, el
+      anestesiologo manda un pedido nuevo. Esto es lo que impide que alguien
+      que consiga el enlace despues cambie lo que el paciente declaro.
+
+Quedaria asi, junto con lo de arriba:
+
+{
+  "rules": {
+    "afar": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "fichas":    { ".indexOn": ["ownerUid", "fecha"] },
+      "pacientes": { ".indexOn": ["ownerUid"] }
+    },
+    "afar-prellenado": {
+      ".read": false,
+      ".write": false,
+      "$token": {
+        ".read":  "$token.length >= 20",
+        ".write": "$token.length >= 20 && (!data.exists() || data.child('estado').val() != 'finalizado')"
+      }
+    }
+  }
+}
+
+LO QUE ESTAS REGLAS NO ARREGLAN — LEER
+Las de "afar" siguen pidiendo unicamente "auth != null", y el pase que la app
+consigue sola es anonimo. O sea: quien lea el index.html publico puede pedir
+un pase anonimo y leer la base clinica entera. Eso ya pasaba antes del portal
+del paciente y el portal no lo empeora -el paciente no recibe ninguna llave
+que no estuviera ya en la pagina publica-, pero sigue siendo el agujero
+grande y el trabajo pendiente: que cada socio se identifique en Firebase con
+su propia cuenta y que la regla exija ese usuario y no cualquier anonimo.
+Mientras tanto, la proteccion real es que la direccion de la base no circule.
+
+
+--------------------------------------------------------------------
 RECOMENDACIONES ADICIONALES
 --------------------------------------------------------------------
 1. Restringí la clave de API por dominio en:
