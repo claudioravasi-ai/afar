@@ -165,7 +165,7 @@ function derivarValoracion(f){
   };
 
   /* ---------------- Punto 5 · RCRI ---------------- */
-  const G9 = '9 · Escalas de riesgo';
+  const G9 = '5 · Estratificación del riesgo';
   if(cirugiaAltoRiesgoCardiaco(c))
     marcar('rcri0', 'La cirugía es ' + nombreVia(c.principal ? c.principal.via : '').toLowerCase() +
       ': entra en el criterio de alto riesgo del índice de Lee.', G9);
@@ -243,7 +243,7 @@ function derivarValoracion(f){
     cap(27, 'El procedimiento cargado es una fractura de cadera, pelvis o pierna.');
 
   /* ---------------- Punto 6 · Ayuno y riesgo de aspiración ---------------- */
-  const G10 = '10 · Ayuno';
+  const G10 = '6 · Ayuno preoperatorio';
   const marcarChk = (cont, texto, porque, grupo) => {
     const e = $$('#'+cont+' input').find(x => x.value === texto);
     if(!e || e.checked) return;
@@ -266,7 +266,7 @@ function derivarValoracion(f){
       'Diabetes en los antecedentes, en un paciente de ' + c.edad + ' años.', G10);
 
   /* ---------------- Punto 9 · Profilaxis que se deduce de las escalas ------ */
-  const G13 = '13 · Profilaxis';
+  const G13 = '9 · Profilaxis, analgesia y destino';
   const apv = {}; APFEL_ITEMS.forEach(it => apv[it.k] = yaTildado('ap_'+it.k) ||
     out.some(o => o.id === 'ap_'+it.k));
   const apf = calcApfel(apv);
