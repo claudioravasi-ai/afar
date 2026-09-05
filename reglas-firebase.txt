@@ -134,6 +134,37 @@ Mientras tanto, la proteccion real es que la direccion de la base no circule.
 
 
 --------------------------------------------------------------------
+EL PASE DE INVITADO  (no hace falta tocar nada)
+--------------------------------------------------------------------
+Un socio puede prestarle su ingreso a otro colega por una hora. La clave se
+guarda en  afar/pases/<clave>  y no necesita ninguna regla nueva: cuelga
+DENTRO de "afar", asi que ya queda cubierta por el  "auth != null"  de arriba,
+igual que el resto de la aplicacion.
+
+Dos cosas que conviene saber igual:
+
+  · Nadie escucha esa rama en vivo. No esta en COLECCIONES, asi que no viaja
+    en cada arranque como pacientes o fichas: se lee de a una clave, y solo
+    cuando alguien escribe una en la pantalla de acceso.
+
+  · Con las reglas de hoy, cualquiera que pida un pase anonimo puede leer la
+    rama entera y ver las claves sin usar. Es el MISMO agujero que ya tiene
+    toda la base clinica, no uno nuevo, y se cierra con el mismo arreglo: el
+    inicio de sesion real de Firebase. Mientras tanto, una clave leida de ahi
+    no da mas de lo que ya daria leer la base directamente.
+
+El dia que se pase al inicio de sesion real, la rama admite una regla mucho
+mas ajustada que el resto, porque el que canjea la clave todavia no es nadie:
+
+  "pases": {
+    "$clave": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    }
+  }
+
+
+--------------------------------------------------------------------
 LA PRECARGA ABIERTA  (obligatorio para esa funcion)
 --------------------------------------------------------------------
 La otra puerta de entrada: la persona que saco turno en una institucion, no

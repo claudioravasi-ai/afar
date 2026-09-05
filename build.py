@@ -29,6 +29,7 @@ JS_FILES = [
     'data-manual.js',
     'firebase-config.js',
     'email-config.js',
+    'qr.js',
     'core.js',
     'seed.js',
     'seed-extra.js',
@@ -53,6 +54,7 @@ JS_FILES = [
     'email-paciente.js',
     'paciente-portal.js',
     'precarga.js',
+    'pase.js',
     'ui-envios.js',
     'app.js',
 ]

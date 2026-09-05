@@ -623,14 +623,267 @@ function agendaDePrecargas(){
                    nombreInstitucion(a.inst).localeCompare(nombreInstitucion(b.inst), 'es'));
 }
 
+/* =========================================================================
+   LA PUERTA DE ENTRADA DEL PACIENTE
+   -------------------------------------------------------------------------
+   Es el paso que mas cuesta de toda la aplicacion. El programa puede estar
+   impecable: si el paciente no se entera de que la precarga existe, no la
+   completa nadie y la consulta sigue arrancando de cero.
+
+   Por eso esta tarjeta da las tres formas de que se entere, y no una sola:
+
+     · EL CODIGO QR, para el mostrador. Se apunta la camara y se abre.
+     · EL CARTEL IMPRESO, el mismo QR en grande y con instrucciones, para
+       dejarle a la secretaria que da los turnos.
+     · EL CORREO, para cuando el turno se saca por telefono y no hay
+       mostrador donde mirar nada.
+
+   El QR se arma aca y ahora con la direccion real en la que esta corriendo
+   la aplicacion. No es una imagen guardada: el dia que la app se mude de
+   direccion, el codigo se muda con ella y nadie tiene que acordarse de nada.
+   Ver qr.js.
+   ========================================================================= */
+/* La direccion del QR sale de donde esta corriendo la aplicacion. Eso es lo
+   correcto —el dia que se mude de servidor el codigo se muda con ella— pero
+   tiene una consecuencia que confunde y hay que decirla: abierta desde el
+   servidor de prueba de la computadora, el codigo dice `localhost`, y
+   `localhost` en el telefono del paciente es el propio telefono. El cartel
+   sirve recien cuando se lo imprime desde la aplicacion publicada. */
+function enlaceEsLocal(){
+  const h = location.hostname;
+  return location.protocol === 'file:' || h === 'localhost' || h === '127.0.0.1' ||
+         h === '' || /^192\.168\./.test(h) || /^10\./.test(h);
+}
+
+function htmlEnlacePrecarga(){
+  const url = urlPrecarga('');
+  return ''+
+  '<div class="card">'+
+    '<h3 class="sec-t" style="margin-top:0">Enlace del portal de precarga</h3>'+
+    '<p class="mini" style="margin:0 0 12px">Esta es la dirección pública donde el paciente '+
+      'deja sus datos antes de venir. No lleva ningún dato de nadie: es la misma para todos '+
+      'y se puede pegar, mandar e imprimir sin ningún reparo.</p>'+
+
+    (enlaceEsLocal()
+      ? '<div class="aviso warn">'+ico('alerta')+'<div><b>Estás viendo una copia local de la '+
+          'aplicación, así que este código apunta a esta computadora.</b> Si lo escaneás con el '+
+          'teléfono no va a abrir nada: <span class="mono">localhost</span> en el teléfono es el '+
+          'propio teléfono.<br>Para el cartel y para mandárselo a un paciente hay que entrar a '+
+          'la aplicación publicada —hoy <span class="mono">claudioravasi-ai.github.io/afar/</span>— '+
+          'y generarlo desde ahí: el código se arma solo con la dirección donde está corriendo, '+
+          'y ahí va a salir la buena.</div></div>'
+      : '')+
+
+    '<div class="qr-caja">'+
+      '<div class="qr-lamina">'+
+        (typeof qrSVG === 'function' ? qrSVG(url, {nivel:QR_Q}) : '')+
+      '</div>'+
+      '<div class="qr-texto">'+
+        '<b>Apuntá la cámara del teléfono</b>'+
+        '<p class="mini" style="margin:0">No hace falta instalar ninguna aplicación: la '+
+          'cámara sola lo reconoce y ofrece abrir la página.</p>'+
+        '<p class="qr-url">' + esc(url) + '</p>'+
+      '</div>'+
+    '</div>'+
+
+    '<div class="btn-row" style="flex-wrap:wrap">'+
+      '<button class="btn ghost" id="preCopiar">'+ico('copiar')+' Copiar la dirección</button>'+
+      '<button class="btn ghost" id="prePng">'+ico('descargar')+' Descargar el QR</button>'+
+      '<button class="btn pri" id="preImprimir">'+ico('imprimir')+
+        ' Imprimir el cartel para secretaría</button>'+
+    '</div>'+
+
+    '<h4 class="sec-t">Enviárselo a un paciente por correo</h4>'+
+    (envioConfigurado()
+      ? '<p class="mini" style="margin:0 0 10px">Para el turno que se saca por teléfono. '+
+          'El correo lleva el enlace y el mismo código QR adentro.</p>'+
+        '<div class="grid c2">'+
+          '<div class="campo"><label>Correo del paciente</label>'+
+            '<input type="email" id="preMail" inputmode="email" placeholder="nombre@correo.com" '+
+            'autocomplete="off"></div>'+
+          '<div class="campo"><label>Nota para el paciente (opcional)</label>'+
+            '<input type="text" id="preNota" placeholder="Su turno es el martes 14 a las 9 h" '+
+            'autocomplete="off"></div>'+
+        '</div>'+
+        '<button class="btn pri" id="preEnviar">'+ico('correo')+' Enviar el enlace</button>'
+      : '<div class="aviso warn">'+ico('alerta')+'<div><b>El envío de correo no está '+
+        'configurado.</b> La dirección se puede copiar e imprimir igual. Para activar el '+
+        'envío automático, ver ENVIO-DE-MAILS.md.</div></div>')+
+  '</div>';
+}
+
+/* El cartel de secretaria. Se abre en una ventana aparte y se manda a
+   imprimir: en una hoja A4 el codigo entra lo bastante grande como para
+   leerlo desde el otro lado del escritorio. */
+function imprimirCartelPrecarga(){
+  const url = urlPrecarga('');
+  const v = window.open('', '_blank');
+  if(!v) return toast('El navegador bloqueó la ventana de impresión.', 'err');
+  const qr = qrSVG(url, {nivel:QR_Q, estilo:'width:100%;height:auto;display:block'});
+  v.document.write('<!DOCTYPE html><html lang="es-AR"><head><meta charset="utf-8">'+
+    '<title>AFAAR — cartel de precarga</title><style>'+
+    '@page{size:A4;margin:1.4cm}'+
+    'body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'+
+    'color:#0f2033;text-align:center;line-height:1.5}'+
+    '.marca{font-size:27px;font-weight:800;letter-spacing:.13em;margin:0}'+
+    '.bajada{color:#7c8fa3;font-size:12.5px;margin:3px 0 0}'+
+    '.titulo{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:26px 0 6px;'+
+    'line-height:1.2}'+
+    '.sub{font-size:15px;color:#4a6076;margin:0 auto 22px;max-width:15cm}'+
+    '.qr{width:10.5cm;margin:0 auto;padding:14px;border:2px solid #0f2033;border-radius:18px}'+
+    '.pasos{display:table;margin:24px auto 0;text-align:left;font-size:14px;'+
+    'color:#26384c;max-width:14cm}'+
+    '.paso{display:table-row}'+
+    '.paso b{display:table-cell;color:#0e8f95;font-size:19px;padding:0 12px 12px 0;'+
+    'vertical-align:top;white-space:nowrap}'+
+    '.paso span{display:table-cell;padding-bottom:12px;vertical-align:top}'+
+    '.url{margin-top:20px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;'+
+    'color:#4a6076;word-break:break-all}'+
+    '.pie{margin-top:20px;padding-top:12px;border-top:1px solid #dbe4ee;font-size:11.5px;'+
+    'color:#7c8fa3}'+
+    '</style></head><body>'+
+    '<p class="marca">AFAAR</p>'+
+    '<p class="bajada">Asociación Fueguina de Anestesia, Analgesia y Reanimación</p>'+
+    '<p class="titulo">Complete sus datos<br>antes de la consulta</p>'+
+    '<p class="sub">Si ya tiene fecha de cirugía, deje sus datos y sus antecedentes desde su '+
+    'casa. Lleva unos diez minutos y hace que la consulta con el anestesiólogo no arranque '+
+    'de cero.</p>'+
+    '<div class="qr">' + qr + '</div>'+
+    '<div class="pasos">'+
+    '<div class="paso"><b>1</b><span>Abra la cámara del teléfono y apúntela al código. '+
+    'No hace falta instalar nada.</span></div>'+
+    '<div class="paso"><b>2</b><span>Toque el aviso que aparece en la pantalla.</span></div>'+
+    '<div class="paso"><b>3</b><span>Deje su documento y su correo. Le llega a su casilla un '+
+    'enlace personal para completarlo con calma.</span></div>'+
+    '<div class="paso"><b>4</b><span>Tenga a mano la foto del ticket del turno: se la va a '+
+    'pedir al final.</span></div>'+
+    '</div>'+
+    '<p class="url">' + esc(url) + '</p>'+
+    '<p class="pie">Asociación Fueguina de Anestesia, Analgesia y Reanimación · '+
+    'Río Grande y Ushuaia, Tierra del Fuego</p>'+
+    '</body></html>');
+  v.document.close();
+  setTimeout(() => { try{ v.print(); }catch(e){} }, 400);
+}
+
+function cablearEnlacePrecarga(){
+  const url = urlPrecarga('');
+  const bc = $('#preCopiar');
+  if(bc) bc.onclick = () => {
+    if(navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(url)
+        .then(() => toast('Dirección copiada.', 'ok'))
+        .catch(() => toast('No se pudo copiar. Seleccionala a mano.', 'err'));
+    else toast('Este navegador no deja copiar solo. Seleccionala a mano.', 'warn');
+  };
+
+  const bp = $('#prePng');
+  if(bp) bp.onclick = () => qrPNG(url, {modulo:16, nivel:QR_Q}, datos => {
+    if(!datos) return toast('No se pudo generar el código.', 'err');
+    const a = document.createElement('a');
+    a.href = datos; a.download = 'afaar-precarga-qr.png';
+    a.click();
+    toast('Código QR descargado.', 'ok');
+  });
+
+  const bi = $('#preImprimir');
+  if(bi) bi.onclick = imprimirCartelPrecarga;
+
+  const be = $('#preEnviar');
+  if(be) be.onclick = () => {
+    const mail = String(($('#preMail') || {}).value || '').trim().toLowerCase();
+    const nota = String(($('#preNota') || {}).value || '').trim();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail))
+      return toast('Ese correo no parece válido.', 'err');
+    if(typeof soloLectura === 'function' && soloLectura('enviar correos')) return;
+    be.disabled = true; be.innerHTML = ico('reloj') + ' Enviando…';
+    const restaurar = () => { be.disabled = false;
+      be.innerHTML = ico('correo') + ' Enviar el enlace'; };
+    fetch(ENVIO_URL, {
+      method:'POST', redirect:'follow',
+      body: JSON.stringify({
+        clave: ENVIO_CLAVE, para: mail,
+        nombre: typeof ENVIO_NOMBRE !== 'undefined' ? ENVIO_NOMBRE : 'AFAAR',
+        asunto: 'Complete sus datos antes de la consulta anestésica',
+        html: htmlMailEnlacePrecarga(url, nota)
+      })
+    })
+      .then(r => r.json())
+      .then(res => {
+        restaurar();
+        if(!res || !res.ok) return toast('No se pudo enviar. Revisá el correo.', 'err');
+        toast('Enviado a ' + mail + '.', 'ok');
+        const i = $('#preMail'); if(i) i.value = '';
+        const n = $('#preNota'); if(n) n.value = '';
+      })
+      .catch(() => { restaurar(); toast('No se pudo enviar. Revisá la conexión.', 'err'); });
+  };
+}
+
+/* El correo con el enlace. El QR va como tabla de celditas y no como imagen:
+   Gmail borra las imagenes incrustadas como datos y una imagen alojada afuera
+   habria que alojarla en algun lado. Ver qrTablaHTML en qr.js. */
+function htmlMailEnlacePrecarga(url, nota){
+  const qr = (typeof qrTablaHTML === 'function')
+    ? qrTablaHTML(url, {modulo:5, borde:2}) : '';
+  return ''+
+  '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'+
+    'max-width:560px;margin:0 auto;color:#0f2033;line-height:1.6">'+
+    '<p style="font-size:20px;font-weight:800;letter-spacing:.12em;margin:0">AFAAR</p>'+
+    '<p style="color:#7c8fa3;font-size:12px;margin:2px 0 18px">Asociación Fueguina de '+
+      'Anestesia, Analgesia y Reanimación</p>'+
+    '<h2 style="font-size:18px;margin:0 0 8px">Complete sus datos antes de la consulta</h2>'+
+    (nota ? '<p style="background:#f4f7fb;border-left:3px solid #14b8a6;padding:9px 12px;'+
+            'margin:0 0 12px">' + esc(nota) + '</p>' : '')+
+    '<p style="margin:0 0 14px">Si ya tiene fecha de cirugía, puede dejar sus datos y sus '+
+      'antecedentes desde su casa. Lleva unos diez minutos y hace que la consulta con el '+
+      'anestesiólogo no arranque de cero.</p>'+
+    '<p style="margin:0 0 16px"><a href="' + esc(url) + '" style="background:#1b4e85;'+
+      'color:#fff;text-decoration:none;padding:11px 18px;border-radius:10px;'+
+      'display:inline-block;font-weight:700">Abrir el formulario</a></p>'+
+    '<p style="margin:0 0 8px;font-size:13px;color:#4a6076">O apunte la cámara del teléfono '+
+      'a este código:</p>'+
+    qr +
+    '<p style="font-family:monospace;font-size:12px;color:#4a6076;word-break:break-all;'+
+      'margin:14px 0 0">' + esc(url) + '</p>'+
+    '<p style="font-size:11.5px;color:#7c8fa3;border-top:1px solid #dbe4ee;margin-top:18px;'+
+      'padding-top:12px">Sus datos se tratan según la Ley 25.326 de protección de datos '+
+      'personales y quedan amparados por el secreto profesional (Ley 17.132). Si recibió '+
+      'este correo por error, ignórelo: no contiene información de ninguna persona.</p>'+
+  '</div>';
+}
+
+/* La pantalla del sub-renglon PRECARGADOS del menu lateral. Muestra el
+   enlace y nada mas: la agenda de los que se anotaron es otra cosa y vive en
+   su solapa dentro de Pacientes, que es donde se los toma y se los atiende.
+   Mezclarlas hacia que el mismo nombre significara dos cosas distintas. */
+function vistaEnlacePrecarga(){
+  const cont = $('#vPrecargados');
+  const n = precargasPendientes().length;
+  cont.innerHTML = ''+
+  '<div class="vista-head"><div><h1>Precarga</h1>'+
+    '<p>La dirección del portal donde el paciente deja sus datos antes de la consulta.</p></div>'+
+  '</div>'+
+  htmlEnlacePrecarga()+
+  '<button class="fila-estado'+(n ? ' warn' : '')+'" id="irBandejaPre">'+
+    '<span class="ic">'+ico('pacientes')+'</span>'+
+    '<span class="tx">Ver quiénes se precargaron</span>'+
+    '<span class="n">'+(n ? n : '<span class="ir">›</span>')+'</span>'+
+  '</button>';
+  cablearEnlacePrecarga();
+  const b = $('#irBandejaPre');
+  if(b) b.onclick = () => { alcancePac = 'precargas'; irA('pacientes'); };
+}
+
 function htmlBandejaPrecargas(){
   const grupos = agendaDePrecargas();
   const hoy = hoyISO();
 
   if(!grupos.length)
-    return '<div class="vacio">' + ico('calendario') + '<b>No hay pacientes precargados</b>'+
+    return '<div class="vacio">' + ico('calendario') + '<b>Todavía no se precargó nadie</b>'+
       '<span>Acá aparecen los pacientes que completaron su ficha por su cuenta antes de la '+
-      'consulta prequirúrgica, agrupados por institución y por día.</span></div>';
+      'consulta prequirúrgica, agrupados por institución y por día. El código para repartir '+
+      'está en <b>Pacientes › Precarga</b>, en el menú lateral.</span></div>';
 
   return ''+
   '<div class="aviso info">' + ico('info') + '<div><b>Esto lo cargó el paciente, no un '+
@@ -670,6 +923,9 @@ function htmlBandejaPrecargas(){
 function cablearBandejaPrecargas(){
   $$('#vPacientes [data-pre]').forEach(b => b.onclick = () => abrirPrecarga(b.dataset.pre));
 }
+
+/* Lo que hace el sub-renglon PRECARGADOS del menu lateral. Ver app.js */
+function irAPrecargados(){ irA('precargados'); }
 
 /* ------------------------------------------- Ver una y tomarla */
 function abrirPrecarga(token){

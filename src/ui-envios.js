@@ -1397,6 +1397,10 @@ function enviarEnvioPorCorreo(e, para, asunto, mensaje){
           }))
         : [];
 
+      /* Un invitado con pase no manda documentacion a nadie. Ver pase.js */
+      if(typeof soloLectura === 'function' && soloLectura('enviar documentación'))
+        return Promise.resolve({ ok:false, error:'solo lectura' });
+
       /* El Apps Script rechaza cuerpos de más de 900 KB. Antes que perder el
          envío entero, se manda sin el documento incrustado: los adjuntos ya
          lo llevan. */

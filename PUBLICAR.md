@@ -246,7 +246,7 @@ Con esos ocho la app ya abre y funciona completa.
 
 | | Por qué conviene |
 |---|---|
-| `src/` (carpeta, 37 archivos) | Es de donde sale `index.html`. Sin esto no se puede volver a modificar la app desde otra computadora |
+| `src/` (carpeta, 42 archivos) | Es de donde sale `index.html`. Sin esto no se puede volver a modificar la app desde otra computadora |
 | `build.py` | El armador |
 | `apps-script/Codigo.gs` | El programa de los correos |
 | `README.md`, `PUBLICAR.md`, `ENVIO-DE-MAILS.md`, `reglas-firebase.txt` | La documentación |

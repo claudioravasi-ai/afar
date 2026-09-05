@@ -24,8 +24,22 @@
 
 <!-- ============================== APLICACIÓN ============================== -->
 <div id="app">
+  <!-- Franja del pase de invitado. Solo se dibuja durante una visita con
+       clave prestada: dice de quien es la sesion, que es de solo lectura y
+       cuanto falta para que se cierre sola. Ver pase.js -->
+  <div id="franjaInvitado" class="franja-invitado" style="display:none"></div>
   <header class="topbar">
     <div class="topbar-in">
+      <!-- La hamburguesa del cajon lateral. Solo existe en pantalla grande:
+           abajo de 900 px manda la barra inferior y el lateral no se dibuja.
+           Ver .hamburguesa en styles.css y cablearMenuLateral() en app.js -->
+      <button class="icon-btn hamburguesa" id="btnMenu" aria-expanded="false"
+              aria-controls="sidebar" title="Menú (clic para dejarlo fijo)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18M3 12h18M3 18h18"/>
+        </svg>
+      </button>
       <img id="logoTopbar" alt="" class="logo-topbar">
       <div style="min-width:0">
         <div class="marca">AFAAR</div>
@@ -58,6 +72,10 @@
     <main>
       <section class="vista on" id="vPanel"></section>
       <section class="vista" id="vPacientes"></section>
+      <!-- Solo el enlace del portal de precarga: direccion, QR, cartel y
+           correo. El LISTADO de los que se precargaron no vive aca, vive en
+           su solapa dentro de Pacientes. Ver precarga.js -->
+      <section class="vista" id="vPrecargados"></section>
       <section class="vista" id="vFichas"></section>
       <section class="vista" id="vFicha"></section>
       <section class="vista" id="vStats"></section>

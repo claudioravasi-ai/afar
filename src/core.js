@@ -229,7 +229,8 @@ const ICONOS = {
   camara:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   enviar:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
   carpeta:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
-  bandeja:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.4 5.1L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.4-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.8 1.1z"/>'
+  bandeja:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.4 5.1L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.4-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.8 1.1z"/>',
+  llave:'<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14 9l3 3"/>'
 };
 function ico(n, cls){
   const p = ICONOS[n] || ICONOS.info;
@@ -354,7 +355,22 @@ function sinUndefined(v){
   return v;
 }
 
+/* =========================================================================
+   EL UNICO PORTON DE LA BASE
+   -------------------------------------------------------------------------
+   Todo lo que la aplicacion guarda o borra pasa por estas dos funciones. Por
+   eso la visita de solo lectura del pase de invitado se corta aca y no
+   apagando botones: los botones son cientos, siempre queda alguno, y el que
+   se agregue el año que viene no se va a acordar de preguntar. Ver pase.js.
+
+   La auditoria es la unica excepcion, y a proposito: lo que hay que dejar
+   anotado es justamente que entro un invitado y cuando salio. Si tambien se
+   bloqueara, la visita no dejaria rastro, que es lo contrario de lo que hace
+   falta.
+   ========================================================================= */
 function escribir(col, id, obj){
+  if(col !== 'auditoria' && typeof soloLectura === 'function' &&
+     soloLectura('guardar cambios')) return;
   DB[col][id] = obj;
   guardarLocal();
   if(obj && obj.demo) return;
@@ -364,6 +380,7 @@ function escribir(col, id, obj){
   }
 }
 function eliminar(col, id){
+  if(typeof soloLectura === 'function' && soloLectura('borrar nada')) return;
   delete DB[col][id];
   guardarLocal();
   if(nubeOK && fbDb && !aplicandoRemoto){
@@ -417,6 +434,8 @@ function guardarArchivosCache(){
    sin nube el archivo queda solo en este dispositivo y el contador no lo ve,
    asi que quien envia tiene que enterarse. */
 function archivoGuardar(reg){
+  if(typeof soloLectura === 'function' && soloLectura('subir archivos'))
+    return Promise.resolve(false);
   const c = archivosCache();
   c[reg.id] = Object.assign({}, reg, { usado: new Date().toISOString() });
   guardarArchivosCache();
@@ -445,6 +464,7 @@ function archivoLeer(id){
 }
 
 function archivoEliminar(id){
+  if(typeof soloLectura === 'function' && soloLectura('borrar archivos')) return;
   const c = archivosCache();
   delete c[id]; guardarArchivosCache();
   if(nubeOK && fbDb){ try{ fbDb.ref('afar/archivos/'+id).remove(); }catch(e){} }
@@ -532,7 +552,12 @@ function auditar(accion, detalle){
   escribir('auditoria', id, {
     id, accion, detalle: detalle || '',
     uid: SESION ? SESION.uid : '-',
-    quien: USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : 'sistema',
+    /* Un invitado usa la sesion del socio que lo invito, asi que sin esta
+       linea sus movimientos quedarian firmados con el nombre del anfitrion.
+       El registro tiene que poder distinguirlos. */
+    quien: (SESION && SESION.invitado)
+      ? ('Invitado con pase de ' + (USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '—'))
+      : (USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : 'sistema'),
     cuando: new Date().toISOString()
   });
   /* La comprobacion tiene que ser barata: corre en CADA evento auditado.
@@ -600,6 +625,11 @@ function podarAuditoria(){
    corre con la cuenta de Google de la asociacion, asi que no hace falta que
    nadie inicie sesion ni que la app pida permisos de Drive. */
 function archivarEnDrive(nombre, csv){
+  /* Una visita de solo lectura no dispara mantenimiento sobre el Drive de la
+     asociacion. Sin aviso: es una tarea automatica, no algo que el invitado
+     haya pedido. Ver pase.js */
+  if(typeof esInvitado === 'function' && esInvitado())
+    return Promise.reject(new Error('visita de solo lectura'));
   if(typeof envioConfigurado !== 'function' || !envioConfigurado())
     return Promise.reject(new Error('el servicio de Google no está configurado'));
   return fetch(ENVIO_URL, {

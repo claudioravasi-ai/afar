@@ -19,6 +19,12 @@
   --sombra-lg:0 10px 40px rgba(11,37,69,.16);
   --radio:14px; --radio-sm:9px; --radio-lg:22px;
   --nav-h:64px; --header-h:60px;
+  /* Alto de la franja del pase de invitado. Vale 0 salvo durante una visita
+     con clave prestada; la pone en 34px pintarFranjaInvitado(). De aca cuelgan
+     la barra de arriba y el cajon lateral, que si no quedaban corridos 34 px
+     para todo el mundo: el cajon se montaba sobre la barra y tapaba la propia
+     hamburguesa, que era justo el boton que habia que poder clickear. */
+  --franja-h:0px;
   --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
 }
@@ -96,7 +102,9 @@ html[data-tema="oscuro"] .auth-tabs button.on{color:var(--aqua-400)}
 #app.on{display:flex}
 
 .topbar{
-  position:sticky;top:0;z-index:60;
+  /* z-index por encima del cajon lateral (75): la hamburguesa tiene que
+     seguir siendo clickeable con el menu abierto, que es como se lo fija. */
+  position:sticky;top:var(--franja-h);z-index:80;
   background:linear-gradient(120deg,var(--azul-800),var(--azul-700) 60%,var(--azul-600));
   color:#fff; padding-top:env(safe-area-inset-top);
   box-shadow:0 2px 14px rgba(7,26,51,.28);
@@ -137,6 +145,9 @@ html[data-tema="oscuro"] .auth-tabs button.on{color:var(--aqua-400)}
 
 .layout{flex:1;display:flex;max-width:1400px;width:100%;margin:0 auto}
 .sidebar{display:none}
+/* La hamburguesa no existe en el telefono: ahi el lateral esta en
+   display:none y quien manda es la barra de abajo. */
+.hamburguesa{display:none}
 main{flex:1;min-width:0;padding:16px 14px calc(var(--nav-h) + 26px + env(safe-area-inset-bottom))}
 
 /* --------- Nav inferior movil --------- */
@@ -164,11 +175,35 @@ html[data-tema="oscuro"] .navbar button.on{color:var(--aqua-400)}
 
 @media(min-width:900px){
   .navbar{display:none}
+  .hamburguesa{display:grid}
+
+  /* EL CAJON LATERAL
+     Antes el lateral estaba siempre a la vista y le comia 236 px de ancho a
+     la ficha, que es la pantalla donde mas falta hace el espacio. Ahora vive
+     escondido contra el borde y sale al pasar el mouse por la hamburguesa.
+
+     Va POR ENCIMA del contenido (position:fixed, fuera del flujo) y no
+     empujandolo: si empujara, la pagina entera se reacomodaria cada vez que
+     el mouse roza la esquina, que marea y hace perder el renglon que uno
+     estaba leyendo. */
   .sidebar{
-    display:block;width:236px;flex:none;padding:16px 10px 30px;
-    border-right:1px solid var(--borde);position:sticky;top:calc(var(--header-h) + env(safe-area-inset-top));
-    height:calc(100dvh - var(--header-h) - env(safe-area-inset-top));overflow-y:auto
+    display:block;width:250px;padding:14px 10px 30px;
+    position:fixed;left:0;z-index:75;
+    top:calc(var(--franja-h) + var(--header-h) + env(safe-area-inset-top));
+    height:calc(100dvh - var(--franja-h) - var(--header-h) - env(safe-area-inset-top));
+    overflow-y:auto;overscroll-behavior:contain;
+    background:var(--panel);border-right:1px solid var(--borde);
+    box-shadow:14px 0 34px rgba(11,37,69,.13);
+    transform:translateX(-104%);
+    transition:transform .2s cubic-bezier(.4,0,.2,1);
+    visibility:hidden
   }
+  .sidebar.abierto{transform:none;visibility:visible}
+  /* Mientras esta abierto sin fijar, el lateral no debe robar el foco del
+     teclado a la pagina: solo cuando esta fijado se navega con tabulador. */
+  html.menu-fijo .sidebar{box-shadow:6px 0 18px rgba(11,37,69,.09)}
+  /* Con el menu fijo el contenido se corre para que no quede tapado. */
+  html.menu-fijo main{padding-left:274px}
   .sidebar button{
     width:100%;display:flex;align-items:center;gap:11px;padding:11px 13px;margin-bottom:3px;
     border:0;background:none;border-radius:11px;color:var(--texto-2);font-weight:620;
@@ -182,8 +217,67 @@ html[data-tema="oscuro"] .navbar button.on{color:var(--aqua-400)}
     font-weight:700;border-radius:9px;padding:1px 7px}
   .sidebar .grupo{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;
     color:var(--texto-3);font-weight:700;padding:16px 13px 6px}
-  main{padding:22px 24px 60px}
+
+  /* Sub-renglon: PRECARGADOS cuelga de Pacientes. Se marca con la sangria y
+     con el filete vertical, para que se lea como hijo y no como un boton mas
+     de la lista. */
+  .sidebar button.sub{
+    margin-left:17px;padding:8px 12px;font-size:12.6px;font-weight:600;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--texto-3);
+    border-left:2px solid var(--borde-2);border-radius:0 9px 9px 0
+  }
+  .sidebar button.sub svg{width:16px;height:16px}
+  .sidebar button.sub:hover{border-left-color:var(--azul-500);color:var(--texto)}
+  .sidebar button.sub.on{background:var(--azul-100);color:var(--azul-600);
+    border-left-color:var(--azul-600);box-shadow:none}
+  html[data-tema="oscuro"] .sidebar button.sub.on{color:var(--aqua-200)}
+  .sidebar button.sub .badge{padding:1px 6px;font-size:10px}
+
+  main{padding:22px 24px 60px;transition:padding-left .2s cubic-bezier(.4,0,.2,1)}
 }
+.hamburguesa.abierto{background:rgba(255,255,255,.24)}
+
+/* ===================== FRANJA DEL PASE DE INVITADO =====================
+   Tiene que verse todo el tiempo y no parecerse a nada de la aplicacion:
+   quien entro con una clave prestada no puede olvidarse ni un minuto de que
+   esta mirando la casa de otro y de que el reloj corre. */
+.franja-invitado{
+  position:sticky;top:0;z-index:65;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:7px 14px;padding-top:calc(7px + env(safe-area-inset-top));
+  background:linear-gradient(100deg,var(--warn),#b45309);
+  color:#fff;font-size:12px;font-weight:650;line-height:1.35
+}
+.franja-invitado svg{width:16px;height:16px;flex:none}
+.franja-invitado .reloj{margin-left:auto;font-family:var(--mono);font-size:13px;
+  font-weight:700;background:rgba(0,0,0,.22);border-radius:999px;padding:2px 10px;
+  letter-spacing:.04em}
+.franja-invitado.urgente{background:linear-gradient(100deg,var(--danger),#991b1b);
+  animation:latir-franja 1.6s ease-in-out infinite}
+@keyframes latir-franja{0%,100%{opacity:1}50%{opacity:.82}}
+
+/* ===================== ENLACE DEL PORTAL Y CODIGO QR ===================== */
+.qr-caja{display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+  background:var(--panel-2);border:1px solid var(--borde);border-radius:var(--radio);
+  padding:16px;margin-bottom:12px}
+.qr-lamina{width:172px;flex:none;background:#fff;border-radius:12px;padding:10px;
+  border:1px solid var(--borde-2)}
+.qr-texto{flex:1;min-width:210px}
+.qr-texto b{display:block;margin-bottom:4px}
+.qr-url{font-family:var(--mono);font-size:11.5px;color:var(--texto-2);
+  word-break:break-all;background:var(--bg-2);border-radius:8px;padding:7px 9px;
+  margin:9px 0 0}
+@media(max-width:520px){
+  .qr-lamina{width:100%;max-width:230px;margin:0 auto}
+  .qr-caja{justify-content:center;text-align:center}
+}
+
+/* La clave del pase: grande, monoespaciada y separada en bloques, porque casi
+   siempre se dicta por telefono o se copia a mano. */
+.clave-pase{font-family:var(--mono);font-size:23px;font-weight:700;
+  letter-spacing:.16em;text-align:center;background:var(--bg-2);
+  border:1px dashed var(--borde-2);border-radius:var(--radio);
+  padding:15px 10px;margin:4px 0 12px;color:var(--texto);word-break:break-all}
 
 /* =============================== VISTAS =============================== */
 .vista{display:none;animation:fade .28s}

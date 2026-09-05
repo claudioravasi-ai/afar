@@ -5,8 +5,9 @@
    telefono se lee con zoom y arrastre. Aca el mismo texto se lee como se lee
    la app: capitulos plegables, tipografia de pantalla y buscador.
 
-   El contenido sale de data-manual.js, que se genera desde el Word. Si el
-   manual cambia, se regenera ese archivo: no se edita a mano.
+   El contenido sale de data-manual.js, que es la FUENTE del manual: se edita
+   ahi y de ahi salen los dos Word y los dos PDF, no al reves. Ver el
+   encabezado de data-manual.js y manual-a-word.py.
 
    El capitulo marcado `coord` -el anexo de infraestructura- lo ve unicamente
    la coordinacion. Es el mismo criterio que el manual explica: mientras el

@@ -13,6 +13,9 @@ const NAV = [
   { id:'pacientes',   ico:'pacientes',   txt:'Pacientes',     nav:true,  clinico:true },
   { id:'fichas',      ico:'ficha',       txt:'Fichas',        navTxt:'Historial', nav:true, clinico:true },
   { id:'ficha',       ico:'ficha',       txt:'Ficha',         nav:false, oculto:true, clinico:true },
+  /* Cuelga de Pacientes en el menu lateral y no figura como renglon propio:
+     por eso va oculta. Muestra el enlace del portal de precarga y nada mas. */
+  { id:'precargados', ico:'calendario',  txt:'Precarga',      nav:false, oculto:true, clinico:true },
   { id:'stats',       ico:'stats',       txt:'Estadísticas',  nav:false, clinico:true },
   { id:'coordinador', ico:'escudo',      txt:'Coordinación',  nav:true,  soloCoord:true },
   { id:'contable',    ico:'dinero',      txt:'Contable',      nav:true,  soloCont:true },
@@ -66,9 +69,25 @@ function pintarNavegacion(){
     '<button data-ir="'+n.id+'"'+(vistaActual===n.id?' class="on"':'')+'>'+ico(n.ico)+
     '<span>'+esc(corto && n.navTxt ? n.navTxt : n.txt)+'</span>'+badgeDe(n, corto)+'</button>';
 
+  /* PRECARGADOS cuelga de Pacientes, no es un renglon suelto: es la misma
+     vista con la solapa de precargas puesta. En el telefono no hace falta,
+     porque ahi la solapa se ve dentro de Pacientes; el lateral es lo unico
+     que no la mostraba sin entrar primero. */
+  const subPrecargados = () => {
+    if(!puedeVerVista('precargados')) return '';
+    /* Sin numerito: esta pantalla no es la bandeja, es el enlace que se
+       reparte. Los que estan esperando se cuentan en su solapa, adentro de
+       Pacientes, que es donde se los atiende. */
+    return '<button class="sub'+(vistaActual === 'precargados' ? ' on' : '')+
+      '" data-ir-precargados="1">'+
+      ico('calendario')+'<span>Precarga</span></button>';
+  };
+
   const grupo = (titulo, ids) => {
     const g = items.filter(n => ids.indexOf(n.id) >= 0);
-    return g.length ? '<div class="grupo">'+titulo+'</div>'+g.map(n => botonNav(n)).join('') : '';
+    if(!g.length) return '';
+    return '<div class="grupo">'+titulo+'</div>'+
+      g.map(n => botonNav(n) + (n.id === 'pacientes' ? subPrecargados() : '')).join('');
   };
 
   $('#sidebar').innerHTML =
@@ -82,6 +101,82 @@ function pintarNavegacion(){
     .filter(n => n.nav === true || (n.nav === 'cont' && esContable()))
     .map(n => botonNav(n, true)).join('');
   $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
+  $$('[data-ir-precargados]').forEach(b => b.onclick = () => irAPrecargados());
+}
+
+/* =========================================================================
+   EL CAJON LATERAL
+   -------------------------------------------------------------------------
+   Se abre al pasar el mouse por la hamburguesa y se cierra al salir. Con un
+   clic queda FIJO y ya no se cierra solo: sin eso, el menu se escapa justo
+   cuando uno baja el mouse para apuntarle al ultimo renglon de la lista, que
+   es el momento en que hace falta.
+
+   Los dos retardos no son adorno. El de apertura evita que el menu salte
+   cada vez que el mouse pasa de largo camino al logo; el de cierre deja el
+   hueco entre la hamburguesa y el cajon, que si no se cierra en el medio.
+   ========================================================================= */
+const MENU_ABRIR_MS  = 130;
+const MENU_CERRAR_MS = 280;
+let menuFijo = false;
+let menuT = null;
+
+function menuEsAplicable(){
+  return window.matchMedia('(min-width:900px)').matches;
+}
+function abrirMenu(){
+  clearTimeout(menuT);
+  const s = $('#sidebar'), b = $('#btnMenu');
+  if(!s) return;
+  s.classList.add('abierto');
+  if(b){ b.classList.add('abierto'); b.setAttribute('aria-expanded','true'); }
+}
+function cerrarMenu(){
+  clearTimeout(menuT);
+  if(menuFijo) return;
+  const s = $('#sidebar'), b = $('#btnMenu');
+  if(s) s.classList.remove('abierto');
+  if(b){ b.classList.remove('abierto'); b.setAttribute('aria-expanded','false'); }
+}
+function fijarMenu(v){
+  menuFijo = !!v;
+  document.documentElement.classList.toggle('menu-fijo', menuFijo);
+  const b = $('#btnMenu');
+  if(b) b.title = menuFijo ? 'Menú fijo (clic para soltarlo)'
+                           : 'Menú (clic para dejarlo fijo)';
+  if(menuFijo) abrirMenu(); else cerrarMenu();
+}
+function cablearMenuLateral(){
+  const b = $('#btnMenu'), s = $('#sidebar');
+  if(!b || !s) return;
+  const pedirAbrir  = () => { clearTimeout(menuT); menuT = setTimeout(abrirMenu, MENU_ABRIR_MS); };
+  const pedirCerrar = () => { clearTimeout(menuT); menuT = setTimeout(cerrarMenu, MENU_CERRAR_MS); };
+
+  b.addEventListener('mouseenter', pedirAbrir);
+  b.addEventListener('mouseleave', pedirCerrar);
+  b.addEventListener('focus', abrirMenu);
+  s.addEventListener('mouseenter', () => clearTimeout(menuT));
+  s.addEventListener('mouseleave', pedirCerrar);
+
+  b.onclick = () => fijarMenu(!menuFijo);
+
+  /* Elegir una vista cierra el cajon, salvo que este fijado: quien lo fijo
+     quiere tenerlo al lado mientras trabaja. */
+  s.addEventListener('click', e => { if(e.target.closest('button')) cerrarMenu(); });
+
+  /* Escape suelta el menu antes que nada. Si hay un modal abierto, manda el
+     modal: el cierre de modales ya escucha Escape aparte. */
+  document.addEventListener('keydown', e => {
+    if(e.key !== 'Escape') return;
+    if($('#modal') && $('#modal').classList.contains('on')) return;
+    if(menuFijo) fijarMenu(false); else cerrarMenu();
+  });
+
+  /* Al achicar la ventana por debajo de 900 px el lateral desaparece por CSS;
+     hay que soltar el estado para que main no quede con el hueco de 274 px. */
+  window.addEventListener('resize', () => {
+    if(!menuEsAplicable() && menuFijo) fijarMenu(false);
+  });
 }
 
 function irA(v){
@@ -107,6 +202,7 @@ function refrescarVistaActual(){
     case 'envFicha':      vistaEnviosFicha(); break;
     case 'mensajes':    vistaMensajes(); break;
     case 'pacientes':   vistaPacientes(); break;
+    case 'precargados': vistaEnlacePrecarga(); break;
     case 'fichas':      vistaFichas(); break;
     case 'ficha':       break;   /* se pinta sola al abrir */
     case 'stats':       vistaStats(); break;
@@ -343,6 +439,10 @@ function tile(id, icono, cls, titulo, sub){
 function arrancarApp(){
   $('#pantallaAuth').style.display = 'none';
   $('#app').classList.add('on');
+  /* La visita con pase trae su cuenta regresiva y su franja. Va antes de
+     pintar nada para que la franja ya este puesta cuando se dibuje el
+     encabezado y este no arranque pegado al techo. Ver pase.js */
+  if(typeof arrancarRelojPase === 'function') arrancarRelojPase();
   pintarEncabezado();
   irA(vistaInicial());
   if(verDatosClinicos()){
@@ -465,6 +565,8 @@ function iniciar(){
     b.classList.add('on'); pasoRegistro = 1; pintarAuth();
   });
   pintarAuth();
+
+  cablearMenuLateral();
 
   $('#btnTema').onclick = () =>
     aplicarTema(document.documentElement.dataset.tema === 'oscuro' ? 'claro' : 'oscuro');

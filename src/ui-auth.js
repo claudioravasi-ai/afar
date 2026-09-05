@@ -24,6 +24,11 @@ function htmlIngresar(){
     '<input type="password" id="inClave" autocomplete="current-password" placeholder="••••••••"></div>'+
   '<button class="btn pri full grande" id="btnIngresar">'+ico('candado')+' Ingresar al portal</button>'+
   '<p class="mini txt-c mt14" style="line-height:1.6">El ingreso de cada socio debe estar aprobado por el anestesiólogo coordinador de la AFAAR.</p>'+
+  /* La puerta del pase de invitado. Va discreta y al pie, porque no es una
+     forma normal de entrar: es para el colega al que un socio le compartio
+     su portal por una hora. Ver pase.js */
+  '<button class="btn ghost full mt8" id="btnPaseInvitado" style="font-size:13px">'+
+    ico('llave')+' Entré con una clave de invitado</button>'+
   /* La version, al pie y en chico: al abrir la app se ve de un vistazo si el
      navegador esta sirviendo la ultima o una copia vieja de su cache. */
   '<p class="mini txt-c" style="opacity:.55;margin-top:6px">Versión '+
@@ -111,6 +116,8 @@ function cablearAuth(tab){
   }
   if(tab === 'ingresar'){
     $('#btnIngresar').onclick = intentarIngreso;
+    const bp = $('#btnPaseInvitado');
+    if(bp) bp.onclick = abrirIngresoInvitado;
     $('#inClave').onkeydown = e => { if(e.key === 'Enter') intentarIngreso(); };
   }
   if(tab === 'coordinador'){
@@ -239,7 +246,9 @@ function abrirSesion(u, rol){
   arrancarApp();
 }
 function cerrarSesion(){
-  auditar('salida', 'Cierre de sesión');
+  auditar('salida', SESION && SESION.invitado
+    ? 'Fin de la visita con pase de invitado' : 'Cierre de sesión');
+  if(typeof pararRelojPase === 'function') pararRelojPase();
   SESION = null; USUARIO = null;
   localStorage.removeItem(LS_SES);
   $('#app').classList.remove('on');
@@ -256,6 +265,15 @@ function restaurarSesion(){
     if(!u) return false;
     if(s.rol !== u.rol) return false;      /* el rol no se altera desde el dispositivo */
     if(s.rol === 'socio' && u.estado !== 'aprobado') return false;
+    /* Una visita con pase se restaura solo si todavia le queda hora. Recargar
+       la pagina no regala tiempo: el final es una fecha fija guardada en la
+       sesion y en la nube, no un contador que arranque de nuevo. */
+    if(s.invitado){
+      if(!s.fin || new Date(s.fin).getTime() <= Date.now()){
+        localStorage.removeItem(LS_SES);
+        return false;
+      }
+    }
     SESION = s; USUARIO = u;
     return true;
   }catch(e){ return false; }
@@ -386,6 +404,7 @@ function vistaPerfil(){
 
   /* El menú se cablea acá: pintarNavegacion() corre antes de que exista */
   $$('#vPerfil [data-ajuste]').forEach(b => b.onclick = () => irA(b.dataset.ajuste));
+  $$('#vPerfil [data-compartir]').forEach(b => b.onclick = abrirCompartirIngreso);
 }
 
 /* Las secciones que salieron de la barra inferior para que quede igual al
@@ -412,12 +431,23 @@ function menuAjustes(){
     ['contable',    'dinero',  'Portal contable',    '']
   ].filter(f => puedeVerVista(f[0]));
   if(!filas.length) return '';
+  /* Debajo de Mensajes va el pase de invitado. No es una vista de la
+     aplicacion —es una ventana— asi que no puede salir del mismo NAV que las
+     otras y se agrega a mano. Un invitado no lo ve: no puede invitar a
+     nadie con una sesion prestada. Ver pase.js */
+  const compartir = (!esInvitado() && !esCoordinador() && !esContable())
+    ? '<button class="fila-estado" data-compartir="1">'+
+        '<span class="ic">'+ico('llave')+'</span>'+
+        '<span class="tx">Compartir mi ingreso por única vez</span>'+
+        '<span class="n"><span class="ir">›</span></span>'+
+      '</button>'
+    : '';
   return '<div class="filas-estado">'+ filas.map(f =>
     '<button class="fila-estado'+(f[3] ? ' warn' : '')+'" data-ajuste="'+f[0]+'">'+
       '<span class="ic">'+ico(f[1])+'</span>'+
       '<span class="tx">'+esc(f[2])+'</span>'+
       '<span class="n">'+(f[3] || '<span class="ir">›</span>')+'</span>'+
-    '</button>').join('') +'</div>';
+    '</button>').join('') + compartir + '</div>';
 }
 
 function verComprobante(u){

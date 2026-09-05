@@ -172,6 +172,10 @@ function enviarDocumentacionPaciente(f){
          Si el coordinador todavía no la republicó, el pedido saldría igual y
          el paciente recibiría un correo SIN un solo documento adjunto: peor
          que fallar. Se comprueba antes y no se manda nada. */
+      /* Una visita con pase de invitado mira, no manda correos en nombre de
+         la asociacion. Los envios no pasan por escribir(), asi que hay que
+         preguntar aca. Ver pase.js */
+      if(typeof soloLectura === 'function' && soloLectura('enviar correos')) return;
       if(!(await soportaDocumentosPdf()))
         return toast('El servicio de correo está en una versión vieja y no puede armar los PDF. '+
                      'El coordinador tiene que volver a publicar el programa: ver ENVIO-DE-MAILS.md.', 'err');
