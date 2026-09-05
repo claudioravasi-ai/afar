@@ -286,6 +286,125 @@ function canjearPase(claveCruda){
   });
 }
 
+
+/* =========================================================================
+   EL CANDADO DE LA VISITA — apagar lo que escribe, no solo rechazarlo
+   -------------------------------------------------------------------------
+   Rechazar la escritura en el ultimo momento no alcanza. El invitado abria
+   el formulario de edicion, tipeaba, tocaba Guardar y recien ahi la
+   aplicacion le decia que no: hizo el trabajo al pedo y encima quedo con la
+   duda de si algo se guardo. Un boton que no va a hacer nada tiene que verse
+   apagado ANTES de tocarlo.
+
+   COMO SE DECIDE CUAL SE APAGA
+   Por lo que dice el boton. Es lo unico que hay: la aplicacion tiene cientos
+   de botones repartidos en veinte pantallas y no existe una marca comun que
+   diga «este escribe». Se apagan los que llevan a modificar algo —guardar,
+   editar, nuevo, borrar, enviar, firmar, tomar— y se dejan vivos los que solo
+   llevan de un lado a otro —siguiente, atras, ver, imprimir, copiar—.
+
+   Se hace con un observador del documento y no llamandolo desde cada
+   pantalla: asi tambien quedan apagados los botones de las ventanas que se
+   abren despues, y los de cualquier pantalla que se agregue mañana, sin que
+   nadie tenga que acordarse de nada.
+
+   Y ESTO NO REEMPLAZA AL PORTON DE core.js
+   Lo de arriba es la cara visible; escribir() y eliminar() siguen preguntando
+   igual. Si algun boton se escapa por como esta escrito su rotulo, la
+   escritura se frena lo mismo. Son dos cerraduras, no una.
+   ========================================================================= */
+
+/* Lo que ABRE o HACE una modificacion. Con \b para que «descargar» no caiga
+   por contener «cargar». */
+const PASE_ESCRIBE = new RegExp('\\b(' + [
+  'guardar','guardo','editar','modificar','cambiar','renombrar',
+  'nuevo','nueva','nuevos','nuevas','crear','alta','agregar','anadir','sumar',
+  'borrar','eliminar','quitar','descartar','vaciar','limpiar',
+  'enviar','reenviar','mandar','remitir','notificar',
+  'firmar','tomar','asignar','derivar','designar',
+  'cargar','subir','adjuntar','importar','sembrar','restaurar','duplicar',
+  'anular','revocar','aprobar','rechazar','suspender','habilitar','deshabilitar',
+  'resolver','responder','confirmar','aceptar','finalizar','cerrar la ficha',
+  'programar','reprogramar','baja','generar','incorporar','marcar','registrar'
+].join('|') + ')\\b');
+
+/* Lo que solo mueve de lugar o saca una copia. Solo se consulta cuando el
+   rotulo NO cayo en la lista de arriba. */
+const PASE_NAVEGA = new RegExp('\\b(' +
+  'siguiente|anterior|atras|volver|cancelar|cerrar|entendido|listo|ver|abrir|' +
+  'imprimir|descargar|copiar|buscar|filtrar|salir|continuar|mas|menos' +
+  ')\\b');
+
+let __paseObs = null;
+
+function rotuloDe(b){
+  return norm((b.textContent || '') + ' ' + (b.getAttribute('title') || '') +
+              ' ' + (b.getAttribute('aria-label') || ''));
+}
+
+/* Lo que solo sirve para moverse NO se apaga nunca, y se reconoce por donde
+   vive y no por lo que dice. Hace falta que sea asi: la solapa «Firmar» del
+   recorrido de la ficha se llama Firmar, y por el rotulo caia apagada; con
+   ella apagada el invitado no podia ni llegar a mirar el ultimo paso. Lo
+   mismo con las solapas de Pacientes o los pasos del stepper. */
+const PASE_ES_NAVEGACION = '#sidebar,#navbar,.topbar,.stepper,.seg,.auth-tabs,.filas-estado,.man-cap';
+const PASE_DATOS_DE_NAVEGACION = ['ir','irPrecargados','paso','v','tab','ajuste','cerrar','av','pre','pac','ficha','cap'];
+
+function esNavegacion(b){
+  if(b.closest && b.closest(PASE_ES_NAVEGACION)) return true;
+  if(b.hasAttribute('data-cerrar')) return true;
+  const d = b.dataset || {};
+  return PASE_DATOS_DE_NAVEGACION.some(k => k in d);
+}
+
+function apagarSiEscribe(b){
+  if(!b || b.dataset.paseVisto === '1') return;
+  b.dataset.paseVisto = '1';
+  if(esNavegacion(b)) return;
+  const t = rotuloDe(b);
+  if(!t.trim()) return;
+  if(!PASE_ESCRIBE.test(t)) return;
+  if(PASE_NAVEGA.test(t) && !PASE_ESCRIBE.test(t)) return;
+  b.disabled = true;
+  b.classList.add('pase-apagado');
+  b.setAttribute('title', 'Visita de invitado: solo lectura');
+}
+
+function barrerBotones(raiz){
+  const r = raiz || document;
+  if(r.querySelectorAll) r.querySelectorAll('button').forEach(apagarSiEscribe);
+  if(r.tagName === 'BUTTON') apagarSiEscribe(r);
+}
+
+function arrancarCandadoInvitado(){
+  pararCandadoInvitado();
+  if(!esInvitado()) return;
+  document.documentElement.classList.add('pase-invitado');
+  barrerBotones(document);
+  if(typeof MutationObserver !== 'function') return;
+  __paseObs = new MutationObserver(muts => {
+    muts.forEach(m => m.addedNodes && m.addedNodes.forEach(n => {
+      if(n.nodeType === 1) barrerBotones(n);
+    }));
+  });
+  __paseObs.observe(document.body, { childList:true, subtree:true });
+}
+
+function pararCandadoInvitado(){
+  if(__paseObs){ __paseObs.disconnect(); __paseObs = null; }
+  document.documentElement.classList.remove('pase-invitado');
+  /* Al salir se devuelven los botones: el socio que entra despues en el mismo
+     navegador tiene que encontrarlos vivos. */
+  document.querySelectorAll('button.pase-apagado').forEach(b => {
+    b.disabled = false;
+    b.classList.remove('pase-apagado');
+    b.removeAttribute('title');
+  });
+  document.querySelectorAll('button[data-pase-visto]').forEach(b => {
+    delete b.dataset.paseVisto;
+  });
+}
+
 /* ------------------------------------------------------- Reloj y franja */
 
 function arrancarRelojPase(){
@@ -294,12 +413,14 @@ function arrancarRelojPase(){
   __paseAvisado = false;
   __paseAvisoUltimo = 0;
   guardarCopiaLimpia();
+  arrancarCandadoInvitado();
   pintarFranjaInvitado(true);
   __paseT = setInterval(pulsoPase, PASE_LATIDO_MS);
 }
 function pararRelojPase(){
   clearInterval(__paseT);
   __paseT = null;
+  pararCandadoInvitado();
   __paseCopia = null;
   bloqueoSoloLectura = 0;
   __paseAvisoUltimo = 0;
@@ -343,10 +464,11 @@ function pintarFranjaInvitado(rehacer){
      nada mas: rehacer el HTML entero sesenta veces por minuto reiniciaria el
      latido del cartel rojo y haria parpadear el texto. */
   if(rehacer || !f.querySelector('.reloj')){
-    f.innerHTML = ico('reloj') +
-      '<span>Pase de invitado · estás viendo el portal de ' +
-        esc(USUARIO ? ((USUARIO.apellido || '') + ', ' + (USUARIO.nombre || '')) : 'un colega') +
-        ' · <b>solo lectura</b></span>' +
+    /* Sin el nombre del anfitrion. El invitado no necesita saber en la cuenta
+       de quien esta parado —eso es asunto del que le presto la clave— y
+       ponerlo arriba de todo, en cada pantalla, era exhibirlo de mas. */
+    f.innerHTML = ico('candado') +
+      '<span><b>INVITADO</b> · solo lectura · tu sesión caduca en</span>' +
       '<span class="reloj">' + mm + ':' + ss + '</span>';
     /* La barra de arriba y el cajon lateral se apoyan sobre esta medida, y se
        mide en vez de fijarla: en un telefono angosto el texto de la franja

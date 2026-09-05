@@ -284,6 +284,25 @@ function vistaPerfil(){
   const u = USUARIO || {};
   const insts = instituciones();
   const cont = $('#vPerfil');
+
+  /* En una visita con pase, Ajustes queda reducido a lo que sirve para
+     moverse. La ficha profesional de mas abajo —documento, CUIT, domicilio,
+     telefono, matriculas y la firma digital— es informacion personal del
+     titular de la cuenta, no de la aplicacion, y no tiene por que verla
+     alguien que vino a mirar como funciona el programa. Ver pase.js */
+  if(esInvitado()){
+    cont.innerHTML = ''+
+    '<div class="vista-head"><div><h1>Ajustes</h1>'+
+      '<p>Las demás secciones de la aplicación.</p></div></div>'+
+    menuAjustes()+
+    '<div class="aviso info" style="margin-top:14px">'+ico('candado')+'<div>'+
+      '<b>Estás visitando la aplicación con un pase de invitado.</b><br>'+
+      'Los datos personales de quien es titular de esta cuenta —documento, CUIT, matrículas, '+
+      'domicilio y firma digital— no se muestran durante la visita.</div></div>';
+    $$('#vPerfil [data-ajuste]').forEach(b => b.onclick = () => irA(b.dataset.ajuste));
+    return;
+  }
+
   cont.innerHTML = ''+
   '<div class="vista-head"><div><h1>Ajustes</h1>'+
     '<p>Tus datos profesionales y el resto de las secciones de la aplicación.</p></div></div>'+

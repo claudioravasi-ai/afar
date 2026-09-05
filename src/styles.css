@@ -272,6 +272,18 @@ html[data-tema="oscuro"] .navbar button.on{color:var(--aqua-400)}
   .qr-caja{justify-content:center;text-align:center}
 }
 
+/* Los botones que escriben, durante una visita de invitado. Apagados y
+   evidentes: la idea es que se vea de entrada que ese camino esta cerrado, y
+   no que el invitado complete un formulario entero para enterarse al final.
+   Ver arrancarCandadoInvitado() en pase.js */
+button.pase-apagado{
+  opacity:.38 !important;
+  cursor:not-allowed !important;
+  filter:grayscale(1);
+  box-shadow:none !important;
+  pointer-events:none
+}
+
 /* La clave del pase: grande, monoespaciada y separada en bloques, porque casi
    siempre se dicta por telefono o se copia a mano. */
 .clave-pase{font-family:var(--mono);font-size:23px;font-weight:700;

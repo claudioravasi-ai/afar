@@ -217,11 +217,13 @@ function refrescarVistaActual(){
 /* --------------------------------------------------------- Encabezado */
 function pintarEncabezado(){
   const u = USUARIO || {};
-  $('#tbCtx').innerHTML = esCoordinador()
+  $('#tbCtx').innerHTML = esInvitado()
+    ? 'Sesión de invitado · solo lectura'
+    : (esCoordinador()
     ? 'Portal del coordinador'
     : (esContable()
        ? 'Contable AFAAR · portal económico'
-       : esc((u.apellido||'') + ', ' + (u.nombre||'')) + ' · M.P. ' + esc(matriculaTxt(u.matriculaProvincial,'M.P.')));
+       : esc((u.apellido||'') + ', ' + (u.nombre||'')) + ' · M.P. ' + esc(matriculaTxt(u.matriculaProvincial,'M.P.'))));
   pintarNavegacion();
   pintarBadgeAvisos();
 }
@@ -281,7 +283,11 @@ function vistaPanel(){
      La fecha y el estado de la sincronización ya están en la barra de
      arriba, así que no se pierde nada. */
   cont.innerHTML = ''+
-  (hayDemo() ? '<div class="demo-banner">'+ico('alerta')+
+  /* El cartel de la demostracion no se le muestra a un invitado: es una
+     tarea de mantenimiento del dueño de la aplicacion —«borrá estos datos de
+     ejemplo antes del primer paciente real»— y ademas el boton de borrar no
+     le funcionaria. Al visitante le habla de una cocina que no es la suya. */
+  (hayDemo() && !esInvitado() ? '<div class="demo-banner">'+ico('alerta')+
     '<div><b>Datos de demostración.</b> La anestesióloga Laura Fernández, sus pacientes y sus fichas '+
     'son de ejemplo, para que veas cómo funciona cada pantalla.</div>'+
     '<button class="btn danger chico" id="demoBorrar">Borrar</button></div>' : '')+

@@ -431,6 +431,13 @@ function calcularAvisos(){
   const av = [];
   const hoy = hoyISO();
 
+  /* La lista de avisos es la agenda personal del titular de la cuenta: su
+     perfil sin completar, sus honorarios pendientes, sus reclamos sin
+     responder. Nada de eso le corresponde a una visita con pase, y ademas lo
+     delata: «Tu perfil está incompleto, falta la firma digital» le decia al
+     invitado quien era el dueño de la aplicacion y en que anda. Ver pase.js */
+  if(typeof esInvitado === 'function' && esInvitado()) return av;
+
   /* --- 0. Comunicación interna: reclamos sin responder --- */
   misHilos().forEach(h => {
     const u = ultimoMensaje(h) || {};
@@ -699,8 +706,13 @@ function abrirAvisos(){
           ((a.accion||a.fichaId) ? '<span style="opacity:.5;flex:none">'+ico('flecha')
             .replace('<svg','<svg style="transform:rotate(-90deg);width:15px;height:15px"')+'</span>' : '')+
         '</div>').join('')
-    : '<div class="vacio">'+ico('check')+'<b>No hay nada pendiente</b>'+
-      '<span>Todas tus fichas están completas y al día.</span></div>';
+    : (typeof esInvitado === 'function' && esInvitado()
+       ? '<div class="vacio">'+ico('candado')+'<b>Sin avisos en una visita de invitado</b>'+
+         '<span>Los recordatorios son de quien es titular de la cuenta —fichas por cerrar, '+
+         'honorarios pendientes, mensajes sin responder— y no se muestran durante la '+
+         'visita.</span></div>'
+       : '<div class="vacio">'+ico('check')+'<b>No hay nada pendiente</b>'+
+         '<span>Todas tus fichas están completas y al día.</span></div>');
 
   /* ---- Pie: las dos maneras de enterarse desde afuera de la pantalla ----
      La casilla de notificaciones NO se tilda al tocarla: el permiso lo da el
