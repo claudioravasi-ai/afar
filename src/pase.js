@@ -102,6 +102,26 @@ function leerConTope(ref, ms){
   ]);
 }
 
+/* La ficha del anfitrion que viaja DENTRO del pase.
+   Sin esto, el invitado tenia que encontrar al socio que lo invito en la
+   coleccion de usuarios, y esa busqueda puede fallar por dos motivos muy
+   distintos: porque la computadora del colega abre la aplicacion por primera
+   vez y todavia no bajo nada, o porque el anfitrion es un usuario de
+   DEMOSTRACION, que por diseño no sale nunca de la computadora donde se
+   sembro. En los dos casos el invitado veia «la cuenta ya no está
+   habilitada», que no explicaba nada.
+
+   Van los datos con los que la aplicacion arma los encabezados, y NO van la
+   sal ni el hash de la contraseña: el invitado no tiene por que llevarse eso
+   ni siquiera cifrado. */
+function fichaDelAnfitrion(){
+  const u = Object.assign({}, USUARIO || {});
+  delete u.salt;
+  delete u.passHash;
+  delete u.comprobante;
+  return u;
+}
+
 function crearPase(paraEmail){
   if(!fbDb) return Promise.reject(new Error('sin base'));
   const clave = nuevaClavePase();
@@ -109,6 +129,7 @@ function crearPase(paraEmail){
     clave,
     emisorUid: SESION.uid,
     emisorNombre: USUARIO ? ((USUARIO.apellido || '') + ', ' + (USUARIO.nombre || '')) : '',
+    anfitrion: fichaDelAnfitrion(),
     para: paraEmail || '',
     minutos: PASE_MINUTOS,
     creado: new Date().toISOString(),
@@ -117,7 +138,7 @@ function crearPase(paraEmail){
     revocado: false
   };
   return identificarseEnLaNube()
-    .then(() => refPase(clave).set(reg))
+    .then(() => refPase(clave).set(typeof sinUndefined === 'function' ? sinUndefined(reg) : reg))
     .then(() => { auditar('pase', 'Generó un pase de invitado'); return reg; });
 }
 
@@ -166,16 +187,28 @@ function canjearPase(claveCruda){
       if(p.vence && new Date(p.vence).getTime() < Date.now())
         return { ok:false, motivo:'Esta clave venció sin usarse. Pedile otra a tu colega.' };
 
-      /* El invitado puede estar entrando en una computadora que abre la app
-         por primera vez: la copia local de los usuarios todavia no bajo. Si
-         no esta, se lo pregunta a la base antes de dar por perdido el pase. */
+      /* Se busca al anfitrion en tres lugares, en este orden:
+           1. la copia local, si el equipo ya sincronizo;
+           2. la base compartida, para el equipo que abre la app por primera
+              vez y todavia no bajo la coleccion de usuarios;
+           3. la ficha que el propio pase se llevo puesta al generarse.
+         Los dos primeros son el usuario VIVO, asi que si el coordinador
+         suspendio esa cuenta despues de emitir la clave, el pase no entra. El
+         tercero es la red de contencion: existe para que la busqueda no falle
+         por un problema de sincronizacion, no para saltear una suspension. */
       const local = DB.usuarios[p.emisorUid];
       const traerAnfitrion = local
-        ? Promise.resolve(local)
-        : leerConTope(fbDb.ref('afar/usuarios/' + p.emisorUid)).then(s2 => s2.val());
+        ? Promise.resolve({ u:local, vivo:true })
+        : leerConTope(fbDb.ref('afar/usuarios/' + p.emisorUid))
+            .then(s2 => s2.val() ? { u:s2.val(), vivo:true } : { u:p.anfitrion, vivo:false })
+            .catch(() => ({ u:p.anfitrion, vivo:false }));
 
-      return traerAnfitrion.then(u => {
-        if(!u || u.estado !== 'aprobado')
+      return traerAnfitrion.then(r => {
+        const u = r.u;
+        if(!u)
+          return { ok:false, motivo:'No se pudo recuperar la cuenta del colega que te invitó. '+
+            'Pedile que genere la clave de nuevo.' };
+        if(r.vivo && u.estado !== 'aprobado')
           return { ok:false, motivo:'La cuenta del colega que te invitó ya no está habilitada.' };
         if(!DB.usuarios[p.emisorUid]) DB.usuarios[p.emisorUid] = u;
 
@@ -294,6 +327,8 @@ function terminarPase(){
 function abrirCompartirIngreso(){
   if(esInvitado())
     return toast('Un invitado no puede invitar a otro.', 'warn');
+  if(USUARIO && USUARIO.demo)
+    toast('Con una cuenta de demostración no se puede compartir el ingreso.', 'warn');
 
   abrirModal('Compartir mi ingreso por única vez',
     '<div class="aviso warn">' + ico('alerta') + '<div><b>Leé esto antes de generar una '+
@@ -325,6 +360,21 @@ function abrirCompartirIngreso(){
 function pintarListaPases(){
   const c = $('#paseCuerpo');
   if(!c) return;
+  /* Desde una cuenta de demostracion no se puede invitar a nadie, y conviene
+     decirlo aca y no dejar que el colega se estrelle del otro lado: TODO lo
+     que lleva la marca `demo` se queda en la computadora donde se sembro
+     —usuarios, pacientes y fichas—, asi que el invitado entraria a una
+     aplicacion vacia y a nombre de alguien que en la base no existe. */
+  if(USUARIO && USUARIO.demo){
+    c.innerHTML = '<div class="aviso warn">' + ico('alerta') + '<div><b>Estás usando una cuenta '+
+      'de demostración, y desde ahí no se puede compartir el ingreso.</b><br>'+
+      'Los datos de demostración —esta cuenta, sus pacientes y sus fichas— existen sólo en esta '+
+      'computadora: nunca se suben a la base compartida, a propósito. El colega entraría a una '+
+      'aplicación vacía.<br>Generá la clave desde tu cuenta real de socio, que es la que sí está '+
+      'en la base.</div></div>';
+    const b = $('#paseNuevo'); if(b) b.disabled = true;
+    return;
+  }
   if(!(nubeOK && fbDb)){
     c.innerHTML = '<div class="aviso warn">' + ico('nube') + '<div><b>Sin conexión con la '+
       'base compartida.</b> La clave tiene que quedar guardada en la nube para que el colega '+
