@@ -35,7 +35,10 @@
 const PASE_MINUTOS      = 60;   /* cuanto dura la visita */
 const PASE_AVISO_MIN    = 10;   /* cuando se avisa que se termina */
 const PASE_VIDA_HORAS   = 72;   /* cuanto tiempo sirve la clave sin usar */
-const PASE_LATIDO_MS    = 10000;
+/* Un latido por segundo. Antes eran diez, y el reloj de la franja saltaba de
+   diez en diez o —peor— parecia congelado hasta que uno cambiaba de pantalla
+   y algo lo redibujaba. Un reloj que no se mueve no es un reloj. */
+const PASE_LATIDO_MS    = 1000;
 
 /* Alfabeto sin las letras y numeros que se confunden al dictar por telefono:
    sin O ni 0, sin I ni 1, sin L, sin S ni 5. */
@@ -55,12 +58,65 @@ function esInvitado(){ return !!(SESION && SESION.invitado); }
 /* El unico punto por el que se pregunta «¿puedo escribir?». Devuelve true
    —y avisa— cuando NO se puede. Se llama desde escribir(), eliminar() y
    archivoGuardar(), y tambien desde los botones que mandan correos, que no
-   pasan por la base. */
+   pasan por la base.
+
+   EL AVISO VA EN VENTANA Y CON RETARDO, Y LOS DOS DETALLES IMPORTAN
+   En ventana, porque el aviso chico de abajo lo pisaba el «Guardado» que el
+   propio boton canta un milisegundo despues (ver toast() en core.js): el
+   invitado terminaba viendo solo el mensaje de exito y creyendo que habia
+   grabado.
+   Con retardo, porque casi todos esos botones cierran la ventana en la que
+   estaban —`cerrarModal()`— justo despues de guardar. Un aviso inmediato lo
+   cerraba ese mismo cierre y no lo veia nadie. Un tercio de segundo despues,
+   el camino ya termino y la ventana queda.
+   Y una sola vez cada cinco segundos: guardar una ficha puede llamar a
+   escribir() ocho veces seguidas, y ocho ventanas encimadas no son un aviso,
+   son un problema. */
+let __paseAvisoUltimo = 0;
 function soloLectura(accion){
   if(!esInvitado()) return false;
-  toast('Estás mirando la app con un pase de invitado: no se puede ' +
-        (accion || 'guardar cambios') + '.', 'warn');
+  bloqueoSoloLectura = Date.now();
+  if(Date.now() - __paseAvisoUltimo > 5000){
+    __paseAvisoUltimo = Date.now();
+    setTimeout(() => abrirModal('No se guardó nada',
+      '<div class="aviso warn">' + ico('candado') + '<div><b>Estás visitando la aplicación con '+
+        'un pase de invitado, y esa visita es de solo lectura.</b><br>No se pudo ' +
+        esc(accion || 'guardar cambios') + ': la pantalla vuelve a como estaba.</div></div>'+
+      '<p style="line-height:1.65">Podés recorrer todo lo que quieras y abrir cualquier ficha. '+
+        'Lo único que no vas a poder es dejar nada escrito, ni mandar correos.</p>',
+      '<button class="btn pri" data-cerrar>Entendido</button>'), 350);
+  }
   return true;
+}
+
+/* ---------------------------------------------------------------------
+   LA COPIA LIMPIA
+   ---------------------------------------------------------------------
+   Rechazar la escritura no alcanzaba para que la pantalla dijera la verdad.
+   Muchas pantallas modifican el registro EN EL LUGAR —le cambian un campo al
+   objeto que ya esta en DB— y recien despues llaman a escribir(). Si escribir
+   dice que no, el cambio igual quedo hecho en memoria: no se guarda en ningun
+   lado y desaparece al recargar, pero mientras dura la visita se ve como si
+   se hubiera grabado, que es exactamente lo que hay que evitar.
+
+   Por eso, al empezar la visita se guarda una copia intacta de la base, y
+   cada escritura rechazada devuelve ese registro a como estaba.
+   ------------------------------------------------------------------- */
+let __paseCopia = null;
+
+function guardarCopiaLimpia(){
+  try{ __paseCopia = JSON.parse(JSON.stringify(DB)); }
+  catch(e){ __paseCopia = null; console.warn('pase: sin copia limpia', e); }
+}
+
+function deshacerEnMemoria(col, id){
+  if(!__paseCopia || !__paseCopia[col]) return;
+  /* Si el registro no estaba en la copia, no se toca: puede haber llegado de
+     la nube durante la visita, y borrarlo seria peor que la enfermedad. */
+  if(Object.prototype.hasOwnProperty.call(__paseCopia[col], id))
+    DB[col][id] = JSON.parse(JSON.stringify(__paseCopia[col][id]));
+  if(typeof refrescarVistaActual === 'function')
+    setTimeout(refrescarVistaActual, 400);
 }
 
 function minutosDePase(){
@@ -236,12 +292,17 @@ function arrancarRelojPase(){
   clearInterval(__paseT);
   if(!esInvitado()) return;
   __paseAvisado = false;
-  pintarFranjaInvitado();
+  __paseAvisoUltimo = 0;
+  guardarCopiaLimpia();
+  pintarFranjaInvitado(true);
   __paseT = setInterval(pulsoPase, PASE_LATIDO_MS);
 }
 function pararRelojPase(){
   clearInterval(__paseT);
   __paseT = null;
+  __paseCopia = null;
+  bloqueoSoloLectura = 0;
+  __paseAvisoUltimo = 0;
   const f = $('#franjaInvitado');
   if(f){ f.style.display = 'none'; f.innerHTML = ''; }
   document.documentElement.style.setProperty('--franja-h', '0px');
@@ -262,7 +323,7 @@ function pulsoPase(){
   }
 }
 
-function pintarFranjaInvitado(){
+function pintarFranjaInvitado(rehacer){
   const f = $('#franjaInvitado');
   if(!f) return;
   if(!esInvitado()){
@@ -270,25 +331,32 @@ function pintarFranjaInvitado(){
     document.documentElement.style.setProperty('--franja-h', '0px');
     return;
   }
-  /* La barra de arriba y el cajon lateral se apoyan sobre esta medida, y se
-     mide en vez de fijarla: en un telefono angosto el texto de la franja
-     pasa a dos renglones y una medida escrita a mano dejaria la barra
-     montada encima. Se recalcula al final, con la franja ya dibujada. */
-  const medir = () => document.documentElement.style.setProperty(
-    '--franja-h', Math.ceil(f.getBoundingClientRect().height) + 'px');
   const min = minutosDePase();
   const seg = Math.max(0, Math.floor(min * 60));
   const mm = String(Math.floor(seg / 60)).padStart(2, '0');
   const ss = String(seg % 60).padStart(2, '0');
-  const urgente = min <= PASE_AVISO_MIN;
+
   f.style.display = '';
-  f.classList.toggle('urgente', urgente);
-  f.innerHTML = ico('reloj') +
-    '<span>Pase de invitado · estás viendo el portal de ' +
-      esc(USUARIO ? ((USUARIO.apellido || '') + ', ' + (USUARIO.nombre || '')) : 'un colega') +
-      ' · <b>solo lectura</b></span>' +
-    '<span class="reloj">' + mm + ':' + ss + '</span>';
-  medir();
+  f.classList.toggle('urgente', min <= PASE_AVISO_MIN);
+
+  /* El cartel se arma una sola vez. Cada segundo se mueven los numeros y
+     nada mas: rehacer el HTML entero sesenta veces por minuto reiniciaria el
+     latido del cartel rojo y haria parpadear el texto. */
+  if(rehacer || !f.querySelector('.reloj')){
+    f.innerHTML = ico('reloj') +
+      '<span>Pase de invitado · estás viendo el portal de ' +
+        esc(USUARIO ? ((USUARIO.apellido || '') + ', ' + (USUARIO.nombre || '')) : 'un colega') +
+        ' · <b>solo lectura</b></span>' +
+      '<span class="reloj">' + mm + ':' + ss + '</span>';
+    /* La barra de arriba y el cajon lateral se apoyan sobre esta medida, y se
+       mide en vez de fijarla: en un telefono angosto el texto de la franja
+       pasa a dos renglones y una medida escrita a mano dejaria la barra
+       montada encima. */
+    document.documentElement.style.setProperty(
+      '--franja-h', Math.ceil(f.getBoundingClientRect().height) + 'px');
+  } else {
+    f.querySelector('.reloj').textContent = mm + ':' + ss;
+  }
 }
 
 /* El aviso de los diez minutos: sonido y cartel. El sonido puede sonar
@@ -480,13 +548,35 @@ function mostrarPaseGenerado(reg){
     })
       .then(r => r.json())
       .then(res => {
-        restaurar();
-        if(!res || !res.ok) return toast('No se pudo enviar. Revisá el correo.', 'err');
+        if(!res || !res.ok){ restaurar(); return toast('No se pudo enviar. Revisá el correo.', 'err'); }
         if(nubeOK && fbDb) refPase(reg.clave).update({ para:mail }).catch(() => {});
         toast('Clave enviada a ' + mail + '.', 'ok');
+        cerrarElEnvio(mail);
       })
       .catch(() => { restaurar(); toast('No se pudo enviar. Revisá la conexión.', 'err'); });
   };
+
+  /* UNA CLAVE, UN DESTINATARIO
+     Enviada la clave, el boton se apaga y el campo del correo se bloquea. No
+     es prolijidad: la clave sirve UNA sola vez, asi que si se la manda a dos
+     colegas, el primero que entre la quema y el segundo se encuentra con «este
+     pase ya se usó» sin entender por que. Para otro colega, otra clave. */
+  function cerrarElEnvio(mail){
+    const campoMail = $('#paseMail'), campoNota = $('#paseNota');
+    if(campoMail){ campoMail.value = mail; campoMail.disabled = true; }
+    if(campoNota) campoNota.disabled = true;
+    if(be){
+      be.disabled = true;
+      be.classList.remove('pri');
+      be.classList.add('ghost');
+      be.innerHTML = ico('check') + ' Enviada a ' + esc(mail);
+      if(!$('#paseEnviada'))
+        be.insertAdjacentHTML('afterend',
+          '<p class="mini" id="paseEnviada" style="margin-top:8px">Esta clave ya viajó y sirve '+
+          'una sola vez. Si te equivocaste de dirección, o querés invitar a otro colega, '+
+          '<b>generá una clave nueva</b> y anulá ésta desde la lista de la ventana anterior.</p>');
+    }
+  }
 }
 
 function htmlMailPase(reg, nota){

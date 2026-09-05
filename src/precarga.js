@@ -1012,6 +1012,11 @@ function abrirPrecarga(token){
    3. Recien despues se abre la ficha y arranca el recorrido normal de la app.
 --------------------------------------------------------------------------- */
 function tomarPrecarga(token){
+  /* Tomar una precarga escribe DIRECTO en la rama `afar-precargas`, sin pasar
+     por escribir(), y ademas borra la foto del ticket. Es una de las dos
+     unicas escrituras de la aplicacion que no cruzan el porton de core.js, asi
+     que el pase de invitado hay que frenarlo aca a mano. */
+  if(typeof soloLectura === 'function' && soloLectura('tomar un paciente precargado')) return;
   const pre = PRECARGAS[token];
   if(!pre) return toast('Esa precarga ya no está disponible.', 'warn');
   const d = pre.datos || {};
@@ -1113,6 +1118,11 @@ function nuevaFichaPara(pacienteId, pre){
    haga solo y no hace falta uno. */
 function purgarPrecargasVencidas(){
   if(!fbDb) return;
+  /* La otra escritura que no pasa por core.js, y encima automatica: la
+     dispara el solo hecho de abrir la bandeja. Un invitado no borra nada de
+     la base de la asociacion, ni siquiera cosas vencidas. Sin aviso: no lo
+     pidio el, lo hace la aplicacion sola. */
+  if(typeof esInvitado === 'function' && esInvitado()) return;
   const hoy = hoyISO();
   Object.values(PRECARGAS).forEach(p => {
     if(!p.purga || p.purga >= hoy) return;

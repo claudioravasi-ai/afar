@@ -240,7 +240,25 @@ function ico(n, cls){
 
 /* ------------------------------------------------------- Toast y modales */
 let toastT;
+/* Momento del ultimo rechazo por visita de solo lectura. Lo escribe
+   soloLectura() en pase.js.
+
+   POR QUE ESTO EXISTE
+   El que pide guardar no se entera de que se le dijo que no: escribir() no
+   devuelve nada, asi que sigue de largo y canta su propio «Guardado» un
+   milisegundo despues. Y como el aviso vive en un unico #toast, ese exito
+   pisaba el rechazo y el invitado veia SOLO el «Guardado». Creia que habia
+   grabado, y no habia grabado nada.
+
+   Cortarlo aca es una linea; hacerlo en cada uno de los cientos de botones
+   que guardan algo no se termina nunca y siempre queda alguno. */
+let bloqueoSoloLectura = 0;
 function toast(msg, tipo){
+  /* Sujeto a que la sesion siga siendo la del invitado: cerrada la visita, el
+     socio que vuelve a entrar en el mismo navegador tiene que ver sus propios
+     mensajes de exito enseguida y no esperar a que se enfrie nada. */
+  if(tipo === 'ok' && typeof esInvitado === 'function' && esInvitado() &&
+     Date.now() - bloqueoSoloLectura < 2500) return;
   const t = $('#toast');
   t.textContent = msg;
   t.className = 'on ' + (tipo || '');
@@ -370,7 +388,7 @@ function sinUndefined(v){
    ========================================================================= */
 function escribir(col, id, obj){
   if(col !== 'auditoria' && typeof soloLectura === 'function' &&
-     soloLectura('guardar cambios')) return;
+     soloLectura('guardar cambios')) return deshacerEnMemoria(col, id);
   DB[col][id] = obj;
   guardarLocal();
   if(obj && obj.demo) return;
@@ -380,7 +398,8 @@ function escribir(col, id, obj){
   }
 }
 function eliminar(col, id){
-  if(typeof soloLectura === 'function' && soloLectura('borrar nada')) return;
+  if(typeof soloLectura === 'function' && soloLectura('borrar nada'))
+    return deshacerEnMemoria(col, id);
   delete DB[col][id];
   guardarLocal();
   if(nubeOK && fbDb && !aplicandoRemoto){
@@ -547,7 +566,15 @@ function iconoArchivo(mime, nombre){
 const AUDITORIA_TOPE  = 5000;    /* lo que queda a mano en el dispositivo */
 const AUDITORIA_LOTE  = 1500;    /* cuantos se archivan por vez */
 
+/* De una visita con pase queda anotado que entro y que salio, y nada mas.
+   Antes tambien se anotaban sus intentos —«paciente-editar», «ficha-guardar»—
+   porque casi todos los botones auditan DESPUES de llamar a escribir(), sin
+   mirar si escribir() hizo algo. El registro terminaba contando ediciones que
+   nunca ocurrieron, que es peor que no tener registro. */
+const AUDITA_EL_INVITADO = ['pase', 'ingreso', 'salida'];
 function auditar(accion, detalle){
+  if(typeof esInvitado === 'function' && esInvitado() &&
+     AUDITA_EL_INVITADO.indexOf(accion) < 0) return;
   const id = uid('log');
   escribir('auditoria', id, {
     id, accion, detalle: detalle || '',
