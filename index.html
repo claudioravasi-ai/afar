@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon-192.png">
-<script>window.AFAR_BUILD = "2026.09.07.1341";</script>
+<script>window.AFAR_BUILD = "2026.09.07.1434";</script>
 <style>
 /* ==== styles.css ==== */
 /* =========================================================================
@@ -26061,9 +26061,21 @@ function documentoFicha(f, opts){
   const antec = Object.keys(v.antecedentes || {}).map(s =>
     '<div class="par"><b>'+esc(s)+':</b><span>'+esc((v.antecedentes[s]||[]).join(' · '))+'</span></div>').join('');
 
+  /* El titulo no puede anunciar lo que el documento no trae. La copia del
+     paciente decia «VALORACION PREQUIRURGICA Y CONSENTIMIENTO INFORMADO»
+     siempre, pero el consentimiento viaja como PDF aparte -es un instrumento
+     juridico autonomo, se firma y se presenta solo- y adentro de este archivo
+     no esta: docPacienteValoracion() lo pide con `sinConsentimiento:true`.
+     Asi que el titulo se calcula con la MISMA condicion con la que se dibuja
+     la seccion, mas abajo. Si algun dia el consentimiento vuelve a incluirse,
+     el titulo lo dice solo; y si no, no lo nombra. */
+  const conConsentimiento = !!co.quien && !(opts && opts.sinConsentimiento);
+
   return ''+
   membrete(f, paraPaciente
-    ? 'VALORACIÓN PREQUIRÚRGICA Y CONSENTIMIENTO INFORMADO — COPIA PARA EL PACIENTE'
+    ? ('VALORACIÓN PRE-ANESTÉSICA'+
+       (conConsentimiento ? ' Y CONSENTIMIENTO INFORMADO' : '')+
+       ' — COPIA PARA EL PACIENTE')
     : (soloVal ? 'VALORACIÓN PRE-ANESTÉSICA (PREQUIRÚRGICA)'
     : (parte === 'acto' ? 'FICHA ANESTÉSICA — REGISTRO DEL ACTO ANESTÉSICO'
     : 'FICHA ANESTÉSICA — VALORACIÓN PREQUIRÚRGICA Y ACTO ANESTÉSICO')))+
@@ -26239,7 +26251,10 @@ function documentoFicha(f, opts){
 
   /* En la ficha del acto va la constancia de que se firmo, no el texto
      entero: ese ya viaja completo en la valoracion del mismo envio. */
-  ((co.quien && !(opts && opts.sinConsentimiento)) ? seccion('Consentimiento informado anestésico',
+  /* La MISMA condición que decide el título, arriba: una sola fuente para las
+     dos cosas, para que el encabezado no pueda volver a anunciar una sección
+     que no se dibuja. */
+  (conConsentimiento ? seccion('Consentimiento informado anestésico',
     (soloActo ? '' :
       '<div style="font-size:10.5px;white-space:pre-line;text-align:justify;line-height:1.45;'+
       'border:1px solid #c9d6e3;padding:9px;background:#fbfdff">'+esc(TEXTO_CONSENTIMIENTO)+'</div>')+
