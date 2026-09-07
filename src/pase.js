@@ -724,7 +724,7 @@ function htmlMailPase(reg, nota){
       'color:#fff;text-decoration:none;padding:11px 18px;border-radius:10px;'+
       'display:inline-block;font-weight:700">Abrir AFAAR</a></p>'+
     '<p style="margin:0 0 14px;font-size:13px;color:#4a6076">En la pantalla de acceso, '+
-      'tocá <b>«Entré con una clave de invitado»</b> y pegá la clave.</p>'+
+      'tocá <b>«Entre con una clave de invitado»</b> y pegá la clave.</p>'+
     '<p style="font-size:12.5px;color:#4a6076;background:#fef3c7;border-radius:10px;'+
       'padding:11px 13px;margin:0">Durante la visita vas a ver historias clínicas reales. '+
       'Es una demostración: mirá lo que quieras, la aplicación no te va a dejar guardar ni '+

@@ -1195,6 +1195,13 @@ html[data-tema="oscuro"] .firma-img{filter:invert(1) contrast(1.2)}
   margin-bottom:8px}
 .doc-caja-tit svg{width:17px;height:17px;flex:none}
 .doc-caja .btn[disabled]{opacity:.42;cursor:not-allowed;pointer-events:none}
+/* El botón que ya cumplió: se ve apagado —sin el degradé ni la sombra del
+   botón principal— pero sigue vivo y se puede tocar. Es la diferencia entre
+   «ya lo hiciste» y «no podés»: lo segundo es [disabled], de arriba.
+   Ver avisarYaEnviada() en email-paciente.js. */
+.btn.pri.esfumado{background:var(--ok-bg);color:var(--ok);box-shadow:none;
+  border-color:var(--ok);opacity:.72;font-weight:600}
+.btn.pri.esfumado:hover{opacity:1;filter:none}
 
 /* ---- Tomar el acto anestésico -------------------------------------------
    Es lo primero que se ve al entrar al paso y tiene que gritar: sin dueño no
@@ -1273,8 +1280,35 @@ html[data-tema="oscuro"] .tomar-acto{background:linear-gradient(135deg,var(--azu
 .man-aviso{ margin:12px 0 }
 .man-tabla{ margin:12px 0 }
 .man-tabla table{ font-size:12.5px }
-.man-img{ display:block; width:100%; height:auto; margin:14px 0;
-          border:1px solid var(--borde); border-radius:10px }
+/* Los atributos width y height del HTML le dan al navegador la proporción
+   para reservar el alto antes de bajar la foto; height:auto deja que se
+   adapte al ancho de la columna sin deformarse. Los dos juntos: espacio
+   reservado y sin estirar. Ver htmlBloquesManual() en ui-manual.js. */
+.man-img{ display:block; width:100%; height:auto; margin:0;
+          border:1px solid var(--borde); border-radius:10px;
+          background:var(--bg-2) }
+/* La captura entera es un botón: son fotos de la pantalla completa metidas en
+   una columna de texto, y en el teléfono lo que se lee adentro no se lee. */
+.man-img-btn{ display:block; width:100%; margin:14px 0; padding:0; border:0;
+              background:none; cursor:zoom-in; position:relative; border-radius:10px }
+.man-img-lupa{ position:absolute; right:10px; bottom:10px;
+               display:inline-flex; align-items:center; gap:6px;
+               background:rgba(11,37,69,.86); color:#fff; font-size:12px; font-weight:600;
+               padding:6px 10px; border-radius:999px; opacity:0; transition:.16s;
+               pointer-events:none }
+.man-img-lupa svg{ width:14px; height:14px }
+.man-img-btn:hover .man-img-lupa,
+.man-img-btn:focus-visible .man-img-lupa{ opacity:1 }
+.man-img-btn:focus-visible{ outline:2px solid var(--azul-500); outline-offset:3px }
+/* En el teléfono no hay hover: la pista se muestra siempre, más discreta */
+@media (hover:none){ .man-img-lupa{ opacity:.9 } }
+/* La captura abierta en grande, dentro de la ventana.
+   `width:auto` con `max-width:100%` es a propósito: así una captura angosta
+   —la pantalla de ingreso mide 444 px— se muestra a su tamaño real en vez de
+   estirarse hasta el ancho de la ventana, que la deja borrosa. Agrandar una
+   foto más allá de sus píxeles no muestra un solo detalle nuevo. */
+.captura-grande{ display:block; width:auto; max-width:100%; height:auto;
+                 margin:0 auto; border-radius:8px; border:1px solid var(--borde) }
 .man-cap mark{ background:var(--aqua-200); color:inherit; border-radius:3px; padding:0 2px }
 @media (max-width:640px){
   .man-cap > .cuerpo{ font-size:14.5px }     /* en el teléfono, un punto más */
@@ -1414,11 +1448,44 @@ html[data-tema="oscuro"] .falta-chips button:hover{background:rgba(255,255,255,.
   padding:8px 0;border-top:1px solid var(--borde)}
 .hist-lista .par:first-child{border-top:0}
 .hist-lista .par .k{font-size:11.5px;font-weight:600;color:var(--texto-2);
-  text-transform:uppercase;letter-spacing:.03em;padding-top:2px}
+  text-transform:uppercase;letter-spacing:.03em;padding-top:2px;
+  display:flex;align-items:center;gap:6px}
 .hist-lista .par .v{font-size:13px;line-height:1.65;display:flex;
   flex-wrap:wrap;gap:5px;align-items:flex-start}
+/* Verde el renglón contestado, ámbar el que nadie preguntó todavía. No es
+   rojo a propósito: un antecedente en blanco no traba la valoración como
+   traba la falta del peso, y pintar todo de rojo es no decir nada. */
+.hist-lista .par .k .ic{width:17px;height:17px;flex:none;display:grid;
+  place-items:center;border-radius:50%;font-size:10.5px;font-weight:800}
+.hist-lista .par .k .ic.si{background:var(--ok-bg);color:var(--ok)}
+.hist-lista .par .k .ic.ne{background:var(--warn-bg);color:var(--warn)}
+.hist-lista .par.vacio .k{color:var(--warn)}
+.hist-lista .par .sin-cargar{color:var(--warn);opacity:.9;font-style:normal}
 @media (max-width:560px){
   .hist-lista .par{grid-template-columns:1fr;gap:3px}
+}
+
+/* Los filiatorios de la tarjeta de historia usan la misma lista que la
+   valoración exprés, con una diferencia: lo que falta se dice en rojo y con
+   el motivo, porque son los datos sin los cuales el resto de la app no puede
+   calcular nada. Ver filiatoriosDeValoracion() en ui-valoracion.js. */
+.fil-items{display:flex;flex-direction:column;gap:2px;margin-top:9px}
+.fil-items .it{display:flex;align-items:flex-start;gap:9px;padding:7px 2px;
+  font-size:13.5px;border-bottom:1px solid var(--borde)}
+.fil-items .it:last-child{border-bottom:none}
+.fil-items .it .ic{width:20px;height:20px;flex:none;display:grid;place-items:center;
+  border-radius:50%;font-size:12px;font-weight:800;margin-top:1px}
+.fil-items .it .ic.si{background:var(--ok-bg);color:var(--ok)}
+.fil-items .it .ic.no{background:var(--danger-bg);color:var(--danger)}
+.fil-items .it .t{flex:none;min-width:150px;font-weight:560}
+.fil-items .it .v{flex:1;font-size:12.5px;color:var(--ok);text-align:right;
+  line-height:1.5}
+.fil-items .it .v.falta{color:var(--danger);font-weight:560}
+.fil-items .it.falta .t{color:var(--danger)}
+@media (max-width:560px){
+  .fil-items .it{flex-wrap:wrap}
+  .fil-items .it .t{min-width:0}
+  .fil-items .it .v{flex-basis:100%;text-align:left;padding-left:29px}
 }
 
 .periop-grupo{border:1.5px solid var(--borde);border-radius:var(--radio-sm);

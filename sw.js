@@ -2,7 +2,7 @@
    Estrategia: red primero para el HTML y los recursos propios (para que las
    actualizaciones lleguen siempre), cache como respaldo sin conexion. */
 
-const CACHE = 'afar-v16';
+const CACHE = 'afar-v18';
 const ESENCIALES = [
   './',
   './index.html',
@@ -11,9 +11,30 @@ const ESENCIALES = [
   './icons/icon-512.png'
 ];
 
+/* Las capturas del manual. Van aparte de ESENCIALES a proposito: son
+   alrededor de un mega y no valen la pena para arrancar, pero SI hacen falta
+   guardadas. El manual es lo que alguien abre justo cuando no sabe que hacer,
+   y eso pasa tanto sin señal como con ella. Sin esto, la primera vez que se
+   abre el manual sin conexion las once capturas no aparecen. */
+const CAPTURAS = [
+  './manual/m1.jpg','./manual/m2.jpg','./manual/m3.jpg','./manual/m4.jpg',
+  './manual/m5.jpg','./manual/m6.jpg','./manual/m7.jpg','./manual/m8.jpg',
+  './manual/m9.jpg','./manual/m10.jpg','./manual/m11.jpg'
+];
+
 self.addEventListener('install', e => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ESENCIALES).catch(() => {})));
+  /* Primero lo esencial y despues las capturas, de a una y perdonando los
+     fallos: addAll() es todo o nada, y una captura que no baja no puede
+     impedir que la aplicacion se instale. Las dos etapas van dentro del
+     waitUntil -aunque la instalacion tarde un poco mas- porque el navegador
+     puede apagar el service worker apenas termina de instalar, y lo que
+     quedara corriendo por fuera se cortaria por la mitad. */
+  e.waitUntil(caches.open(CACHE).then(c =>
+    c.addAll(ESENCIALES)
+     .catch(() => {})
+     .then(() => Promise.all(CAPTURAS.map(u => c.add(u).catch(() => {}))))
+  ));
 });
 
 self.addEventListener('activate', e => {
@@ -54,6 +75,24 @@ self.addEventListener('fetch', e => {
         }
         return r;
       })
-      .catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
+      /* ------------------------------------------------------------------
+         SIN RED: lo guardado, y si no hay nada guardado, un error honesto.
+
+         Antes, cualquier pedido que fallara y no estuviera en la cache
+         devolvia el index.html. Para una navegacion esta bien -es la pantalla
+         de la aplicacion-, pero para una IMAGEN es un desastre silencioso: al
+         <img> le llega HTML haciendose pasar por JPEG, el navegador no puede
+         decodificarlo y la captura queda en blanco para siempre, sin un solo
+         error en la consola. Es por esto que las capturas del manual «no se
+         lograban ver» sin conexion.
+
+         Ahora el index.html se devuelve SOLO cuando lo que se pidio es una
+         pantalla. Todo lo demas, si no esta guardado, falla como corresponde.
+         ------------------------------------------------------------------ */
+      .catch(() => caches.match(req).then(r => {
+        if(r) return r;
+        if(esHTML) return caches.match('./index.html');
+        return new Response('', { status:504, statusText:'Sin conexión' });
+      }))
   );
 });

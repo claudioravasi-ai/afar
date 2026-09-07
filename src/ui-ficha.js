@@ -149,12 +149,30 @@ function vistaFichas(){
         '<button type="button" data-v="'+a[0]+'"'+(filtroFichas.alcance===a[0]?' class="on"':'')+'>'+
         a[1]+(a[2] ? '<span class="badge">'+a[2]+'</span>' : '')+'</button>').join('')+
     '</div>'+
+    /* Las tres solapas se explican solas, y las dos que suelen aparecer
+       vacías dicen POR QUÉ están vacías. «De colegas» no se llena hasta que
+       alguien toma un acto ajeno, y una valoración propia no se ve en
+       «Disponibles» porque Disponibles es lo que está libre PARA OTRO: la
+       propia ya es tuya y vive en «Mías». Sin esa aclaración las dos listas
+       parecen rotas cuando están funcionando. */
     '<div class="ayuda mb8">'+
       (filtroFichas.alcance === 'colegas'
-        ? 'Fichas que compartís con otro anestesiólogo: uno hizo la valoración prequirúrgica y el otro el acto. Los dos las ven completas.'
+        ? 'Fichas que compartís con otro anestesiólogo: uno hizo la valoración prequirúrgica y el '+
+          'otro el acto. Los dos las ven completas.'+
+          (fichasCompartidas().length ? '' :
+            '<br><b>Está vacía y es lo esperable</b> mientras nadie haya tomado todavía un acto '+
+            'ajeno. Una ficha entra acá recién cuando la valoración es de uno y el acto de otro. '+
+            'Las que están esperando quién las tome viven en <b>Disponibles</b>, y hasta que '+
+            'alguien las tome no son de dos, son de uno.')
        : filtroFichas.alcance === 'disponibles'
-        ? 'Valoraciones prequirúrgicas de la asociación cuyo acto anestésico todavía no tiene anestesiólogo. Cualquiera puede tomarlas. Al tomar una, pasa a «Mías».'
-        : 'Pacientes en los que interviniste, por la valoración prequirúrgica, por el acto anestésico o por los dos.')+
+        ? 'Valoraciones prequirúrgicas de la asociación cuyo acto anestésico todavía no tiene '+
+          'anestesiólogo. Cualquiera puede tomarlas. Al tomar una, pasa a «Mías».'+
+          '<br><b>Las tuyas no aparecen acá</b>: están en «Mías» y son tus colegas los que las ven '+
+          'en su lista de disponibles. Para que una valoración tuya quede libre, el punto 10 de la '+
+          'valoración tiene que decir <b>«todavía no se sabe quién opera»</b>; si designaste a '+
+          'alguien, la ficha le llega sólo a esa persona.'
+        : 'Pacientes en los que interviniste, por la valoración prequirúrgica, por el acto '+
+          'anestésico o por los dos.')+
     '</div>')+
 
   (nubeOK ? '<div class="seg mb8" id="fPeriodo">'+
@@ -1026,29 +1044,23 @@ function pintarFicha(){
     /* Mismo criterio que «Anterior»: si el paso siguiente está cerrado, el
        botón saltearía el recorrido. En el arranque del acto no hay nada que
        avanzar hasta tomarlo. */
-    /* «Enviarle la ficha al paciente» vive acá, al lado de Siguiente, porque
-       éste es el momento en que se decide: ya está identificado el paciente y
-       todavía no empezó la valoración, que es justamente lo que se quiere
-       encontrar medio completo. Ver enviarFichaEnBlancoAlPaciente().
-
-       NO se ofrece si la ficha nació de una precarga: el botón existe para
-       pedirle al paciente los datos que no tenemos, y de un precargado los
-       tenemos todos. Mandarle el mail sería pedirle que complete por segunda
-       vez exactamente lo mismo que ya completó en su casa. */
-    (pasoFicha === 'paciente' && f.pacienteId && !firmada && !f.desdePrecarga
-      ? '<button class="btn ghost" id="fiEnviarPac">'+ico('correo')+
-        (estadoPrellenado(f) === 'no' ? ' Enviarle la ficha por mail' : ' Reenviar la ficha')+
-        '</button>'
-      : '')+
+    /* «Enviarle la ficha al paciente» estaba acá, en el paso Paciente, al lado
+       de Siguiente. Se mudó al pie de la Preanestesia por pedido de la
+       asociación, y el motivo es bueno: en el paso Paciente lo único cargado
+       son los datos filiatorios, y desde ahí el botón parecía ofrecer
+       «mandarle esto al paciente» cuando en realidad pide lo contrario —que
+       sea él quien complete sus antecedentes—. Al pie de la valoración queda
+       al lado de la tarjeta que muestra esa misma historia, que es lo que el
+       paciente va a completar. Ver htmlPedidoAlPaciente(). */
     (pasoVecino(1) && pasoHabilitado(f, pasoVecino(1))
       ? '<button class="btn '+(PASO_GUARDA[pasoFicha] ? 'ghost' : 'pri grande')+'" id="fiSiguiente">'+
         'Siguiente '+ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg)"')+'</button>'
       : '<span></span>')+
   '</div>'+
 
-  /* Un botón que desaparece sin decir por qué deja al usuario buscándolo. Si
-     la ficha vino de una precarga se dice, y de paso queda asentado en la
-     pantalla de dónde salieron estos datos. */
+  /* De dónde salieron estos datos, cuando el paciente los cargó él mismo
+     antes de venir. Ya no dice nada del botón de enviarle la ficha: ese
+     botón se mudó al pie de la Preanestesia. Ver htmlPedidoAlPaciente(). */
   (pasoFicha === 'paciente' && f.desdePrecarga
     ? '<div class="aviso ok no-print">'+ico('check')+'<div>'+
       '<b>Este paciente cargó sus datos por su cuenta antes de venir.</b> '+
@@ -1057,11 +1069,12 @@ function pintarFicha(){
           (f.desdePrecarga.inst ? ' en <b>'+esc(nombreInstitucion(f.desdePrecarga.inst))+'</b>' : '')+
           (f.desdePrecarga.conTicket ? ', con foto del ticket' : ', <b>sin</b> foto del ticket')+'. '
         : '')+
-      'Por eso no aparece el botón de enviarle la ficha por mail: ya la completó.</div></div>'
+      'No hace falta pedirle que complete nada.</div></div>'
     : '')+
 
-  /* Cuando el paciente ya devolvió su ficha, la puerta para revisarla está
-     donde se la mandó: en el paso Paciente, arriba de todo lo demás. */
+  /* Cuando el paciente ya devolvió su ficha se avisa también acá, en el paso
+     Paciente, porque lo que devolvió son SUS datos. La otra puerta está donde
+     se la mandó, al pie de la Preanestesia. Las dos llaman a lo mismo. */
   (pasoFicha === 'paciente' && estadoPrellenado(f) === 'finalizado'
     ? '<div class="aviso ok no-print">'+ico('check')+'<div><b>El paciente completó su ficha.</b> '+
       'Lo que cargó <b>no entró solo</b> en su historia: revisalo y elegí qué incorporar.'+
@@ -1278,13 +1291,18 @@ function htmlExtrasDePaso(f, soloActo){
     const p      = DB.pacientes[f.pacienteId] || {};
     const sinMail = !p.email;
     const off = lista ? '' : ' disabled';
+    /* Los envíos ya hechos viven en la ficha, no en una variable de pantalla:
+       se registran en f.envios al confirmar cada envío. El último es el que
+       se muestra. Ver enviarDocumentacionPaciente(). */
+    const envios = ((guardada || f).envios || []);
+    const envio  = envios.length ? envios[envios.length-1] : null;
+    const yaEnviada = !!envio;
     return '<div class="doc-caja no-print">'+
       '<div class="doc-caja-tit">'+ico('valoracion')+
         '<b>Documentación de la valoración prequirúrgica</b></div>'+
       (lista
         ? '<div class="mini">Valoración guardada el '+
-          fFechaLarga(String(guardada.valoracionGuardada).slice(0,10))+' a las '+
-          esc(String(guardada.valoracionGuardada).slice(11,16))+' h.</div>'
+          esc(fFechaHora(guardada.valoracionGuardada))+'.</div>'
         : '<div class="aviso warn mt8">'+ico('candado')+'<div><b>Todavía no se puede documentar.</b> '+
           'Completá la valoración —incluido el punto 11, el consentimiento informado— y tocá '+
           '<b>«Guardar valoración»</b>. Recién ahí se habilitan estos cuatro botones.</div></div>')+
@@ -1297,12 +1315,28 @@ function htmlExtrasDePaso(f, soloActo){
           ' Honorarios de la consulta</button>'+
         '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+' Word</button>'+
         '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+' PDF</button>'+
-        '<button class="btn pri chico" id="fiMail"'+(lista && !sinMail ? '' : ' disabled')+'>'+
-          ico('adjunto')+' Enviar valoración al paciente</button>'+
+        /* El botón NO se apaga por falta de correo. Apagarlo dejaba a la
+           persona con un botón muerto y una instrucción -«andá a la historia
+           del paciente»- que la saca de la pantalla en la que está. Ahora se
+           puede tocar: si no hay correo, se pide ahí mismo. Ver
+           enviarDocumentacionPaciente() en email-paciente.js.
+           Y si ya se envió, nace esfumado y avisa antes de repetir. */
+        '<button class="btn pri chico'+(yaEnviada ? ' esfumado' : '')+'" id="fiMail"'+off+
+          (envio ? ' data-enviado="'+esc(envio.fecha)+'"' : '')+'>'+
+          ico('adjunto')+(yaEnviada ? ' Valoración enviada' : ' Enviar valoración al paciente')+
+          '</button>'+
       '</div>'+
+      (yaEnviada
+        ? '<div class="ayuda"><b>Ya se le envió</b> el '+esc(fFechaHora(envio.fecha))+
+          ' a <b>'+esc(envio.a || '—')+'</b>'+
+          (envios.length > 1 ? ' (envío n.º '+envios.length+')' : '')+
+          '. El botón queda esfumado como recordatorio: si lo tocás, te lo dice y te pregunta si '+
+          'querés mandarlo de nuevo.</div>'
+        : '')+
       (lista && sinMail
-        ? '<div class="ayuda">El paciente no tiene correo cargado: agregalo en su historia '+
-          'para poder enviarle la documentación.</div>' : '')+
+        ? '<div class="ayuda">El paciente <b>no tiene correo cargado</b>. Podés tocar «Enviar '+
+          'valoración al paciente» igual: se abre una ventana para cargarlo en el momento y el '+
+          'correo queda guardado en su historia.</div>' : '')+
       (lista
         ? '<div class="ayuda"><b>Word</b> y <b>PDF</b> bajan los datos del paciente y la '+
           'valoración pre-anestésica con su consentimiento, <b>sin el acto anestésico</b>: es el '+
@@ -1312,7 +1346,8 @@ function htmlExtrasDePaso(f, soloActo){
           (INDICACIONES_AL_PACIENTE ? ', más la hoja de indicaciones de ayuno' : '')+
           '. Sin ningún dato de facturación.</div>' : '')+
       (lista ? htmlAvisoHonorario(f, 'consulta') : '')+
-    '</div>';
+    '</div>'+
+    htmlPedidoAlPaciente(f);
   }
 
   /* ------------------- Documentos del ACTO anestesico -------------------- */
@@ -1340,6 +1375,70 @@ function htmlExtrasDePaso(f, soloActo){
       'El consentimiento informado ya se firmó y se entregó con la valoración prequirúrgica '+
       '(punto 11).</div>'+
     (enBase ? htmlAvisoHonorario(f, 'acto') : '')+
+  '</div>';
+}
+
+/* =========================================================================
+   PEDIRLE AL PACIENTE QUE COMPLETE SU FICHA
+   -------------------------------------------------------------------------
+   Vivia en el paso Paciente, al lado de «Siguiente», y ahi confundia: en esa
+   pantalla lo unico cargado son los datos filiatorios, y un boton que dice
+   «enviarle la ficha por mail» al lado de un formulario con el nombre y el
+   documento se lee como «mandarle ESTO», que es justo lo que no hace y lo que
+   no habria que poder hacer.
+
+   Lo que hace es lo contrario: le manda un enlace personal para que el
+   PACIENTE cargue sus antecedentes, su medicacion y sus alergias antes de la
+   consulta. Por eso su lugar es el pie de la valoracion, debajo de la
+   documentacion: al lado de la tarjeta «Historia de …», que es exactamente lo
+   que el paciente va a completar y donde se ve lo que falta.
+
+   Sigue sin ofrecerse cuando la ficha nacio de una precarga: de un paciente
+   precargado ya tenemos todo y pedirselo otra vez es hacerle completar dos
+   veces lo mismo. Ver enviarFichaEnBlancoAlPaciente() en paciente-portal.js.
+   ========================================================================= */
+function htmlPedidoAlPaciente(f){
+  const firmada = !!(f.firma || {}).firmado;
+  if(!f.pacienteId || firmada) return '';
+  const est = estadoPrellenado(f);
+  const pr  = f.prellenado || {};
+
+  if(f.desdePrecarga)
+    return '<div class="doc-caja no-print">'+
+      '<div class="doc-caja-tit">'+ico('correo')+'<b>La ficha del paciente</b></div>'+
+      '<div class="aviso ok mt8">'+ico('check')+'<div><b>Este paciente cargó sus datos por su '+
+        'cuenta antes de venir.</b> Por eso no se le pide que complete nada: ya está.</div></div>'+
+    '</div>';
+
+  const t = {
+    no:          ['', ''],
+    pendiente:   ['warn',   'Se le mandó el enlace y todavía no lo devolvió.'],
+    finalizado:  ['ok',     'El paciente ya completó su ficha. Revisá lo que cargó y decidí qué incorporar.'],
+    incorporado: ['ok',     'Lo que cargó el paciente ya está incorporado a su historia.'],
+    vencido:     ['danger', 'El enlace venció. Si lo seguís necesitando, mandale uno nuevo.']
+  }[est] || ['', ''];
+
+  return '<div class="doc-caja no-print">'+
+    '<div class="doc-caja-tit">'+ico('correo')+'<b>La ficha que completa el paciente</b></div>'+
+    '<div class="mini">Le llega por correo un <b>enlace personal</b> para que cargue él mismo sus '+
+      'antecedentes, su medicación, sus alergias y sus hábitos —lo que se ve arriba en «Historia '+
+      'de…»—. No manda ningún documento ni da acceso a la valoración: sólo pide.</div>'+
+    (est !== 'no'
+      ? '<div class="aviso '+t[0]+' mt8">'+ico(est==='pendiente'?'reloj':(est==='vencido'?'alerta':'check'))+
+        '<div><b>'+esc(t[1])+'</b>'+
+        (pr.enviado ? '<br><span class="mini">Enviado el '+esc(fFechaHora(pr.enviado))+
+          ' a '+esc(pr.a||'—')+
+          (pr.vence ? ' · vence el '+esc(fFechaLarga(pr.vence)) : '')+'</span>' : '')+
+        '</div></div>'
+      : '')+
+    '<div class="btn-row mt8 fi-extras">'+
+      '<button class="btn ghost chico" id="fiEnviarPac">'+ico('correo')+
+        (est === 'no' ? ' Enviarle la ficha por mail' : ' Volver a enviarle la ficha')+'</button>'+
+      (est === 'finalizado' || est === 'incorporado'
+        ? '<button class="btn pri chico" id="fiRevisarPrell">'+ico('lista')+
+          ' Revisar lo que cargó</button>'
+        : '')+
+    '</div>'+
   '</div>';
 }
 

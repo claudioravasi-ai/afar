@@ -135,6 +135,97 @@ function htmlMailPaciente(f, prof){
   '</div>';
 }
 
+/* =========================================================================
+   EL CORREO QUE FALTA, PEDIDO EN EL MOMENTO
+   -------------------------------------------------------------------------
+   Antes, si el paciente no tenia correo cargado, el boton de enviar nacia
+   apagado y un cartel decia «agregalo en su historia». Eso es mandar a la
+   persona a otra pantalla, con otro formulario y cuatro solapas, en el unico
+   momento en que tiene la valoracion terminada y al paciente enfrente.
+
+   Ahora el boton se puede tocar siempre y, si no hay correo, se pide aca
+   mismo. Lo que se escribe NO se queda en la pantalla: se guarda en la
+   historia del paciente, que es donde vive el dato, asi que la proxima ficha
+   ya lo tiene. Ver guardarCorreoDelPaciente().
+   ========================================================================= */
+function pedirCorreoDelPaciente(p, seguir){
+  abrirModal('El paciente no tiene correo cargado',
+    '<div class="aviso warn">'+ico('alerta')+'<div><b>'+
+      esc((p.apellido||'')+', '+(p.nombre||''))+' no tiene dirección de correo en su historia.</b> '+
+      'Sin correo no hay por dónde entregarle su valoración ni su consentimiento.</div></div>'+
+    '<div class="campo"><label>Correo electrónico del paciente</label>'+
+      '<input type="email" id="mailPac" placeholder="nombre@correo.com" autocomplete="off" '+
+        'inputmode="email"></div>'+
+    '<div class="ayuda">Se guarda en la <b>historia del paciente</b>, no sólo en esta ficha: la '+
+      'próxima vez ya va a estar. Si el paciente no tiene casilla propia, cargá la de un familiar '+
+      'responsable, con su consentimiento.</div>',
+    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+    '<button class="btn pri" id="mailPacOK">'+ico('check')+' Guardar y continuar</button>');
+
+  const enviar = () => {
+    const v = ($('#mailPac').value || '').trim();
+    if(!v) return toast('Escribí el correo del paciente.', 'warn');
+    if(typeof mailValido === 'function' && !mailValido(v))
+      return toast('Ese correo no tiene forma de dirección válida.', 'err');
+    if(!guardarCorreoDelPaciente(p.id, v)) return;
+    cerrarModal();
+    toast('Correo guardado en la historia de '+(p.apellido||'')+'.', 'ok');
+    setTimeout(seguir, 200);
+  };
+  $('#mailPacOK').onclick = enviar;
+  $('#mailPac').onkeydown = e => { if(e.key === 'Enter'){ e.preventDefault(); enviar(); } };
+  setTimeout(() => { if($('#mailPac')) $('#mailPac').focus(); }, 120);
+}
+
+function guardarCorreoDelPaciente(id, mail){
+  const g = DB.pacientes[id];
+  if(!g){ toast('No se encontró al paciente.', 'err'); return false; }
+  const p = JSON.parse(JSON.stringify(g));
+  p.email = mail;
+  p.modificado = new Date().toISOString();
+  p.modificadoPor = SESION ? SESION.uid : '';
+  escribir('pacientes', p.id, p);
+  auditar('paciente-correo', 'Correo cargado desde el envío de la valoración: ' + mail);
+  return true;
+}
+
+/* =========================================================================
+   EL RECORDATORIO DE QUE YA SE ENVIO
+   -------------------------------------------------------------------------
+   Un envio no se puede deshacer: el correo salio. Por eso el boton, una vez
+   usado, queda esfumado -se ve que ya cumplio- y el primer clic despues de un
+   envio no manda nada: recuerda cuando se mando y a quien, y pide que se
+   vuelva a tocar si de verdad se quiere repetir. El segundo clic ya entra por
+   el camino normal, con su ventana de confirmacion.
+
+   La marca de «ya avisado» es por ficha y dura lo que dura la pantalla: si se
+   sale y se vuelve, el boton esta esfumado otra vez y vuelve a avisar. Es a
+   proposito: el olvido que se quiere evitar es el del dia siguiente.
+   ========================================================================= */
+let reenvioAvisado = '';
+
+function avisarYaEnviada(f, envios){
+  const u = envios[envios.length-1];
+  reenvioAvisado = f.id;
+  const b = $('#fiMail');
+  if(b){
+    b.classList.remove('esfumado');
+    b.innerHTML = ico('adjunto') + ' Reenviar la valoración';
+  }
+  abrirModal('Esta valoración ya se le envió',
+    '<div class="aviso ok">'+ico('check')+'<div><b>Se envió el '+
+      esc(fFechaHora(u.fecha))+'</b> a <b>'+esc(u.a || '—')+'</b>'+
+      (u.por ? ', por '+esc(u.por) : '')+'.'+
+      (envios.length > 1
+        ? '<br><span class="mini">Es el envío n.º '+envios.length+' de esta ficha.</span>' : '')+
+      '</div></div>'+
+    '<p style="margin:0;line-height:1.6">Si querés <b>volver a enviársela</b> —porque el paciente '+
+      'no la encontró, cambió el correo o se corrigió la valoración—, <b>tocá otra vez el botón</b>: '+
+      'ahora dice «Reenviar la valoración» y sí va a mandarla.<br><br>'+
+      'Cada envío queda registrado en la ficha con su fecha, su hora y su destinatario.</p>',
+    '<button class="btn pri" data-cerrar>Entendido</button>');
+}
+
 /* --------------------------------------------------------------- Envio */
 function enviarDocumentacionPaciente(f){
   const p = DB.pacientes[f.pacienteId] || {};
@@ -143,11 +234,20 @@ function enviarDocumentacionPaciente(f){
   if(!envioConfigurado())
     return toast('El envío por mail todavía no está configurado. Ver ENVIO-DE-MAILS.md', 'err');
   if(!f.pacienteId) return toast('La ficha no tiene paciente.', 'err');
-  if(!p.email)      return toast('El paciente no tiene correo cargado. Agregalo en su ficha.', 'err');
   if(!consentimientoCompleto(f))
     return toast('Falta completar el punto 11: el consentimiento informado.', 'warn');
   if(!f.valoracionGuardada)
     return toast('Guardá primero la valoración con el botón «Guardar valoración».', 'warn');
+
+  /* El correo se pide acá y se guarda en la historia, en vez de apagar el
+     botón y mandar a la persona a otra pantalla. */
+  if(!p.email)
+    return pedirCorreoDelPaciente(p, () => enviarDocumentacionPaciente(f));
+
+  /* Ya enviada: el primer clic recuerda, el segundo manda. */
+  const envios = ((DB.fichas[f.id] || f).envios || []);
+  if(envios.length && reenvioAvisado !== f.id)
+    return avisarYaEnviada(f, envios);
 
   const asunto = 'Documentación de valoración prequirúrgica — ' +
     (p.apellido || '') + ', ' + (p.nombre || '');
@@ -215,6 +315,9 @@ function enviarDocumentacionPaciente(f){
         if(fichaActual && fichaActual.id === base.id) fichaActual.envios = base.envios;
         auditar('email-paciente',
           docs.length + ' documentos enviados en PDF a ' + p.email);
+        /* Se vuelve a armar el recordatorio: el próximo clic vuelve a avisar
+           que ya se envió, en vez de mandar un tercero sin preguntar. */
+        reenvioAvisado = '';
         toast(docs.length + ' PDF enviados a ' + p.email, 'ok');
         pintarFicha();
       }catch(err){

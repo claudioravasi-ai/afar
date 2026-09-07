@@ -57,6 +57,24 @@ function fFechaLarga(iso){
   if(isNaN(d)) return fFecha(iso);
   return d.toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'});
 }
+/* =========================================================================
+   FECHA Y HORA DE UNA MARCA DE TIEMPO, EN LA HORA DE ACA
+   -------------------------------------------------------------------------
+   Las marcas de tiempo se guardan con new Date().toISOString(), que es hora
+   UTC. Cortar los caracteres 11 a 16 de esa cadena muestra la hora de
+   Greenwich, no la de Tierra del Fuego: un envio hecho a las 8:22 de la
+   mañana aparece como «11:22». Esto lo convierte a la hora local antes de
+   mostrarlo, que es la unica que le sirve a quien lee «¿cuándo se lo mandé?».
+   ========================================================================= */
+function fFechaHora(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d)) return fFecha(iso);
+  return d.toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'}) +
+         ' a las ' + d.toLocaleTimeString('es-AR',
+           { hour:'2-digit', minute:'2-digit', hour12:false }) + ' h';
+}
+
 function fMoneda(n){
   const v = Number(n) || 0;
   return '$ ' + v.toLocaleString('es-AR',{minimumFractionDigits:2, maximumFractionDigits:2});

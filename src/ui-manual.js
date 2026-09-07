@@ -66,8 +66,36 @@ function htmlBloquesManual(c, q){
     else if(x.t === 'h3') out += '<h4 class="man-h3">'+R(x.txt)+'</h4>';
     else if(x.t === 'p')  out += '<p class="man-p">'+R(x.txt)+'</p>';
     else if(x.t === 'img')
-      /* carga diferida: quien no baja hasta la foto no la descarga */
-      out += '<img class="man-img" src="'+esc(x.src)+'" loading="lazy" alt="Captura de la aplicación">';
+      /* =====================================================================
+         LAS CAPTURAS NO SE VEIAN, Y ERA POR LA CARGA DIFERIDA
+
+         Estaban con loading="lazy" y sin medidas. Una imagen que todavia no
+         cargo y no declara su tamaño ocupa DOS PIXELES de alto -los bordes- y
+         nada mas. Y la carga diferida decide si baja la imagen segun cuanto
+         falte para que entre en pantalla. Ahi se cierra la trampa: la foto no
+         tiene alto porque no cargo, y no carga porque, con dos pixeles de
+         alto, el navegador nunca la considera lo bastante cerca. Once fotos
+         de dos pixeles apiladas quedan invisibles para siempre.
+
+         Se arregla declarando el tamaño real -width y height, que ahora
+         viajan en el manual junto al nombre del archivo-: con eso el
+         navegador reserva el espacio antes de bajar nada, la foto ya ocupa lo
+         que va a ocupar, la carga diferida vuelve a funcionar y de paso el
+         texto deja de saltar cuando cada imagen termina de bajar.
+
+         Si por lo que sea una imagen no trae medidas, se carga sin diferir:
+         mas lenta, pero visible. Una foto que no se ve no sirve de nada.
+         ===================================================================== */
+      /* Y se puede tocar para verla grande: son capturas de la pantalla
+         entera, 1151 píxeles de ancho, metidas en una columna de texto. En el
+         teléfono lo que se lee ahí adentro no se lee. Ver abrirCaptura(). */
+      out += '<button type="button" class="man-img-btn" data-captura="'+esc(x.src)+'" '+
+             'title="Tocá para verla más grande">'+
+             '<img class="man-img" src="'+esc(x.src)+'"'+
+             (x.w && x.h ? ' width="'+x.w+'" height="'+x.h+'" loading="lazy"' : ' loading="eager"')+
+             ' alt="Captura de la aplicación">'+
+             '<span class="man-img-lupa">'+ico('buscar')+' Ver más grande</span>'+
+             '</button>';
     else if(x.t === 'aviso')
       out += '<div class="aviso '+esc({cab:'info'}[x.clase] || x.clase)+' man-aviso">'+
              ico(x.clase === 'danger' ? 'alerta' : x.clase === 'ok' ? 'check' : 'info')+
@@ -153,4 +181,24 @@ function vistaManual(){
       else if(manualAbierto === d.dataset.cap) manualAbierto = '';
     });
   });
+
+  $$('#vManual [data-captura]').forEach(b =>
+    b.onclick = () => abrirCaptura(b.dataset.captura));
+}
+
+/* =========================================================================
+   LA CAPTURA, EN GRANDE
+   -------------------------------------------------------------------------
+   Las once capturas del manual son fotos de la ventana entera de la
+   aplicacion: 1151 pixeles de ancho. Dentro de una columna de texto -y mucho
+   mas dentro de un telefono- lo que se ve ahi adentro no se llega a leer.
+   Tocarlas las abre a pantalla casi completa, que es donde recien se
+   distingue el boton del que habla el parrafo de al lado.
+   ========================================================================= */
+function abrirCaptura(src){
+  abrirModal('Captura de la aplicación',
+    '<img class="captura-grande" src="'+esc(src)+'" alt="Captura de la aplicación">'+
+    '<div class="ayuda">Es una foto de la pantalla, no la pantalla: los botones de acá adentro '+
+      'no funcionan.</div>',
+    '<button class="btn ghost" data-cerrar>Cerrar</button>', '1180px');
 }

@@ -29,13 +29,18 @@ function acc(id, icono, titulo, cuerpo, abierto){
    no se saco nada. Lo que cambio es que ya no hay que recorrerlos para saber
    que falta ni para terminar una valoracion sencilla.
 
-   Y arriba de esa tarjeta hay dos atajos que son los que de verdad ahorran
-   tiempo:
-     - AUTOCOMPLETAR: marca solo las casillas de las escalas que se deducen de
-       lo que ya esta cargado (ver derivarValoracion() en valoracion-auto.js).
-     - PLANTILLAS: el paciente sano para cirugia menor, el adulto con HTA y
-       diabetes compensadas, la urgencia y el pediatrico sano. Rellenan examen
-       normal, ayuno, plan y profilaxis de una vez.
+   Y arriba de esa tarjeta hay UN atajo, no dos. Habia tambien un boton de
+   «autocompletar con lo cargado» y se saco: aparecia al abrir la valoracion,
+   cuando todavia no hay nada cargado mas que la filiacion, y ahi no tiene de
+   donde deducir nada. Lo unico que quedo es lo que si sirve desde el primer
+   segundo:
+     - PLANTILLAS: el punto de partida de la valoracion. Rellenan de una vez
+       el examen fisico normal, la via aerea, el ayuno, el plan y la
+       profilaxis de la situacion elegida, y una de ellas -«patologias
+       tratadas y compensadas»- deja escribir las patologias y la medicacion
+       del paciente para que la conducta perioperatoria se arme sola.
+   La deduccion automatica sigue viva donde tiene sentido: el ASA propuesto,
+   que se ofrece solo y se acepta con un clic (asaPropuesto()).
    ========================================================================= */
 
 /* Las seis condiciones para concluir, con su estado y adonde ir a cargarlas */
@@ -71,15 +76,13 @@ function htmlValoracionExpres(f){
       (faltan.length ? faltan.length+' pendiente'+(faltan.length===1?'':'s') : 'Completa')+'</span></h3>'+
 
     '<div class="btn-row">'+
-      '<button type="button" class="btn pri" id="vaAuto">'+ico('calculadora')+
-        ' Autocompletar con lo cargado</button>'+
-      '<button type="button" class="btn ghost" id="vaPlantilla">'+ico('lista')+
+      '<button type="button" class="btn pri" id="vaPlantilla">'+ico('lista')+
         ' Usar una plantilla</button>'+
     '</div>'+
-    '<div class="ayuda">El autocompletado marca las casillas de las escalas del punto 5 y la '+
-      'profilaxis del punto 9 que se <b>deducen</b> de los antecedentes, la medicación, el '+
-      'laboratorio y la cirugía que ya cargaste. Muestra qué va a marcar y por qué antes de '+
-      'hacerlo, y nunca pisa lo que pusiste a mano.</div>'+
+    '<div class="ayuda">Una plantilla carga de una vez el examen físico habitual de esa '+
+      'situación, la vía aérea, el ayuno, el plan anestésico y la profilaxis. Elegí la que se '+
+      'parezca a este paciente y corregí lo que no coincida: <b>nunca pisa lo que ya cargaste</b>. '+
+      'Cuando la apliques, la lista de acá abajo te dice qué quedó pendiente.</div>'+
 
     '<div id="vaAsaSug"></div>'+
 
@@ -145,7 +148,6 @@ function cablearValoracionExpres(f){
     };
   };
 
-  if($('#vaAuto')) $('#vaAuto').onclick = () => abrirAutocompletado(f);
   if($('#vaPlantilla')) $('#vaPlantilla').onclick = () => abrirPlantillas(f);
   if($('#rgRedactar')) $('#rgRedactar').onclick = () => {
     const txt = redactarConclusion(fichaActual);
@@ -188,165 +190,306 @@ function pintarExpres(){
 }
 
 /* =========================================================================
-   AUTOCOMPLETADO — se ve antes de aplicarse
+   EL AUTOCOMPLETADO QUE SE SACO
+   -------------------------------------------------------------------------
+   Aca vivia abrirAutocompletado(): una ventana que proponia marcar las
+   casillas de las escalas deducibles de lo ya cargado. Se saco por pedido de
+   la asociacion y el motivo es sensato: el boton aparecia al abrir la
+   valoracion, cuando lo unico cargado es la filiacion, y entonces no tenia
+   nada de donde deducir. Ofrecer un atajo que casi siempre contesta «no hay
+   nada que completar» ensucia la pantalla y hace dudar de si la app calculo
+   algo por su cuenta.
+
+   Lo que hace el mismo trabajo y quedo: las PLANTILLAS de aca abajo, que
+   cargan de una vez lo que de verdad se repite, y el ASA propuesto, que se
+   ofrece solo. derivarValoracion() sigue en valoracion-auto.js por si algun
+   dia se quiere volver a colgar de otro lado.
    ========================================================================= */
-function abrirAutocompletado(f){
-  const r = derivarValoracion(fichaActual);
-  const props = r.propuestas;
-  if(!props.length)
-    return toast('No hay nada más que deducir: todo lo derivable ya está cargado.', 'ok');
 
-  const grupos = {};
-  props.forEach(x => (grupos[x.grupo] = grupos[x.grupo] || []).push(x));
-
-  const etiqueta = x => {
-    if(x.tipo === 'chk'){ const e = $('#'+x.id);
-      const l = e ? e.closest('label') : null; return l ? l.textContent.trim() : x.id; }
-    if(x.tipo === 'chkval') return x.valor;
-    if(x.tipo === 'cap') return CAPRINI_ITEMS[x.i].t + ' (' + CAPRINI_ITEMS[x.i].p + ')';
-    const e = $('#'+x.id);
-    const lab = e && e.closest('.campo') ? e.closest('.campo').querySelector('label') : null;
-    const sel = e && e.tagName === 'SELECT'
-      ? (Array.prototype.find.call(e.options, o => o.value === x.valor) || {}).textContent
-      : null;
-    return (lab ? lab.textContent.trim() + ': ' : '') + (sel || x.valor);
-  };
-
-  abrirModal('Autocompletar la valoración',
-    '<div class="aviso info">'+ico('info')+'<div><b>'+props.length+' dato'+
-      (props.length===1?'':'s')+' se '+(props.length===1?'deduce':'deducen')+' de lo que ya '+
-      'cargaste.</b><br>Nada de esto es una invención: cada renglón dice de dónde sale. Lo que '+
-      'ya pusiste a mano no se toca.</div></div>'+
-    Object.keys(grupos).map(g =>
-      '<label class="mini strong mt14" style="display:block">'+esc(g)+'</label>'+
-      '<div class="chks" style="flex-direction:column;align-items:stretch">'+
-      grupos[g].map((x,i) => {
-        const idx = props.indexOf(x);
-        /* Lo que REEMPLAZA algo ya cargado nace destildado: la app no pisa lo
-           que puso una persona, solo avisa que se contradicen. */
-        const rep = !!x.reemplaza;
-        return '<label class="chk'+(rep?'':' sel')+'" style="width:100%;align-items:flex-start;border-radius:9px">'+
-          '<input type="checkbox" class="autoc" data-i="'+idx+'"'+(rep?'':' checked')+'>'+
-          '<span><b>'+esc(etiqueta(x))+'</b>'+
-          (rep ? ' <span class="tag warn">reemplaza «'+esc(x.reemplaza)+'»</span>' : '')+
-          '<br><span class="mini" style="font-weight:400;opacity:.85">'+esc(x.porque)+
-          (rep ? ' Está cargado distinto: revisá cuál de los dos vale.' : '')+
-          '</span></span>'+
-          '</label>';
-      }).join('')+'</div>').join(''),
-    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
-    '<button class="btn pri" id="autocOK">'+ico('check')+' Aplicar lo tildado</button>');
-
-  $$('#modal .chk').forEach(l => l.onclick = () =>
-    setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0));
-
-  $('#autocOK').onclick = () => {
-    const elegidos = $$('#modal .autoc:checked').map(i => props[Number(i.dataset.i)]);
-    let n = 0;
-    elegidos.forEach(x => {
-      if(x.tipo === 'chk'){
-        const e = $('#'+x.id); if(!e || e.checked) return;
-        e.checked = true; const l = e.closest('label'); if(l) l.classList.add('sel'); n++;
-      } else if(x.tipo === 'chkval'){
-        const e = $$('#'+x.cont+' input').find(y => y.value === x.valor);
-        if(!e || e.checked) return;
-        e.checked = true; const l = e.closest('label'); if(l) l.classList.add('sel');
-        const det = e.closest('details'); if(det) det.open = true;
-        n++;
-      } else if(x.tipo === 'cap'){
-        const e = $$('.cap').find(y => Number(y.dataset.i) === x.i);
-        if(!e || e.checked) return;
-        e.checked = true; const l = e.closest('label'); if(l) l.classList.add('sel'); n++;
-      } else {
-        const e = $('#'+x.id); if(!e) return;
-        if(e.value && !x.reemplaza) return;      /* por las dudas: no pisar */
-        e.value = x.valor; n++;
-      }
-    });
-    cerrarModal();
-    if(window.__recalcValoracion) window.__recalcValoracion();
-    pintarExpres();
-    toast(n+' dato'+(n===1?'':'s')+' completado'+(n===1?'':'s')+'. Revisá el punto 5 antes de guardar.', 'ok');
-  };
-}
 
 /* =========================================================================
    PLANTILLAS
    -------------------------------------------------------------------------
-   Cuatro situaciones que son la enorme mayoria de las valoraciones. Rellenan
-   el examen fisico normal, el ayuno, el plan y la profilaxis de una vez. Todo
+   Doce situaciones que cubren la enorme mayoria de las valoraciones, en tres
+   grupos: el adulto sano, el adulto con patologia y las situaciones
+   especiales. Cada una rellena de una vez el examen fisico habitual de esa
+   situacion, la via aerea, el ayuno, el ASA, el plan y la profilaxis. Todo
    queda editable y nada de lo que ya este cargado se pisa.
 
    El examen fisico «normal» que escriben es la redaccion habitual de un
    examen sin hallazgos. Se carga para no tener que tipearlo: hay que leerlo
    y corregirlo si el paciente no es asi, igual que cualquier plantilla de
    historia clinica.
+
+   UNA DE ELLAS PREGUNTA ANTES DE APLICARSE
+   «Adulto con patologias tratadas y compensadas» abre un segundo paso donde
+   se eligen las patologias del paciente y la medicacion que toma. Eso no se
+   escribe en la valoracion: se escribe en la HISTORIA del paciente, que es
+   donde vive desde que la valoracion dejo de duplicarla, y desde ahi el resto
+   de la app trabaja sola —la conducta perioperatoria de cada farmaco, las
+   escalas, los estudios sugeridos y las alertas del punto 1—. Por eso esa
+   plantilla no es un texto mas: es la puerta por la que entra lo que el
+   sistema necesita para «determinar como seguir».
+
+   QUE NO HACEN
+   No escriben la conclusion de aptitud ni el consentimiento. Esas dos son la
+   firma del anestesiologo sobre este paciente y no salen de ninguna
+   plantilla. Por eso, despues de aplicar una, la lista «Lo que hace falta
+   para poder concluirla» sigue marcando lo que falta: casi siempre esas dos.
    ========================================================================= */
+
+/* El examen sin hallazgos, que repiten casi todas las plantillas de adulto */
+const EXAMEN_NORMAL = {
+  cardio:'R1-R2 normofonéticos, silencios libres, sin soplos. Pulsos periféricos presentes y simétricos.',
+  respiratorio:'Buena entrada de aire bilateral, murmullo vesicular conservado, sin ruidos agregados.',
+  abdomen:'Blando, depresible, indoloro, sin visceromegalias.',
+  neuro:'Vigil, orientado en tiempo y espacio, sin déficit focal.',
+  accesos:'Buenos', columna:'Apófisis palpables, sin dificultad'
+};
+
 const PLANTILLAS_VAL = [
-  { id:'sano', n:'Paciente sano para cirugía menor',
-    d:'ASA I-II, sin antecedentes. Examen normal, ayuno cumplido, general balanceada o sedación, '+
-      'analgesia multimodal sin opioides.',
+
+/* ------------------------------ ADULTO SANO ---------------------------- */
+  { id:'sano', grupo:'Adulto sano', n:'Adulto sano para cirugía menor o ambulatoria',
+    d:'ASA I-II sin antecedentes. Examen normal, ayuno cumplido, general balanceada o sedación con '+
+      'máscara laríngea, analgesia multimodal sin opioides y alta el mismo día.',
     aplica:{
-      examen:{ cardio:'R1-R2 normofonéticos, silencios libres, sin soplos. Pulsos periféricos presentes y simétricos.',
-               respiratorio:'Buena entrada de aire bilateral, murmullo vesicular conservado, sin ruidos agregados.',
-               abdomen:'Blando, depresible, indoloro, sin visceromegalias.',
-               neuro:'Vigil, orientado en tiempo y espacio, sin déficit focal.',
-               accesos:'Buenos', columna:'Apófisis palpables, sin dificultad' },
+      examen: EXAMEN_NORMAL,
       va:{ mallampati:'1', cuelloMov:'normal', protrusion:'clase1', denticion:'Completa y sana',
            intubacionPrevia:'sin_datos' },
-      mets:'10',
-      ayuno:'Sólidos / comida liviana',
-      tecnica:['Anestesia general balanceada'],
+      asa:'I', mets:'10',
+      ayuno:'Leche no humana / comida liviana',
+      tecnica:['Anestesia general balanceada','Anestesia general con máscara laríngea'],
       va_disp:['Máscara laríngea 2ª generación'],
       analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h',
                  'Infiltración de la herida con anestésico local'],
+      nvpo:['Ondansetrón 4 mg'],
       tev:'Deambulación precoz',
-      destino:'Sala común', ambito:'Consultorio de preanestesia' } },
+      destino:'Alta ambulatoria el mismo día', ambito:'Consultorio de preanestesia' } },
 
-  { id:'cronico', n:'Adulto con HTA y/o diabetes compensadas',
-    d:'ASA II-III. Examen normal salvo lo cardiovascular, ayuno cumplido, general balanceada con IOT, '+
-      'analgesia multimodal y profilaxis de NVPO.',
+  { id:'sano-mayor', grupo:'Adulto sano', n:'Adulto sano para cirugía mayor',
+    d:'ASA I-II sin antecedentes, pero con una cirugía de porte: intubación orotraqueal, monitoreo '+
+      'ampliado, tromboprofilaxis farmacológica, analgesia multimodal con opioide y recuperación '+
+      'en URPA.',
     aplica:{
-      examen:{ cardio:'R1-R2 normofonéticos, sin soplos. Tensión arterial controlada con la medicación habitual.',
-               respiratorio:'Buena entrada de aire bilateral, sin ruidos agregados.',
-               abdomen:'Blando, depresible, indoloro.',
-               neuro:'Vigil, orientado, sin déficit focal.',
-               accesos:'Buenos', columna:'Apófisis palpables, sin dificultad' },
+      examen: EXAMEN_NORMAL,
+      va:{ mallampati:'2', cuelloMov:'normal', protrusion:'clase1', denticion:'Completa y sana',
+           intubacionPrevia:'sin_datos' },
+      asa:'II', mets:'10',
+      ayuno:'Leche no humana / comida liviana',
+      tecnica:['Anestesia general balanceada','Anestesia general con IOT'],
+      va_disp:['Tubo endotraqueal (laringoscopía directa)'],
+      monAv:['Presión arterial invasiva','Diuresis horaria'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h','Morfina EV titulada',
+                 'Infiltración de la herida con anestésico local'],
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Consultorio de preanestesia' } },
+
+/* -------------------------- ADULTO CON PATOLOGIA ----------------------- */
+  { id:'hta', grupo:'Adulto con patología', n:'Adulto con hipertensión arterial tratada y compensada',
+    d:'ASA II. Examen normal con tensión controlada por la medicación habitual, IOT, analgesia '+
+      'multimodal y profilaxis de náuseas. La conducta con cada antihipertensivo la calcula el '+
+      'punto 1 a partir de la medicación de su historia.',
+    patologias:['Hipertensión arterial'],
+    aplica:{
+      examen: Object.assign({}, EXAMEN_NORMAL, {
+        cardio:'R1-R2 normofonéticos, sin soplos. Tensión arterial controlada con la medicación habitual.' }),
       va:{ mallampati:'2', cuelloMov:'normal', protrusion:'clase1', intubacionPrevia:'sin_datos' },
-      mets:'4',
-      ayuno:'Sólidos / comida liviana',
+      asa:'II', mets:'4',
+      ayuno:'Leche no humana / comida liviana',
       tecnica:['Anestesia general balanceada','Anestesia general con IOT'],
       va_disp:['Tubo endotraqueal (laringoscopía directa)'],
       analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h','Morfina EV titulada'],
       nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
       tev:'Enoxaparina 40 mg/día',
-      destino:'Sala común', ambito:'Consultorio de preanestesia' } },
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Consultorio de preanestesia',
+      interconsultas:'' } },
 
-  { id:'urgencia', n:'Urgencia — estómago ocupado',
-    d:'Ayuno no cumplido, secuencia de intubación rápida, profilaxis de aspiración y monitoreo '+
-      'según el estado. Deja el ámbito en guardia.',
+  { id:'dbt', grupo:'Adulto con patología', n:'Adulto con diabetes tipo 2 tratada',
+    d:'ASA II-III. Suma al examen normal lo que la diabetes obliga a mirar: ayuno con riesgo de '+
+      'gastroparesia, control glucémico y la suspensión de iSGLT2 y agonistas GLP-1, que el punto 1 '+
+      'resuelve solo si la medicación está en su historia.',
+    patologias:['Diabetes tipo 2'],
     aplica:{
-      ayuno:'Sin ayuno / desconocido',
+      examen: Object.assign({}, EXAMEN_NORMAL, {
+        neuro:'Vigil, orientado, sin déficit focal. Sin signos de neuropatía periférica al examen.' }),
+      va:{ mallampati:'2', cuelloMov:'normal', protrusion:'clase1', intubacionPrevia:'sin_datos' },
+      asa:'III', mets:'4',
+      ayuno:'Leche no humana / comida liviana',
+      ayRiesgo:['Diabetes de larga evolución'],
+      tecnica:['Anestesia general balanceada','Anestesia general con IOT'],
+      va_disp:['Tubo endotraqueal (laringoscopía directa)'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h','Morfina EV titulada'],
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Consultorio de preanestesia',
+      indicaciones:'Control de glucemia capilar la mañana de la cirugía. Traer su medidor y su '+
+        'registro de glucemias. No aplicarse la insulina rápida del desayuno el día de la cirugía.' } },
+
+  /* La plantilla que pregunta. Ver abrirPlantillaPatologias(). */
+  { id:'compensado', grupo:'Adulto con patología', pide:'patologias',
+    n:'Adulto con patologías tratadas y compensadas — elegir cuáles',
+    d:'Abre un paso previo para marcar las patologías del paciente y la medicación que toma. Eso se '+
+      'guarda en su historia clínica y desde ahí el sistema arma solo la conducta perioperatoria '+
+      'de cada fármaco, las alertas y los estudios sugeridos.',
+    aplica:{
+      examen: Object.assign({}, EXAMEN_NORMAL, {
+        cardio:'R1-R2 normofonéticos, sin soplos. Compensado con la medicación habitual.' }),
+      va:{ mallampati:'2', cuelloMov:'normal', protrusion:'clase1', intubacionPrevia:'sin_datos' },
+      asa:'III', mets:'4',
+      ayuno:'Leche no humana / comida liviana',
+      tecnica:['Anestesia general balanceada','Anestesia general con IOT'],
+      va_disp:['Tubo endotraqueal (laringoscopía directa)'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h','Morfina EV titulada'],
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Consultorio de preanestesia' } },
+
+  { id:'coronario', grupo:'Adulto con patología',
+    n:'Cardiópata o coronario para cirugía no cardíaca',
+    d:'ASA III. Betabloqueo y estatina que se continúan, antiagregación que hay que consensuar con '+
+      'cardiología, monitoreo ampliado y destino en área de cuidados. Marca la interconsulta.',
+    patologias:['Cardiopatía isquémica / IAM previo'],
+    aplica:{
+      examen: Object.assign({}, EXAMEN_NORMAL, {
+        cardio:'R1-R2 normofonéticos, sin soplos ni tercer ruido. Sin ingurgitación yugular ni edemas. '+
+               'Sin angina en reposo ni de esfuerzo reciente.' }),
+      va:{ mallampati:'2', cuelloMov:'normal', protrusion:'clase1', intubacionPrevia:'sin_datos' },
+      asa:'III', mets:'4',
+      ayuno:'Leche no humana / comida liviana',
+      tecnica:['Anestesia general balanceada','Anestesia general con IOT'],
+      va_disp:['Tubo endotraqueal (laringoscopía directa)'],
+      monAv:['Presión arterial invasiva','Diuresis horaria'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Morfina EV titulada'],
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Unidad de terapia intermedia', ambito:'Consultorio de preanestesia',
+      interconsultas:'Cardiología: riesgo perioperatorio, conducta con la antiagregación y ventana '+
+        'del stent si lo tuviera. Solicitar ECG y ecocardiograma recientes.' } },
+
+  { id:'respiratorio', grupo:'Adulto con patología',
+    n:'EPOC o asma bajo tratamiento y estable',
+    d:'ASA II-III. Broncodilatadores que se continúan e incluso se administran antes de entrar, '+
+      'preferencia por la regional cuando la cirugía lo permite y kinesiología en el postoperatorio.',
+    patologias:['EPOC'],
+    aplica:{
+      examen: Object.assign({}, EXAMEN_NORMAL, {
+        respiratorio:'Buena entrada de aire bilateral, sin sibilancias ni ruidos agregados en el '+
+          'momento del examen. Sin disnea de reposo. Sin infección respiratoria en las últimas 6 semanas.' }),
+      va:{ mallampati:'2', cuelloMov:'normal', protrusion:'clase1', intubacionPrevia:'sin_datos' },
+      asa:'III', mets:'4',
+      ayuno:'Leche no humana / comida liviana',
+      tecnica:['Anestesia general balanceada','Anestesia general con máscara laríngea'],
+      va_disp:['Máscara laríngea 2ª generación'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h',
+                 'Infiltración de la herida con anestésico local','Kinesiología y movilización precoz'],
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Consultorio de preanestesia',
+      indicaciones:'Traer sus broncodilatadores el día de la cirugía y usarlos como todos los días, '+
+        'incluida la dosis de la mañana. Avisar si aparece tos, fiebre o aumento de la expectoración.' } },
+
+  { id:'obeso', grupo:'Adulto con patología',
+    n:'Obesidad con sospecha o diagnóstico de apnea del sueño',
+    d:'ASA III. Vía aérea potencialmente difícil, riesgo de aspiración, posición en rampa, '+
+      'preoxigenación y analgesia que evita el opioide. Marca los ítems de vía aérea que hay que mirar.',
+    patologias:['Obesidad','SAHOS / apnea obstructiva del sueño'],
+    aplica:{
+      examen: Object.assign({}, EXAMEN_NORMAL, {
+        respiratorio:'Buena entrada de aire bilateral. Refiere ronquido nocturno y somnolencia diurna.',
+        accesos:'Dificultosos — prever ecografía' }),
+      va:{ mallampati:'3', cuelloMov:'normal', protrusion:'clase2', intubacionPrevia:'sin_datos' },
+      vaOtros:['Obesidad cervical','Cuello corto','Riesgo de aspiración'],
+      asa:'III', mets:'4',
+      ayuno:'Leche no humana / comida liviana',
+      ayRiesgo:['Obesidad mórbida','Reflujo severo'],
+      ayProfilaxis:['Omeprazol 40 mg'],
+      tecnica:['Anestesia general balanceada','Anestesia general con IOT'],
+      va_disp:['Tubo endotraqueal (videolaringoscopio)'],
+      monAv:['Índice biespectral (BIS) / EEG procesado'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Dipirona 1-2 g EV c/8 h','Bloqueo TAP',
+                 'Infiltración de la herida con anestésico local'],
+      nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Consultorio de preanestesia',
+      indicaciones:'Traer su CPAP al internarse y usarla en el postoperatorio como en su casa.' } },
+
+  { id:'anciano', grupo:'Adulto con patología',
+    n:'Adulto mayor frágil (más de 75 años)',
+    d:'ASA III. Dosis reducidas, prevención de delirium, normotermia, analgesia sin opioides fuertes '+
+      'y movilización precoz. Deja marcada la evaluación cognitiva y funcional.',
+    aplica:{
+      examen: Object.assign({}, EXAMEN_NORMAL, {
+        neuro:'Vigil, orientado en tiempo y espacio. Sin déficit focal. Marcha autónoma / con apoyo. '+
+              'Sin deterioro cognitivo referido por la familia.',
+        accesos:'Dificultosos — prever ecografía' }),
+      va:{ mallampati:'2', cuelloMov:'limitada', denticion:'Prótesis removible', intubacionPrevia:'sin_datos' },
+      asa:'III', mets:'4',
+      ayuno:'Líquidos claros',
+      tecnica:['Anestesia general balanceada','Anestesia raquídea (subaracnoidea)'],
+      va_disp:['Máscara laríngea 2ª generación'],
+      monAv:['Índice biespectral (BIS) / EEG procesado'],
+      analgesia:['Paracetamol 1 g EV c/6-8 h','Bloqueo del grupo pericapsular (PENG)',
+                 'Infiltración de la herida con anestésico local','Kinesiología y movilización precoz'],
+      nvpo:['Ondansetrón 4 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Consultorio de preanestesia',
+      indicaciones:'Tomar líquidos claros hasta 2 horas antes para no llegar deshidratado. Venir con '+
+        'los anteojos y el audífono puestos, y con un acompañante.' } },
+
+/* ------------------------ SITUACIONES ESPECIALES ----------------------- */
+  { id:'urgencia', grupo:'Situaciones especiales', n:'Urgencia — estómago ocupado',
+    d:'Ayuno no cumplido, secuencia de intubación rápida, profilaxis de aspiración y monitoreo '+
+      'según el estado. Deja el ámbito en guardia y el ASA con la E de urgencia.',
+    aplica:{
+      asa:'III', asaE:true,
+      ayuno:'Comida grasa, frita o carne',
       ayRiesgo:['Cirugía de urgencia'],
-      ayProfilaxis:['Secuencia de intubación rápida','Omeprazol 40 mg','Metoclopramida 10 mg'],
+      ayProfilaxis:['Secuencia de intubación rápida','Omeprazol 40 mg','Metoclopramida 10 mg',
+                    'Ecografía gástrica'],
       va:{ intubacionPrevia:'sin_datos' },
+      vaOtros:['Riesgo de aspiración'],
       tecnica:['Anestesia general con IOT','Secuencia de intubación rápida (SIR)'],
       va_disp:['Tubo endotraqueal (videolaringoscopio)'],
       analgesia:['Paracetamol 1 g EV c/6-8 h','Morfina EV titulada'],
       nvpo:['Ondansetrón 4 mg'],
-      destino:'Sala común', ambito:'Guardia / urgencia' } },
+      tev:'Compresión neumática intermitente',
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Guardia / urgencia' } },
 
-  { id:'pedia', n:'Pediátrico sano',
+  { id:'obstetrica', grupo:'Situaciones especiales', n:'Cesárea u obstétrica',
+    d:'Raquídea con opioide, profilaxis de aspiración, decúbito lateral izquierdo, vasopresor '+
+      'preparado y analgesia compatible con la lactancia.',
+    aplica:{
+      examen: Object.assign({}, EXAMEN_NORMAL, {
+        abdomen:'Grávido, acorde a la edad gestacional.',
+        columna:'Apófisis palpables, sin dificultad' }),
+      va:{ mallampati:'3', cuelloMov:'normal', intubacionPrevia:'sin_datos' },
+      vaOtros:['Embarazo a término','Riesgo de aspiración'],
+      asa:'II', asaE:true, mets:'4',
+      ayuno:'Líquidos claros',
+      ayRiesgo:['Embarazo con trabajo de parto'],
+      ayProfilaxis:['Citrato de sodio 0,3 M','Ranitidina / famotidina','Metoclopramida 10 mg'],
+      tecnica:['Anestesia raquídea (subaracnoidea)'],
+      va_disp:['Máscara facial'],
+      analgesia:['Morfina intratecal (raquídea)','Paracetamol 1 g EV c/6-8 h',
+                 'Dipirona 1-2 g EV c/8 h','Infiltración de la herida con anestésico local'],
+      nvpo:['Ondansetrón 4 mg'],
+      tev:'Enoxaparina 40 mg/día',
+      destino:'Sala de partos / puerperio', ambito:'Antecámara de quirófano' } },
+
+  { id:'pedia', grupo:'Situaciones especiales', n:'Pediátrico sano',
     d:'ASA I, inducción inhalatoria, máscara laríngea, analgesia sin AINE fuerte y bloqueo caudal '+
-      'o de campo. Ayuno pediátrico.',
+      'o de campo. Ayuno pediátrico y presencia de los padres en la inducción.',
     aplica:{
       examen:{ cardio:'R1-R2 normofonéticos, sin soplos.',
-               respiratorio:'Buena entrada de aire bilateral, sin ruidos agregados.',
+               respiratorio:'Buena entrada de aire bilateral, sin ruidos agregados. Sin infección '+
+                 'respiratoria en las últimas 2 semanas.',
                abdomen:'Blando, depresible, indoloro.',
                neuro:'Vigil, reactivo, acorde a la edad.',
                accesos:'Buenos' },
       va:{ mallampati:'1', cuelloMov:'normal', denticion:'Completa y sana', intubacionPrevia:'sin_datos' },
-      mets:'10',
+      asa:'I', mets:'10',
       ayuno:'Leche materna',
       tecnica:['Anestesia general inhalatoria','Anestesia general con máscara laríngea'],
       va_disp:['Máscara laríngea 2ª generación'],
@@ -354,38 +497,261 @@ const PLANTILLAS_VAL = [
                  'Infiltración de la herida con anestésico local'],
       nvpo:['Ondansetrón 4 mg','Dexametasona 4-8 mg'],
       tev:'Deambulación precoz',
-      destino:'Sala común', ambito:'Consultorio de preanestesia' } }
+      destino:'Sala de recuperación postanestésica (URPA)', ambito:'Consultorio de preanestesia',
+      indicaciones:'Puede tomar líquidos claros hasta 2 horas antes. Traer su juguete o su mantita. '+
+        'Un adulto puede acompañarlo hasta que se duerma.' } }
 ];
 
 function abrirPlantillas(f){
+  const grupos = [];
+  PLANTILLAS_VAL.forEach(x => {
+    let g = grupos.find(y => y.g === x.grupo);
+    if(!g){ g = { g:x.grupo, l:[] }; grupos.push(g); }
+    g.l.push(x);
+  });
+
   abrirModal('Usar una plantilla',
     '<div class="aviso warn">'+ico('alerta')+'<div><b>Una plantilla es un punto de partida, no una '+
-      'valoración.</b> Rellena el examen físico, el ayuno, el plan y la profilaxis con lo habitual '+
-      'de esa situación para que no haya que tipearlos. <b>Leelos y corregí lo que no coincida con '+
-      'este paciente antes de guardar</b>: lo que se firma después es historia clínica.<br>'+
-      'No se pisa nada de lo que ya tengas cargado.</div></div>'+
-    PLANTILLAS_VAL.map(x =>
-      '<label class="chk" style="width:100%;align-items:flex-start;border-radius:9px;margin-bottom:7px">'+
-        '<input type="radio" name="plt" value="'+x.id+'">'+
-        '<span><b>'+esc(x.n)+'</b><br><span class="mini" style="font-weight:400;opacity:.85">'+
-        esc(x.d)+'</span></span></label>').join(''),
+      'valoración.</b> Rellena el ASA, el examen físico, la vía aérea, el ayuno, el plan y la '+
+      'profilaxis con lo habitual de esa situación para que no haya que tipearlos. <b>Leelos y '+
+      'corregí lo que no coincida con este paciente antes de guardar</b>: lo que se firma después '+
+      'es historia clínica.<br>'+
+      'No se pisa nada de lo que ya tengas cargado, y no escribe ni la conclusión de aptitud ni el '+
+      'consentimiento: ésas son tuyas.</div></div>'+
+    grupos.map(g =>
+      '<label class="mini strong mt14" style="display:block">'+esc(g.g)+'</label>'+
+      g.l.map(x =>
+        '<label class="chk" style="width:100%;align-items:flex-start;border-radius:9px;margin-bottom:7px">'+
+          '<input type="radio" name="plt" value="'+esc(x.id)+'">'+
+          '<span><b>'+esc(x.n)+'</b>'+
+          (x.pide ? ' <span class="tag warn">pregunta antes</span>' : '')+
+          '<br><span class="mini" style="font-weight:400;opacity:.85">'+
+          esc(x.d)+'</span></span></label>').join('')).join(''),
     '<button class="btn ghost" data-cerrar>Cancelar</button>'+
     '<button class="btn pri" id="pltOK">'+ico('check')+' Aplicar</button>');
+
+  $$('#modal .chk').forEach(l => l.onclick = () =>
+    setTimeout(() => $$('#modal .chk').forEach(x =>
+      x.classList.toggle('sel', x.querySelector('input').checked)), 0));
 
   $('#pltOK').onclick = () => {
     const r = $('#modal input[name="plt"]:checked');
     if(!r) return toast('Elegí una plantilla.', 'warn');
     const t = PLANTILLAS_VAL.find(x => x.id === r.value);
     cerrarModal();
+    /* La plantilla de patologias no se aplica: primero pregunta cuales. */
+    if(t.pide === 'patologias') setTimeout(() => abrirPlantillaPatologias(f, t), 180);
+    else aplicarPlantilla(t);
+  };
+}
+
+/* =========================================================================
+   LA PLANTILLA QUE PREGUNTA: PATOLOGIAS Y MEDICACION
+   -------------------------------------------------------------------------
+   «Adulto con patologias tratadas y compensadas» no puede rellenar nada sin
+   saber cuales. Este paso las pide y hace con ellas lo unico que sirve: las
+   escribe en la HISTORIA del paciente.
+
+   Por que en la historia y no en la valoracion: porque una patologia es de la
+   persona, no de esta cirugia, y porque todo el resto de la app lee de ahi.
+   En cuanto quedan cargadas, sin tocar nada mas:
+     - el punto 1 arma la conducta perioperatoria de cada farmaco, con los
+       dias de suspension, las esperas de ASRA y las alertas rojas (periop.js);
+     - las escalas y los estudios sugeridos leen las flags de cada patologia;
+     - el ASA propuesto cambia;
+     - lo cargado viaja a la ficha de hoy y a todas las que vengan.
+   Eso es lo que se pidio con «que el sistema determine como seguir».
+
+   La medicacion se ofrece deducida de las patologias elegidas -cada una trae
+   su lista habitual en data-antecedentes.js- y ademas se puede escribir a
+   mano, un farmaco por renglon, para lo que el catalogo no tenga.
+   ========================================================================= */
+let pltPatoElegidas = [];
+let pltMedElegidas  = [];
+let pltMedSugeridas = [];
+
+function abrirPlantillaPatologias(f, t){
+  const p = DB.pacientes[f.pacienteId];
+  if(!p) return toast('La ficha todavía no tiene paciente.', 'err');
+  pltPatoElegidas = [];
+  pltMedElegidas  = [];
+
+  abrirModal('¿Qué patologías tiene, tratadas y compensadas?',
+    '<div class="aviso info">'+ico('info')+'<div>Lo que marques se guarda en la <b>historia de '+
+      esc((p.apellido||'')+', '+(p.nombre||''))+'</b>, no en esta ficha suelta: es de la persona y '+
+      'lo hereda cada valoración que se le haga. Con eso cargado, la app arma sola la conducta '+
+      'perioperatoria de cada fármaco —qué suspender, cuántos días antes y qué continuar— y las '+
+      'alertas del punto 1.</div></div>'+
+
+    '<div class="campo"><label>Buscar una patología</label>'+
+      '<input type="search" id="pltBuscar" placeholder="Hipertensión, diabetes, EPOC, hipotiroidismo…" '+
+        'autocomplete="off"></div>'+
+    '<div id="pltPatoLista" class="chks" style="flex-direction:column;align-items:stretch;'+
+      'max-height:230px;overflow:auto"></div>'+
+    '<div id="pltPatoSel" class="mt8"></div>'+
+
+    '<label class="mini strong mt14" style="display:block">Medicación que toma</label>'+
+    '<div class="ayuda">Se propone la habitual de cada patología marcada. Tildá la que de verdad '+
+      'toma; después, en la historia, se le puede cargar la dosis.</div>'+
+    '<div id="pltMedLista" class="chks" style="flex-direction:column;align-items:stretch"></div>'+
+    '<div class="campo mt8"><label>Otra medicación, un fármaco por renglón</label>'+
+      '<textarea id="pltMedOtra" rows="3" placeholder="Levotiroxina 100 mcg&#10;Omeprazol 20 mg"></textarea>'+
+      '<div class="ayuda">Lo que escribas acá entra como fármaco «a evaluar»: la app no le conoce '+
+        'la conducta perioperatoria y te la deja para que la decidas vos en la historia.</div></div>',
+
+    '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+    '<button class="btn pri" id="pltPatoOK">'+ico('check')+
+      ' Guardar en la historia y aplicar</button>', '760px');
+
+  const pintarLista = () => {
+    const q = norm($('#pltBuscar') ? $('#pltBuscar').value : '');
+    const l = PATOLOGIAS
+      .filter(x => !q || norm(x.n + ' ' + (x.chip||'') + ' ' + x.sis).indexOf(q) >= 0)
+      .slice(0, q ? 40 : 14);
+    $('#pltPatoLista').innerHTML = l.length
+      ? l.map(x => {
+          const ya = tieneAntecedente(p, x.n);
+          const sel = pltPatoElegidas.indexOf(x.n) >= 0;
+          return '<label class="chk'+(sel||ya?' sel':'')+'" style="width:100%;border-radius:9px">'+
+            '<input type="checkbox" class="pltPato" value="'+esc(x.n)+'"'+
+              (sel?' checked':'')+(ya?' disabled':'')+'>'+
+            '<span>'+esc(x.n)+' <span class="mini" style="font-weight:400;opacity:.7">· '+
+            esc(x.sis)+'</span>'+
+            (ya ? ' <span class="tag ok">ya está en su historia</span>' : '')+'</span></label>';
+        }).join('')
+      : '<span class="mini">Ninguna patología del catálogo coincide. Cargala a mano después, '+
+        'desde «Editar la historia del paciente».</span>';
+    $$('#pltPatoLista .pltPato').forEach(i => i.onchange = () => {
+      const v = i.value;
+      const k = pltPatoElegidas.indexOf(v);
+      if(i.checked && k < 0) pltPatoElegidas.push(v);
+      if(!i.checked && k >= 0) pltPatoElegidas.splice(k, 1);
+      i.closest('label').classList.toggle('sel', i.checked);
+      pintarSeleccion(); pintarMeds();
+    });
+  };
+
+  const pintarSeleccion = () => {
+    $('#pltPatoSel').innerHTML = pltPatoElegidas.length
+      ? '<div class="aviso ok">'+ico('check')+'<div><b>Se van a agregar a su historia:</b> '+
+        pltPatoElegidas.map(x => '<span class="tag">'+esc(x)+'</span>').join(' ')+'</div></div>'
+      : '';
+  };
+
+  /* La medicacion propuesta sale de las patologias elegidas MAS las que el
+     paciente ya tenia cargadas: si ya era hipertenso y ahora se agrega
+     diabetes, se ofrece la medicacion de las dos. */
+  const pintarMeds = () => {
+    const base = (p.antecedentes || []).concat(pltPatoElegidas.map(n => ({ n })));
+    const sug = medicacionSugerida(base)
+      .filter(m => !(p.medicacion || []).some(x => x.n === m.n));
+    /* Se guarda la propuesta entera, no solo el nombre: cada fármaco viaja con
+       su grupo, su conducta perioperatoria y la patología por la que se ofrece,
+       que es lo que después se ve en la historia y en el punto 1. */
+    pltMedSugeridas = sug;
+    $('#pltMedLista').innerHTML = sug.length
+      ? sug.map(m => {
+          const sel = pltMedElegidas.indexOf(m.n) >= 0;
+          return '<label class="chk'+(sel?' sel':'')+'" style="width:100%;align-items:flex-start;'+
+            'border-radius:9px"><input type="checkbox" class="pltMed" value="'+esc(m.n)+'"'+
+            (sel?' checked':'')+'>'+
+            '<span><b>'+esc(m.n)+'</b> <span class="mini" style="font-weight:400;opacity:.75">· '+
+            esc(m.g)+' · por '+esc(m.porque)+'</span></span></label>';
+        }).join('')
+      : '<span class="mini">'+(pltPatoElegidas.length || (p.antecedentes||[]).length
+          ? 'Sin medicación nueva para proponer: la habitual de esas patologías ya está cargada.'
+          : 'Marcá una patología y acá aparece su medicación habitual.')+'</span>';
+    $$('#pltMedLista .pltMed').forEach(i => i.onchange = () => {
+      const k = pltMedElegidas.indexOf(i.value);
+      if(i.checked && k < 0) pltMedElegidas.push(i.value);
+      if(!i.checked && k >= 0) pltMedElegidas.splice(k, 1);
+      i.closest('label').classList.toggle('sel', i.checked);
+    });
+  };
+
+  $('#pltBuscar').oninput = debounce(pintarLista, 200);
+  pintarLista(); pintarSeleccion(); pintarMeds();
+
+  $('#pltPatoOK').onclick = () => {
+    const otras = ($('#pltMedOtra').value || '').split('\n')
+      .map(x => x.trim()).filter(Boolean);
+    if(!pltPatoElegidas.length && !pltMedElegidas.length && !otras.length)
+      return toast('No marcaste ninguna patología ni medicación. Si el paciente no tiene, usá la '+
+                   'plantilla de adulto sano.', 'warn');
+    const elegidas = pltMedElegidas
+      .map(n => pltMedSugeridas.find(m => m.n === n) || { n:n });
+    guardarHistoriaDePlantilla(f, pltPatoElegidas, elegidas, otras);
+    cerrarModal();
     aplicarPlantilla(t);
   };
+}
+
+/* Escribe en la historia del paciente lo que se marco. Solo agrega: no pisa
+   ni borra nada de lo que ya estaba. */
+function guardarHistoriaDePlantilla(f, patos, meds, otras){
+  const g = DB.pacientes[f.pacienteId];
+  if(!g) return;
+  const p = JSON.parse(JSON.stringify(g));
+  p.antecedentes = p.antecedentes || [];
+  p.medicacion   = p.medicacion || [];
+  let nA = 0, nM = 0;
+
+  patos.forEach(n => {
+    if(p.antecedentes.some(a => (a.n || a) === n)) return;
+    const cat = patologiaPorNombre(n);
+    p.antecedentes.push({ n:n, sis: cat ? cat.sis : 'Otros' });
+    nA++;
+  });
+  /* Si se cargan antecedentes, «sin antecedentes relevantes» deja de ser
+     cierto: se apaga sola para que la historia no se contradiga. */
+  if(nA) p.sinAntecedentes = false;
+
+  /* `meds` viene de la lista sugerida y trae grupo, conducta y motivo ya
+     resueltos; `otras` son nombres sueltos escritos a mano, que se buscan en
+     el vademécum perioperatorio por si el nombre coincide y, si no, entran
+     como «a evaluar»: la app no le inventa una conducta a un fármaco que no
+     conoce. */
+  const sumarMed = m => {
+    const n = m.n;
+    if(!n || p.medicacion.some(x => x.n === n)) return;
+    const fp = FARMACOS_PERIOP.find(x => x.n === n);
+    p.medicacion.push({ n:n,
+      g:      m.g      || (fp ? fp.g : 'Otro'),
+      accion: m.accion || (fp ? fp.accion : 'evaluar'),
+      nota:   m.nota   || (fp ? fp.nota : ''),
+      dosis:'', porque: m.porque || '' });
+    nM++;
+  };
+  (meds || []).forEach(m => sumarMed(typeof m === 'string' ? { n:m } : m));
+  (otras || []).forEach(n => sumarMed({ n:n }));
+
+  p.modificado = new Date().toISOString();
+  p.modificadoPor = SESION ? SESION.uid : '';
+  escribir('pacientes', p.id, p);
+  auditar('paciente-historia-plantilla',
+    'Desde la valoración: ' + nA + ' antecedente(s) y ' + nM + ' fármaco(s) agregados a la '+
+    'historia de ' + (p.apellido||'') + ', ' + (p.nombre||''));
+  toast(nA + ' antecedente' + (nA===1?'':'s') + ' y ' + nM + ' fármaco' + (nM===1?'':'s') +
+        ' cargados en la historia. La conducta perioperatoria del punto 1 ya los tiene en cuenta.',
+        'ok');
 }
 
 /* Aplica sin pisar: solo escribe donde no hay nada */
 function aplicarPlantilla(t){
   const a = t.aplica;
   let n = 0;
-  const ponerSi = (id, v) => { const e = $('#'+id); if(e && !e.value && v){ e.value = v; n++; } };
+  const ponerSi = (id, v) => {
+    const e = $('#'+id); if(!e || e.value || !v) return;
+    /* En un desplegable, escribir un valor que no es una de sus opciones lo
+       deja vacio y sin decirlo. Se comprueba antes: es la diferencia entre
+       una plantilla que carga y una que aparenta cargar. */
+    if(e.tagName === 'SELECT' &&
+       !Array.prototype.some.call(e.options, o => o.value === v)){
+      console.warn('plantilla', t.id, ': «'+v+'» no es una opción de #'+id);
+      return;
+    }
+    e.value = v; n++;
+  };
   const tildarSi = (cont, lista) => (lista||[]).forEach(txt => {
     const e = $$('#'+cont+' input').find(x => x.value === txt);
     if(e && !e.checked){ e.checked = true;
@@ -397,7 +763,8 @@ function aplicarPlantilla(t){
      historia del paciente y una plantilla de valoracion no tiene por que
      escribir en la historia clinica de la persona. Las plantillas siguen
      rellenando lo que SI es de esta cirugia: examen, via aerea, ayuno, plan
-     y profilaxis. */
+     y profilaxis. La unica que escribe en la historia es la de patologias, y
+     lo hace en un paso aparte, preguntando. */
   if(a.examen){
     ponerSi('exCardio', a.examen.cardio); ponerSi('exResp', a.examen.respiratorio);
     ponerSi('exAbd', a.examen.abdomen);   ponerSi('exNeuro', a.examen.neuro);
@@ -408,10 +775,21 @@ function aplicarPlantilla(t){
     ponerSi('vaProtrusion', a.va.protrusion); ponerSi('vaDenticion', a.va.denticion);
     ponerSi('vaIntPrev', a.va.intubacionPrevia);
   }
+  tildarSi('vaOtros', a.vaOtros);
+  /* El ASA lo propone la plantilla porque el nombre de la plantilla ya es una
+     afirmacion sobre el estado del paciente. Sigue siendo un desplegable
+     editable en el punto 5, y si ya habia uno cargado no se toca. */
+  ponerSi('scAsa', a.asa);
+  if(a.asaE && $('#scAsaE') && !$('#scAsaE').checked){
+    $('#scAsaE').checked = true;
+    if($('#scAsaEL')) $('#scAsaEL').classList.add('sel');
+    n++;
+  }
   if(a.mets && $('#mets') && !$('#mets').value) { $('#mets').value = a.mets; n++; }
   ponerSi('ayTipo', a.ayuno);
   tildarSi('ayRiesgo', a.ayRiesgo); tildarSi('ayProfilaxis', a.ayProfilaxis);
   tildarSi('plTecnica', a.tecnica);  tildarSi('plVA', a.va_disp);
+  tildarSi('plMonAv', a.monAv);
   /* La analgesia de las plantillas se guarda para que el paso Recuperacion la
      proponga: ahi es donde ahora se indica. */
   if(a.analgesia && !((fichaActual.plan||{}).analgesia||[]).length){
@@ -421,9 +799,22 @@ function aplicarPlantilla(t){
   }
   tildarSi('plNVPO', a.nvpo);
   ponerSi('plTEV', a.tev); ponerSi('plDestino', a.destino); ponerSi('rgAmbito', a.ambito);
+  ponerSi('rgInterconsultas', a.interconsultas);
+  /* Las indicaciones se SUMAN a las que ya haya: la conducta perioperatoria
+     tambien escribe ahi y no tienen por que pisarse. */
+  if(a.indicaciones && $('#plIndicaciones')){
+    const c = $('#plIndicaciones');
+    if(c.value.indexOf(a.indicaciones) < 0){
+      c.value = c.value ? (c.value.replace(/\s+$/,'') + '\n' + a.indicaciones) : a.indicaciones;
+      n++;
+    }
+  }
 
   if(window.__recalcValoracion) window.__recalcValoracion();
+  if(window.__pintarAsaSug) window.__pintarAsaSug();
+  pintarConductaPeriop();
   pintarExpres();
+  pintarHistoriaEnValoracion();
   toast(n
     ? 'Plantilla «'+t.n+'» aplicada: '+n+' campo'+(n===1?'':'s')+'. Revisalos antes de guardar.'
     : 'La plantilla no agregó nada: todo lo que rellena ya estaba cargado.',
@@ -448,7 +839,53 @@ function aplicarPlantilla(t){
 
    Lo que si es de esta cirugia -que hacer con cada farmaco antes de operar-
    quedo en la valoracion, en el punto 1, y ahora se calcula solo.
+
+   EL SEMAFORO DE LO FILIATORIO
+   La tarjeta ya no se limita a mostrar: dice si lo que hay ALCANZA para
+   concluir la valoracion. Arriba, los datos de filiacion que la valoracion
+   necesita de verdad -no todos, solo los que cambian una conducta
+   anestesica-, en rojo los que faltan y en verde los que estan:
+
+     apellido y nombre · documento · fecha de nacimiento · sexo · peso ·
+     talla · correo
+
+   Peso y talla porque sin ellos el vademecum no propone una sola dosis y no
+   hay IMC; la fecha de nacimiento porque la edad entra en casi todas las
+   escalas; el sexo porque cambia el peso ideal; el correo porque es por donde
+   se le entrega la documentacion. Los demas datos de la ficha del paciente
+   -domicilio, ocupacion, contacto de emergencia- no aparecen aca: son utiles,
+   pero no traban una valoracion, y marcarlos en rojo seria alarmar por algo
+   que no lo merece.
+
+   Abajo, lo clinico de siempre, cada renglon con su estado: verde cuando hay
+   algo cargado o cuando esta declarado que no hay -«sin antecedentes
+   relevantes», «sin alergias conocidas»-, y ambar cuando esta en blanco, que
+   no es lo mismo. Un renglon vacio no dice que el paciente no tenga: dice
+   que nadie pregunto.
    ========================================================================= */
+
+/* Los datos de filiacion que la valoracion necesita, con como se leen */
+function filiatoriosDeValoracion(p){
+  const ed = edadDe(p.fechaNac);
+  return [
+    { t:'Apellido y nombre', ok:!!(p.apellido && p.nombre),
+      v:(p.apellido||'')+(p.nombre ? ', '+p.nombre : '') },
+    { t:'Documento', ok:!!p.dni, v:p.dni || '' },
+    { t:'Fecha de nacimiento', ok:!!p.fechaNac,
+      v: p.fechaNac ? fFecha(p.fechaNac) + (ed !== null ? ' · '+ed+' años' : '') : '',
+      porque:'La edad entra en el ASA, en Caprini, en ARISCAT y en el cálculo de dosis.' },
+    { t:'Sexo', ok:!!p.sexo,
+      v:{ F:'Femenino', M:'Masculino', X:'X / No binario' }[p.sexo] || '',
+      porque:'Cambia el peso ideal y con él las dosis del vademécum.' },
+    { t:'Peso', ok:!!Number(p.peso), v: p.peso ? p.peso+' kg' : '',
+      porque:'Sin peso el vademécum no propone ninguna dosis.' },
+    { t:'Talla', ok:!!Number(p.talla), v: p.talla ? p.talla+' cm' : '',
+      porque:'Sin talla no hay IMC ni peso ideal.' },
+    { t:'Correo electrónico', ok:!!p.email, v:p.email || '',
+      porque:'Es por donde se le entrega la valoración y el consentimiento.' }
+  ];
+}
+
 function htmlHistoriaEnValoracion(f){
   const p = DB.pacientes[f.pacienteId] || {};
   const h = p.habitos || {};
@@ -457,9 +894,27 @@ function htmlHistoriaEnValoracion(f){
   const ale = (p.alergias || []).filter(x => x !== 'Sin alergias conocidas');
   const sinAle = (p.alergias || []).indexOf('Sin alergias conocidas') >= 0;
 
-  const fila = (t, cont, vacio) =>
-    '<div class="par"><span class="k">'+esc(t)+'</span><span class="v">'+
-      (cont || '<i style="opacity:.6">'+esc(vacio)+'</i>')+'</span></div>';
+  /* ------------------------------ filiatorios ------------------------- */
+  const fil = filiatoriosDeValoracion(p);
+  const faltan = fil.filter(x => !x.ok);
+
+  const filaFil = x =>
+    '<div class="it'+(x.ok ? '' : ' falta')+'">'+
+      '<span class="ic '+(x.ok?'si':'no')+'">'+(x.ok?'✓':'!')+'</span>'+
+      '<span class="t">'+esc(x.t)+'</span>'+
+      (x.ok
+        ? '<span class="v">'+esc(x.v)+'</span>'
+        : '<span class="v falta">Falta'+(x.porque ? ' — '+esc(x.porque) : '')+'</span>')+
+    '</div>';
+
+  /* ------------------------------ clinico ----------------------------- */
+  /* `ok` es «hay una respuesta», no «hay hallazgos»: declarar que no tiene
+     antecedentes es una respuesta y cuenta como cargado. */
+  const fila = (t, ok, cont, vacio) =>
+    '<div class="par'+(ok ? '' : ' vacio')+'">'+
+      '<span class="k">'+(ok ? '<span class="ic si">✓</span>' : '<span class="ic ne">?</span>')+
+        esc(t)+'</span>'+
+      '<span class="v">'+(ok ? cont : '<i class="sin-cargar">'+esc(vacio)+'</i>')+'</span></div>';
   const chips = l => l.map(x => '<span class="tag">'+esc(x)+'</span>').join(' ');
 
   const habitos = [
@@ -469,37 +924,71 @@ function htmlHistoriaEnValoracion(f){
     h.actividad ? 'Actividad: '+h.actividad : ''
   ].filter(Boolean);
 
+  const anesFam = (p.antAnestesicos||[]).concat(p.antFamiliares||[]);
+  const quir = (p.antQuirurgicos||[]).map(q => (q.n || q) + (q.anio ? ' (' + q.anio + ')' : ''));
+
   return ''+
-  '<div class="card plano historia-val"><h3>'+ico('pacientes')+'Historia de '+
-    esc((p.apellido||'') + (p.nombre ? ', '+p.nombre : '') || 'el paciente')+'</h3>'+
+  '<div class="card plano historia-val" id="histVal"><h3>'+ico('pacientes')+'Historia de '+
+    esc((p.apellido||'') + (p.nombre ? ', '+p.nombre : '') || 'el paciente')+
+    '<span class="tag '+(faltan.length?'danger':'ok')+'" style="margin-left:auto">'+
+      (faltan.length
+        ? faltan.length+' dato'+(faltan.length===1?'':'s')+' filiatorio'+
+          (faltan.length===1?'':'s')+' sin cargar'
+        : 'Datos filiatorios cargados')+'</span></h3>'+
 
     '<div class="ayuda">Esto se carga una sola vez, en la historia del paciente, y se '+
       'hereda en cada ficha. La valoración ya no lo vuelve a preguntar.</div>'+
 
+    /* -------- filiatorios: rojo lo que falta, verde lo que está -------- */
+    (faltan.length
+      ? '<div class="aviso danger mt8">'+ico('alerta')+'<div><b>Faltan datos de filiación que la '+
+        'valoración necesita.</b> No traban el guardado, pero sin ellos el vademécum no propone '+
+        'dosis, las escalas quedan a medias y no hay a dónde mandarle la documentación.</div></div>'
+      : '<div class="aviso ok mt8">'+ico('check')+'<div><b>Datos filiatorios completos.</b> '+
+        'Está todo lo que la valoración necesita de la filiación.</div></div>')+
+    '<div class="items fil-items">'+ fil.map(filaFil).join('') +'</div>'+
+
+    /* --------------------------- lo clínico --------------------------- */
+    '<label class="mini strong mt14" style="display:block">Antecedentes, medicación y alergias</label>'+
     '<div class="hist-lista mt8">'+
-      fila('Antecedentes', ant.length ? chips(ant.map(a => a.n || a))
-            : (p.sinAntecedentes ? '<span class="tag ok">Sin antecedentes relevantes</span>' : ''),
-           'Sin cargar')+
-      fila('Anestésicos y familiares',
-           chips((p.antAnestesicos||[]).concat(p.antFamiliares||[])), 'Sin cargar')+
+      fila('Antecedentes', !!(ant.length || p.sinAntecedentes),
+           ant.length ? chips(ant.map(a => a.n || a))
+                      : '<span class="tag ok">Sin antecedentes relevantes</span>',
+           'Sin cargar: nadie preguntó todavía')+
+      fila('Anestésicos y familiares', !!anesFam.length, chips(anesFam), 'Sin cargar')+
       /* Los quirúrgicos se guardan como {n, anio}, no como texto suelto:
          el año importa —una cirugía cardíaca de hace un mes no es lo mismo
          que una de hace veinte años— y por eso tiene campo propio. */
-      fila('Quirúrgicos', chips((p.antQuirurgicos||[]).map(q =>
-        (q.n || q) + (q.anio ? ' (' + q.anio + ')' : ''))), 'Sin cargar')+
-      fila('Medicación habitual',
-           meds.length ? chips(meds.map(m => m.n + (m.dosis ? ' '+m.dosis : ''))) : '',
+      fila('Quirúrgicos', !!quir.length, chips(quir), 'Sin cargar')+
+      fila('Medicación habitual', !!meds.length,
+           chips(meds.map(m => m.n + (m.dosis ? ' '+m.dosis : ''))),
            'Sin medicación cargada')+
-      fila('Alergias',
+      fila('Alergias', !!(ale.length || sinAle),
            ale.length ? '<span class="tag danger">'+esc(ale.join(' · '))+'</span>'
-                      : (sinAle ? '<span class="tag ok">Sin alergias conocidas</span>' : ''),
-           'Sin cargar')+
-      fila('Hábitos', esc(habitos.join(' · ')), 'Sin cargar')+
+                      : '<span class="tag ok">Sin alergias conocidas</span>',
+           'Sin cargar: sin preguntar por alergias no se puede concluir')+
+      fila('Hábitos', !!habitos.length, esc(habitos.join(' · ')), 'Sin cargar')+
     '</div>'+
 
-    '<button type="button" class="btn ghost chico mt14" id="valEditarHistoria">'+
-      ico('editar')+' Editar la historia del paciente</button>'+
+    '<button type="button" class="btn '+(faltan.length ? 'warn' : 'ghost')+' chico mt14" '+
+      'id="valEditarHistoria">'+ico('editar')+
+      (faltan.length ? ' Completar la historia del paciente' : ' Editar la historia del paciente')+
+    '</button>'+
   '</div>';
+}
+
+/* Repinta solo la tarjeta de la historia, sin rehacer la valoracion entera:
+   se llama despues de aplicar una plantilla que escribio en la historia. */
+function pintarHistoriaEnValoracion(){
+  const c = $('#histVal');
+  if(!c || !fichaActual) return;
+  const nuevo = document.createElement('div');
+  nuevo.innerHTML = htmlHistoriaEnValoracion(fichaActual);
+  c.innerHTML = nuevo.firstElementChild.innerHTML;
+  if($('#valEditarHistoria')) $('#valEditarHistoria').onclick = () => {
+    guardarPasoActual();
+    editarPaciente(fichaActual.pacienteId, () => pintarFicha());
+  };
 }
 
 /* =========================================================================
@@ -948,17 +1437,38 @@ function htmlPlan(f){
      prequirurgica sigue siendo de quien firma esta valoracion).
      -------------------------------------------------------------------- */
   acc('acActuante','jeringa','10 · Anestesiólogo que realiza el acto anestésico',
+    /* ---------------------------------------------------------------------
+       POR QUE «TODAVIA NO SE SABE» VA PRIMERO Y VIENE ELEGIDO DE FABRICA
+
+       Estaba ultimo y sin marcar. Un desplegable sin ninguna opcion
+       seleccionada muestra la primera, asi que toda valoracion nueva se
+       guardaba con el acto designado al primer socio de la lista por orden
+       alfabetico, sin que nadie lo hubiera elegido. Y una ficha con acto
+       designado NO es un acto libre: actoLibre() en core.js pide que
+       asignadoUid este vacio o en «sinasignar». Resultado: las valoraciones
+       nunca aparecian en Fichas → Disponibles, que es exactamente la lista
+       donde tienen que estar para que un colega pueda tomar el acto.
+
+       Ahora la opcion honesta -todavia no se sabe- es la primera y la que
+       viene marcada mientras nadie diga otra cosa. Designar a alguien pasa a
+       ser un acto deliberado, que es lo que era en la realidad.
+       --------------------------------------------------------------------- */
     '<div class="campo"><label>Profesional designado</label><select id="qxAsignado">'+
+      '<option value="sinasignar"'+
+        ((!f.actorExterno && !actorFicha(f)) || f.asignadoUid === 'sinasignar' ? ' selected' : '')+'>'+
+        '— Todavía no se sabe quién opera —</option>'+
       socios().map(u => '<option value="'+esc(u.uid)+'"'+
         (!f.actorExterno && actorFicha(f) === u.uid ? ' selected' : '')+'>'+
         esc(u.apellido+', '+u.nombre)+(u.uid === f.ownerUid ? ' — hizo la valoración' : '')+
         '</option>').join('')+
-      '<option value="sinasignar"'+(f.asignadoUid === 'sinasignar' ? ' selected' : '')+'>'+
-        '— Todavía no se sabe quién opera —</option>'+
       '<option value="externo"'+(f.actorExterno ? ' selected' : '')+'>'+
         '— Otro anestesiólogo, no registrado en la app —</option>'+
     '</select>'+
-    '<div class="ayuda">La valoración prequirúrgica se factura como consulta a nombre de '+
+    '<div class="ayuda">Si lo dejás en <b>«todavía no se sabe quién opera»</b>, la ficha aparece '+
+      'en <b>Fichas → Disponibles</b> de todos los socios en cuanto guardes la valoración, y el '+
+      'que haga el acto la toma desde ahí. Si designás a alguien, sale de esa lista y le llega '+
+      'sólo a esa persona.<br>'+
+      'La valoración prequirúrgica se factura como consulta a nombre de '+
       esc(autorFicha(f))+'. El acto anestésico lo factura quien opera.</div></div>'+
 
     '<div class="campo'+(f.actorExterno ? '' : ' oculto')+'" id="qxExternoBox">'+
@@ -1166,9 +1676,10 @@ function cablearAsignacionActo(){
     $('#qxExternoBox').classList.toggle('oculto', v !== 'externo');
     const box = $('#qxAsignadoAviso');
     if(v === 'sinasignar')
-      box.innerHTML = '<div class="aviso info">'+ico('info')+'<div>Cualquier socio va a poder '+
-        'abrir esta ficha y tomar el acto desde el botón <b>«Voy a realizar este acto»</b>. '+
-        'Hasta entonces el recordatorio te llega sólo a vos.</div></div>';
+      box.innerHTML = '<div class="aviso ok">'+ico('check')+'<div><b>La ficha va a figurar en '+
+        '«Fichas → Disponibles» de todos los socios</b> en cuanto guardes la valoración. '+
+        'Cualquiera va a poder abrirla y tomar el acto desde el botón <b>«Voy a realizar este '+
+        'acto»</b>. Hasta entonces el recordatorio te llega sólo a vos.</div></div>';
     else if(v === 'externo')
       box.innerHTML = '<div class="aviso warn">'+ico('alerta')+'<div>El acto lo realiza alguien '+
         'sin usuario en la app: queda documentado en la ficha, pero <b>su honorario no se factura '+
@@ -1177,6 +1688,14 @@ function cablearAsignacionActo(){
       box.innerHTML = '<div class="aviso ok">'+ico('check')+'<div><b>'+
         esc(nombreUsuario(v))+'</b> va a recibir el recordatorio de la cirugía y va a poder '+
         'completar el acto y cargar sus honorarios. La consulta prequirúrgica sigue siendo tuya.</div></div>';
+    /* Designarse a uno mismo es una decision valida -y frecuente-, pero cierra
+       la ficha para el resto. Se dice, porque es la diferencia entre que la
+       ficha aparezca o no en el «Disponibles» de los demas. */
+    else if(v && SESION && v === SESION.uid)
+      box.innerHTML = '<div class="aviso info">'+ico('info')+'<div>El acto queda <b>a tu nombre</b>: '+
+        'esta ficha <b>no</b> va a aparecer en «Disponibles» de tus colegas, porque ya tiene quién '+
+        'la haga. Si todavía no se sabe quién opera, elegí <b>«todavía no se sabe quién opera»</b> '+
+        'y queda libre para que la tome cualquier socio.</div></div>';
     else box.innerHTML = '';
   };
   $('#qxAsignado').onchange = avisar;

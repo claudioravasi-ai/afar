@@ -28,7 +28,7 @@ function htmlIngresar(){
      forma normal de entrar: es para el colega al que un socio le compartio
      su portal por una hora. Ver pase.js */
   '<button class="btn ghost full mt8" id="btnPaseInvitado" style="font-size:13px">'+
-    ico('llave')+' Entré con una clave de invitado</button>'+
+    ico('llave')+' Entre con una clave de invitado</button>'+
   /* La version, al pie y en chico: al abrir la app se ve de un vistazo si el
      navegador esta sirviendo la ultima o una copia vieja de su cache. */
   '<p class="mini txt-c" style="opacity:.55;margin-top:6px">Versión '+
