@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>AFAAR Modo Camilla</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f2f5f9; --surf:#ffffff; --surf-2:#e8eef5;
+  --ink:#0b2545; --ink-2:#44596f; --ink-3:#71869b;
+  --rule:#d4dee9; --rule-2:#b9c9da;
+  --accent:#0e8f95; --accent-fill:#14b8a6; --accent-soft:#d5f3ef;
+  --plant:#1b4e85; --plant-soft:#dde8f4;
+  --amber:#a15c07; --amber-soft:#fcefd6;
+  --auto-soft:#d5f3ef;
+  --paper:#fbfcfe; --paper-ink:#26408b; --paper-rule:#8f9fcc; --form-ink:#26408b;
+  --display:"Archivo","Arial Narrow",Arial,sans-serif;
+  --body:"Source Sans 3","Segoe UI",-apple-system,Helvetica,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#07121f; --surf:#0d1d30; --surf-2:#122840;
+    --ink:#e4edf6; --ink-2:#a3b8cc; --ink-3:#7890a8;
+    --rule:#1d3550; --rule-2:#2b4a6a;
+    --accent:#2dd4bf; --accent-fill:#14b8a6; --accent-soft:#0f3a3a;
+    --plant:#8cb7e6; --plant-soft:#16304f;
+    --amber:#f5c168; --amber-soft:#3a2b0c;
+    --auto-soft:#0f3a3a; --form-ink:#9fb8f0;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#07121f; --surf:#0d1d30; --surf-2:#122840;
+  --ink:#e4edf6; --ink-2:#a3b8cc; --ink-3:#7890a8;
+  --rule:#1d3550; --rule-2:#2b4a6a;
+  --accent:#2dd4bf; --accent-fill:#14b8a6; --accent-soft:#0f3a3a;
+  --plant:#8cb7e6; --plant-soft:#16304f;
+  --amber:#f5c168; --amber-soft:#3a2b0c;
+  --auto-soft:#0f3a3a; --form-ink:#9fb8f0;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);font-stretch:78%;letter-spacing:-.01em;line-height:1.05;margin:0;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+
+.wrap{max-width:1160px;margin:0 auto;padding:0 28px}
+
+/* ---------- hero + recorrido, telefono fijo a la derecha ---------- */
+.top{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:64px;padding:56px 0 72px;align-items:start}
+.top-phone{position:sticky;top:24px}
+.hero{display:grid;gap:22px;padding-bottom:48px;border-bottom:1px solid var(--rule)}
+.hero h1{font-size:clamp(56px,9vw,112px);font-weight:800;font-stretch:66%;letter-spacing:-.02em;line-height:.9}
+.hero h1 span{color:var(--accent)}
+.ecg{width:100%;max-width:520px;height:34px}
+.ecg path{fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.lead{font-size:22px;line-height:1.4;max-width:34ch;color:var(--ink);text-wrap:pretty}
+.hero .sub{max-width:62ch;color:var(--ink-2)}
+.promesas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-top:1px solid var(--rule);margin-top:6px}
+.promesas div{padding:14px 18px 0 0;display:grid;gap:4px}
+.promesas div+div{padding-left:18px;border-left:1px solid var(--rule)}
+.promesas b{font-family:var(--display);font-stretch:80%;font-size:19px;font-weight:700;line-height:1.15}
+.promesas small{font-size:14.5px;color:var(--ink-2);line-height:1.4}
+
+.recorrido{padding-top:48px;display:grid;gap:26px}
+.recorrido h2,.sec h2{font-size:clamp(34px,4.4vw,48px);font-weight:750}
+.recorrido>p{max-width:62ch;color:var(--ink-2)}
+.pasos{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:p}
+.pasos li{counter-increment:p;display:grid;grid-template-columns:44px 1fr;gap:4px 14px;padding:20px 0;border-top:1px solid var(--rule)}
+.pasos li::before{content:counter(p);grid-row:span 3;font-family:var(--display);font-stretch:66%;font-weight:800;font-size:40px;line-height:1;color:var(--accent)}
+.pasos h3{font-size:24px;font-weight:700}
+.pasos p{color:var(--ink-2);max-width:60ch}
+.ver{justify-self:start;margin-top:6px;background:none;border:1px solid var(--rule-2);border-radius:999px;padding:4px 14px;font-size:14px;font-weight:600;color:var(--accent)}
+.ver:hover{border-color:var(--accent)}
+.ver[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+
+/* ---------- secciones de texto ---------- */
+.sec{padding:72px 0;border-top:1px solid var(--rule);display:grid;gap:22px}
+.sec>p,.sec .intro{max-width:66ch;color:var(--ink-2)}
+.sec .intro b{color:var(--ink)}
+
+/* tabla hoja -> telefono */
+.leyenda{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:15px;color:var(--ink-2)}
+.k{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.03em;padding:3px 9px;border-radius:5px;white-space:nowrap}
+.k-auto{background:var(--auto-soft);color:var(--accent)}
+.k-plant{background:var(--plant-soft);color:var(--plant)}
+.k-toque{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule-2)}
+.k-escribe{background:var(--amber-soft);color:var(--amber)}
+.conteo{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--surf)}
+.conteo div{flex:1 1 150px;padding:14px 18px;display:grid;gap:2px}
+.conteo div+div{border-left:1px solid var(--rule)}
+.conteo b{font-family:var(--display);font-stretch:70%;font-size:40px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.conteo span{font-size:14px;color:var(--ink-2)}
+.tabla-wrap{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--surf)}
+table.mapa{width:100%;border-collapse:collapse;min-width:720px}
+.mapa th{text-align:left;font-family:var(--mono);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:500;padding:12px 16px;border-bottom:1px solid var(--rule-2)}
+.mapa td{padding:12px 16px;border-top:1px solid var(--rule);vertical-align:top;font-size:15.5px}
+.mapa tr:first-child td{border-top:0}
+.mapa td.hoja{width:32%;font-family:"Times New Roman",Times,serif;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--form-ink)}
+.mapa td.tipo{width:130px}
+.mapa td.como{color:var(--ink-2)}
+.mapa td.como b{color:var(--ink);font-weight:600}
+
+/* plantillas */
+.plantillas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.pl{background:var(--surf);padding:18px 18px 20px;display:grid;gap:8px;align-content:start}
+.pl h3{font-size:21px;font-weight:700}
+.pl .para{font-size:14px;color:var(--ink-3);font-style:italic}
+.pl ul{margin:2px 0 0;padding:0;list-style:none;display:grid;gap:3px;font-size:14.5px;color:var(--ink-2)}
+.pl li::before{content:"☑ ";color:var(--accent)}
+.pl .probar{justify-self:start;margin-top:6px}
+
+/* minimo obligatorio */
+.minimo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 40px;border-top:1px solid var(--rule-2)}
+.min{display:grid;grid-template-columns:1fr auto;gap:2px 14px;padding:14px 0;border-bottom:1px solid var(--rule)}
+.min b{font-weight:600}
+.min small{grid-column:1/-1;color:var(--ink-2);font-size:14.5px;line-height:1.4}
+.porque{display:flex;gap:4px;flex-wrap:wrap;justify-content:end}
+.tag{font-family:var(--mono);font-size:11px;letter-spacing:.03em;padding:2px 7px;border-radius:4px;background:var(--surf-2);color:var(--ink-2)}
+.tag.debate{background:var(--amber-soft);color:var(--amber)}
+.aclara{background:var(--surf);border:1px solid var(--rule);border-radius:10px;padding:18px 22px;display:grid;gap:8px;max-width:760px}
+.aclara h3{font-size:22px}
+.aclara p{color:var(--ink-2)}
+
+/* hoja impresa */
+.hoja-wrap{overflow-x:auto;padding:4px}
+.hoja{background:var(--paper);color:var(--paper-ink);width:760px;margin:0 auto;padding:28px 34px 30px;font-family:"Times New Roman",Times,serif;font-size:12.5px;line-height:1.35;box-shadow:0 1px 2px rgba(11,37,69,.08),0 18px 50px rgba(11,37,69,.14);border-radius:2px;position:relative}
+.hoja .vert{position:absolute;left:6px;top:50%;transform:rotate(-90deg) translateX(-50%);transform-origin:left top;font-size:17px;letter-spacing:.06em;white-space:nowrap}
+.hoja .fila{display:flex;gap:18px;flex-wrap:wrap}
+.hoja .campo{display:flex;gap:6px;align-items:baseline;text-transform:uppercase}
+.hoja .campo i{font-style:normal;font-family:var(--mono);font-size:12px;text-transform:none;color:#1a2b5e;border-bottom:1px solid var(--paper-rule);padding:0 4px;min-width:60px}
+.hoja .caja{border:1px solid var(--paper-ink);margin-top:10px;padding:6px 8px;display:grid;grid-template-columns:repeat(4,1fr);gap:2px 12px;text-transform:uppercase;font-size:11px}
+.hoja .caja strong{grid-column:1/-1;font-weight:400;letter-spacing:.05em}
+.hoja .drogas{width:100%;border-collapse:collapse;margin-top:10px;font-size:11.5px}
+.hoja .drogas td{border:1px solid var(--paper-ink);padding:2px 6px;height:20px;font-family:var(--mono);font-size:11px;color:#1a2b5e}
+.hoja svg{margin-top:10px;width:100%;height:auto}
+.hoja .pie{display:flex;justify-content:space-between;margin-top:12px;text-transform:uppercase;font-size:11px}
+.hoja .firma{font-family:var(--mono);text-transform:none;color:#1a2b5e}
+.nota{font-size:14px;color:var(--ink-3);text-align:center}
+
+/* pedidos */
+.pedidos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+.pedidos div{display:grid;gap:6px;align-content:start;padding-top:14px;border-top:2px solid var(--accent)}
+.pedidos h3{font-size:23px}
+.pedidos p{color:var(--ink-2);font-size:16px}
+.wa{display:inline-flex;align-items:center;gap:9px;justify-self:start;background:var(--accent-fill);color:#04201d;font-weight:700;font-size:16px;text-decoration:none;border-radius:999px;padding:11px 22px 11px 18px}
+.wa:hover{filter:brightness(1.07)}
+.wa.chico{background:none;color:var(--accent);box-shadow:inset 0 0 0 1px var(--rule-2);font-size:14.5px;padding:6px 14px 6px 11px}
+.wa.chico:hover{box-shadow:inset 0 0 0 1px var(--accent);filter:none}
+.opinar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px}
+.opinar p{color:var(--ink-2);max-width:52ch;font-size:16px}
+footer{padding:28px 0 56px;border-top:1px solid var(--rule);color:var(--ink-3);font-size:14px}
+
+/* ======================= TELEFONO (siempre oscuro) ======================= */
+.phone{
+  --p-bg:#06111d; --p-s:#0d1c2e; --p-s2:#14283f; --p-ink:#e6f0f8; --p-dim:#8ea6bd; --p-line:#1f3a57;
+  --p-aqua:#2dd4bf; --p-rose:#fb7185; --p-amber:#fbbf24; --p-red:#f87171; --p-blue:#7fb2e5;
+  width:372px;height:748px;border-radius:46px;background:#02070d;padding:12px;
+  box-shadow:0 0 0 1px #2a3d52,0 30px 70px rgba(2,10,20,.35);
+  font-family:var(--body);color:var(--p-ink);font-size:14px;line-height:1.35;
+}
+.scr{background:var(--p-bg);border-radius:36px;height:100%;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.sb{display:flex;justify-content:space-between;padding:12px 26px 6px;font-family:var(--mono);font-size:12px;color:var(--p-dim)}
+.sb b{color:var(--p-ink);font-weight:600}
+.ph-head{padding:4px 16px 10px;display:grid;gap:6px;border-bottom:1px solid var(--p-line)}
+.ph-head .cx{font-family:var(--display);font-stretch:80%;font-weight:700;font-size:18px;line-height:1.15}
+.ph-head .dat{font-size:12.5px;color:var(--p-dim)}
+.alertas{display:flex;gap:5px;flex-wrap:wrap}
+.al{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:5px;background:var(--p-s2);color:var(--p-dim)}
+.al.rojo{background:rgba(248,113,113,.16);color:var(--p-red)}
+.al.ok{background:rgba(45,212,191,.13);color:var(--p-aqua)}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--p-line)}
+.tabs button{background:none;border:0;padding:10px 0 9px;font-size:13px;font-weight:600;color:var(--p-dim);border-bottom:2px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--p-ink);border-bottom-color:var(--p-aqua)}
+.ph-body{flex:1;overflow-y:auto;padding:12px 14px 20px;display:grid;gap:14px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--p-line) transparent}
+.blk{display:grid;gap:7px}
+.blk>.lb{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--p-dim);display:flex;justify-content:space-between}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.ch{background:var(--p-s);border:1px solid var(--p-line);color:var(--p-dim);border-radius:9px;padding:7px 10px;font-size:13px;font-weight:600;line-height:1.1}
+.ch.on{background:rgba(45,212,191,.14);border-color:rgba(45,212,191,.55);color:var(--p-ink)}
+.ch.warn{border-style:dashed}
+.ch small{display:block;font-weight:400;font-size:11px;color:var(--p-dim);margin-top:2px}
+.vals{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.val{background:var(--p-s);border-radius:9px;padding:6px 10px;display:grid}
+.val span{font-size:11px;color:var(--p-dim)}
+.val b{font-family:var(--mono);font-size:14px;font-weight:500}
+.tpl-list{display:grid;gap:6px}
+.tpl{display:grid;grid-template-columns:18px 1fr;gap:2px 10px;text-align:left;background:var(--p-s);border:1px solid var(--p-line);border-radius:12px;padding:10px 12px}
+.tpl .dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--p-dim);margin-top:3px;grid-row:span 2}
+.tpl.on{border-color:var(--p-aqua)}
+.tpl.on .dot{border-color:var(--p-aqua);background:radial-gradient(var(--p-aqua) 45%,transparent 50%)}
+.tpl b{font-size:14px}
+.tpl span{font-size:12px;color:var(--p-dim)}
+.hitos{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.hito{background:var(--p-s);border:1px solid var(--p-line);border-radius:10px;padding:6px 4px 5px;display:grid;justify-items:center;gap:1px;min-height:58px}
+.hito .g{font-size:16px;line-height:1;color:var(--p-dim)}
+.hito .n{font-size:10.5px;font-weight:600;color:var(--p-dim);text-align:center;line-height:1.1}
+.hito .t{font-family:var(--mono);font-size:11.5px;color:var(--p-dim)}
+.hito.on{border-color:rgba(45,212,191,.55);background:rgba(45,212,191,.1)}
+.hito.on .g,.hito.on .n{color:var(--p-ink)}
+.hito.on .t{color:var(--p-aqua)}
+.chart-ph{background:var(--p-s);border-radius:12px;padding:6px 6px 2px}
+.chart-ph svg{width:100%;height:auto;display:block}
+.vit{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.v{background:var(--p-s);border-radius:10px;padding:5px 2px 4px;display:grid;justify-items:center;gap:1px}
+.v span{font-size:10.5px;color:var(--p-dim);font-weight:600}
+.v b{font-family:var(--mono);font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.v .pm{display:flex;gap:3px}
+.v .pm button{width:24px;height:22px;border-radius:6px;border:0;background:var(--p-s2);color:var(--p-ink);font-size:15px;line-height:1;padding:0}
+.reg{background:var(--p-aqua);color:#04201d;border:0;border-radius:12px;padding:11px;font-weight:700;font-size:15px;display:grid;gap:0}
+.reg small{font-weight:600;font-size:11.5px;opacity:.75}
+.log{display:grid;gap:3px;font-size:12.5px}
+.log div{display:grid;grid-template-columns:44px 1fr;color:var(--p-dim)}
+.log div b{font-family:var(--mono);font-weight:500;color:var(--p-aqua)}
+.log div span{color:var(--p-ink)}
+.res{display:grid;gap:0;background:var(--p-s);border-radius:12px;padding:4px 12px}
+.res div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--p-line);font-size:13px}
+.res div:first-child{border-top:0}
+.res div span{color:var(--p-dim)}
+.res div b{font-family:var(--mono);font-weight:500;text-align:right}
+.stp{display:flex;align-items:center;justify-content:space-between;background:var(--p-s);border-radius:10px;padding:6px 8px 6px 12px}
+.stp span{font-size:13px}
+.stp .ctl{display:flex;align-items:center;gap:8px}
+.stp .ctl b{font-family:var(--mono);font-size:14px;min-width:66px;text-align:center}
+.stp .ctl button{width:30px;height:28px;border-radius:8px;border:0;background:var(--p-s2);color:var(--p-ink);font-size:17px;padding:0}
+.falta{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:10px;padding:8px 12px;font-size:12.5px;color:var(--p-amber)}
+.falta.listo{background:rgba(45,212,191,.1);border-color:rgba(45,212,191,.45);color:var(--p-aqua)}
+.firmar{background:var(--p-aqua);color:#04201d;border:0;border-radius:12px;padding:12px;font-weight:700;font-size:15px}
+.firmar:disabled{background:var(--p-s2);color:var(--p-dim);cursor:not-allowed}
+.toast{position:absolute;left:14px;right:14px;bottom:16px;background:#1b3350;color:var(--p-ink);border-radius:12px;padding:10px 12px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);transform:translateY(20px);opacity:0;transition:.2s;pointer-events:none}
+.toast.show{transform:none;opacity:1}
+.toast.warn{background:#4a1d22;color:#ffd7da}
+.phone-cap{margin-top:14px;text-align:center;font-size:13.5px;color:var(--ink-3);max-width:372px}
+
+/* ---------- responsive ---------- */
+@media (max-width: 1020px){
+  .top{grid-template-columns:1fr;gap:40px}
+  .top-phone{position:static;justify-self:center;order:-1}
+  .plantillas{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width: 700px){
+  .wrap{padding:0 18px}
+  .promesas,.pedidos,.minimo{grid-template-columns:1fr}
+  .promesas div+div{padding-left:0;border-left:0;border-top:1px solid var(--rule);padding-top:12px}
+  .promesas div{padding-bottom:12px}
+  .plantillas{grid-template-columns:1fr}
+  .phone{transform:scale(.92);transform-origin:top center;margin-bottom:-60px}
+}
+@media (max-width: 400px){ .phone{transform:scale(.84);margin-bottom:-120px} }
+@media (prefers-reduced-motion: reduce){ .toast{transition:none} }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <header class="hero">
+        <span class="eyebrow">AFAAR · Propuesta para la asociación · Setiembre 2026</span>
+        <h1>Modo <span>Camilla</span></h1>
+        <svg class="ecg" viewBox="0 0 520 34" aria-hidden="true"><path d="M0 20 H150 l8 -4 l6 4 H200 l6 6 l8 -24 l8 30 l6 -12 H300 l10 -6 l10 6 H520"/></svg>
+        <p class="lead">La ficha de anestesia de siempre, completada con toques al lado de la camilla.</p>
+        <p class="sub">Es una segunda forma de usar AFAAR, pensada para registrar el acto anestésico mientras ocurre, con una mano libre. Parte de la hoja que ya se usa en el Sanatorio San Jorge de Ushuaia y respeta sus bloques, su orden y sus símbolos. La app completa de hoy sigue igual para quien la prefiera. Las dos escriben <b>la misma ficha</b>, así que facturación y estadísticas no se parten.</p>
+        <div class="promesas">
+          <div><b>La hora la pone el toque</b><small>Inicio de anestesia, incisión, cada droga: se toca y queda con la hora. No se anota.</small></div>
+          <div><b>La plantilla trae casi todo</b><small>Monitoreo, vía aérea y ventilación llegan tildados. Se toca solo lo que cambia.</small></div>
+          <div><b>Sale la misma hoja</b><small>Al firmar se imprime la ficha con el formato de siempre, gráfico incluido.</small></div>
+        </div>
+      </header>
+
+      <section class="recorrido" aria-labelledby="h-rec">
+        <span class="eyebrow">Probalo en el teléfono de al lado</span>
+        <h2 id="h-rec">Un acto, cuatro pantallas</h2>
+        <p>El teléfono de la derecha funciona: tocá los botones. Los datos son de ejemplo, no hay pacientes reales. Cada botón <i>Ver en el teléfono</i> abre la pantalla que se describe.</p>
+        <ol class="pasos">
+          <li>
+            <h3>Elegir la plantilla</h3>
+            <p>Si el paciente tuvo valoración, sus datos, alergias y ASA ya están arriba. Si es una urgencia sin valoración, se abre como NN y se completa antes de firmar, como hoy. Se elige la plantilla que corresponde a lo que se va a hacer.</p>
+            <button class="ver" data-go="plantilla">Ver en el teléfono</button>
+          </li>
+          <li>
+            <h3>Preparar: el bloque de control de la hoja, ya tildado</h3>
+            <p>Equipo, respirador, monitores, protecciones, vía aérea, ventilación y parámetros del respirador vienen de la plantilla. El volumen corriente se sugiere por peso ideal. Se destilda lo que no se usa y listo.</p>
+            <button class="ver" data-go="preparar">Ver en el teléfono</button>
+          </li>
+          <li>
+            <h3>Durante: hitos, signos y drogas con un toque</h3>
+            <p>Los hitos de la hoja (✕ inicio de anestesia, ⊙ inicio de la operación, ⊗ fin de anestesia) son botones que guardan la hora. Cada cinco minutos, <b>Registrar</b> anota los signos; si no cambiaron, es un solo toque. Las drogas frecuentes están a mano con su dosis, y si una choca con una alergia de la valoración, la app avisa y no la anota. Probá tocar <i>Dipirona</i>.</p>
+            <button class="ver" data-go="durante">Ver en el teléfono</button>
+          </li>
+          <li>
+            <h3>Cerrar: la app dice qué falta</h3>
+            <p>Duraciones calculadas, hidratación propuesta, diuresis y pérdida con más y menos, eventos adversos y destino. La firma se habilita cuando no falta nada del mínimo obligatorio. Lo que no es obligatorio se puede completar después, desde el consultorio o la casa.</p>
+            <button class="ver" data-go="cerrar">Ver en el teléfono</button>
+          </li>
+        </ol>
+      </section>
+    </div>
+
+    <aside class="top-phone" aria-label="Maqueta interactiva del Modo Camilla">
+      <div class="phone">
+        <div class="scr">
+          <div class="sb"><b id="reloj">09:05</b><span>Quirófano 2 · sin conexión ✓</span></div>
+          <div class="ph-head">
+            <div class="cx" id="caso">Colecistectomía laparoscópica</div>
+            <div class="dat" id="casoDat">Paciente de ejemplo · M 54 a · 82 kg · ASA II</div>
+            <div class="alertas">
+              <span class="al rojo">Alergia: dipirona</span>
+              <span class="al">Mallampati II</span>
+              <span class="al ok">Ayuno 8 h ✓</span>
+              <span class="al ok">Consentimiento ✓</span>
+            </div>
+          </div>
+          <div class="tabs" role="tablist">
+            <button role="tab" data-tab="plantilla">Plantilla</button>
+            <button role="tab" data-tab="preparar">Preparar</button>
+            <button role="tab" data-tab="durante" aria-selected="true">Durante</button>
+            <button role="tab" data-tab="cerrar">Cerrar</button>
+          </div>
+          <div class="ph-body" id="phBody"></div>
+          <div class="toast" id="toast" role="status"></div>
+        </div>
+      </div>
+      <p class="phone-cap">Maqueta con datos de ejemplo. La pantalla del acto usa tema oscuro para no encandilar en el quirófano.</p>
+    </aside>
+  </div>
+
+  <section class="sec" aria-labelledby="h-mapa">
+    <span class="eyebrow">Ficha de anestesia · Sanatorio San Jorge</span>
+    <h2 id="h-mapa">De la hoja al teléfono, renglón por renglón</h2>
+    <p class="intro">Tomamos cada bloque de la hoja de papel y resolvimos cómo se completa sin lapicera. La idea es que <b>escribir sea la excepción</b>: casi todo llega solo, lo trae la plantilla o se resuelve con un toque.</p>
+    <div class="leyenda">
+      <span class="k k-auto">LLEGA SOLO</span> de la valoración, la precarga o el reloj
+      <span class="k k-plant">PLANTILLA</span> viene tildado, se corrige si hace falta
+      <span class="k k-toque">UN TOQUE</span> botón o lista
+      <span class="k k-escribe">SE ESCRIBE</span> texto libre, o dictado con el teclado del teléfono
+    </div>
+    <div class="conteo" id="conteo"></div>
+    <div class="tabla-wrap">
+      <table class="mapa">
+        <thead><tr><th>En la hoja</th><th>Cómo</th><th>En Modo Camilla</th></tr></thead>
+        <tbody id="mapaBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="h-pl">
+    <span class="eyebrow">Propuesta inicial · cada uno las ajusta</span>
+    <h2 id="h-pl">Ocho plantillas para empezar</h2>
+    <p class="intro">Cubren la mayoría de los actos de la asociación. Cada una precarga técnica, controles, vía aérea, ventilación, posición y las drogas frecuentes. <b>Cada anestesiólogo</b> parte de estas, ajusta dosis y marcas a su costumbre y guarda las suyas («Mi cesárea», «Mi colecistectomía»). Además, <b>cada institución</b> puede tener sus datos fijos: salas, obras sociales frecuentes, equipamiento disponible.</p>
+    <div class="plantillas" id="plantillas"></div>
+    <a class="wa chico" href="https://wa.me/5492901494953?text=Hola%20Claudio%2C%20sobre%20las%20plantillas%20del%20Modo%20Camilla%20de%20AFAAR%3A%20" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7a2.8 2.8 0 0 0 1.8-1.3 2.3 2.3 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3Z"/></svg>Opinar sobre las plantillas</a>
+  </section>
+
+  <section class="sec" aria-labelledby="h-min">
+    <span class="eyebrow">Para aprobar en la asociación</span>
+    <h2 id="h-min">Lo que no se puede dejar vacío</h2>
+    <div class="aclara">
+      <h3>¿Qué quiere decir «mínimo obligatorio»?</h3>
+      <p>Es la lista de datos sin los cuales la app no deja firmar la ficha. Con la hoja de papel se puede entregar casi vacía; con la app, no. Todo lo demás es opcional, y por eso cada uno puede trabajar más simple o más completo. Esta lista es un borrador: la asociación la aprueba o la corrige, porque es la que responde por la ficha ante una auditoría o un reclamo.</p>
+    </div>
+    <div class="minimo" id="minimo"></div>
+    <a class="wa chico" href="https://wa.me/5492901494953?text=Hola%20Claudio%2C%20sobre%20el%20m%C3%ADnimo%20obligatorio%20del%20Modo%20Camilla%20de%20AFAAR%3A%20" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7a2.8 2.8 0 0 0 1.8-1.3 2.3 2.3 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3Z"/></svg>Opinar sobre esta lista</a>
+  </section>
+
+  <section class="sec" aria-labelledby="h-hoja">
+    <span class="eyebrow">Lo que se imprime al firmar</span>
+    <h2 id="h-hoja">La hoja de siempre, completada por la app</h2>
+    <p class="intro">Para el sanatorio no cambia nada: recibe la ficha con el mismo formato, con letra legible y el gráfico dibujado con los símbolos de la hoja (v TAS, ^ TAD, • FC, x media). Esta vista previa se actualiza con lo que toques en el teléfono de arriba. Al mismo tiempo, el acto queda registrado en AFAAR para facturación y estadísticas.</p>
+    <div class="hoja-wrap"><div class="hoja" id="hoja"></div></div>
+    <p class="nota">Vista previa con datos de ejemplo. El formato final se ajusta a la hoja de cada institución.</p>
+  </section>
+
+  <section class="sec" aria-labelledby="h-ped">
+    <span class="eyebrow">Próximos pasos</span>
+    <h2 id="h-ped">Tres cosas que necesitamos de la asociación</h2>
+    <div class="pedidos">
+      <div><h3>Aprobar el mínimo</h3><p>Revisar la lista de arriba, sobre todo los dos puntos marcados «a debatir». Con eso definido, todo lo demás se ordena.</p></div>
+      <div><h3>Revisar las plantillas</h3><p>Corregir drogas y marcas de las ocho y proponer las que falten. Cada socio va a poder agregar las suyas, pero estas son la base común.</p></div>
+      <div><h3>Voluntarios para probarlo</h3><p>Tres o cuatro anestesiólogos, al menos uno en Ushuaia, uno en Río Grande y uno en Tolhuin, durante un mes. Medimos cuánto tarda cada ficha desde que se abre hasta que se firma.</p></div>
+    </div>
+    <div class="opinar"><a class="wa" href="https://wa.me/5492901494953?text=Hola%20Claudio%2C%20vi%20la%20propuesta%20del%20Modo%20Camilla%20de%20AFAAR.%20Mi%20opini%C3%B3n%3A%20" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7a2.8 2.8 0 0 0 1.8-1.3 2.3 2.3 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3Z"/></svg>Enviar mi opinión por WhatsApp</a><p>Se abre WhatsApp con el mensaje empezado. Si te referís a una parte puntual, nombrala por su título o sumá una captura de pantalla.</p></div>
+  </section>
+
+  <footer>AFAAR · Asociación Fueguina de Analgesia, Anestesia y Reanimación. Propuesta de trabajo, con maqueta y datos de ejemplo: no es la app en funcionamiento ni contiene datos de pacientes.</footer>
+</div>
+
+<script>
+(function(){
+const $ = s => document.querySelector(s);
+const hhmm = m => String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+
+/* ---------------- plantillas ---------------- */
+const GRUPOS = [
+  ['Control', ['Equipo anest.','Respirador','Monitores','Alarmas']],
+  ['Monitoreo', ['ECG','Oxímetro','Capnógrafo','TA no inv.','TA inv.','P.V.C.','Termómetro','Relaj. N. musc.']],
+  ['Cuidados', ['Protec. ocular','Protec. decúbitos','Cob. térmica','S. vesical','S. naso gást.']],
+  ['Vía aérea', ['Preox. 3 min','Aire amb.','Cánula nasal','Máscara facial','Masc. laríngea','Int. oro T','Int. naso T','C/manguito']],
+  ['Ventilación', ['Espontánea','Asistida','Manual','Mecánica','Reinhalación c/canister']]
+];
+const BASE = ['Equipo anest.','Monitores','Alarmas','ECG','Oxímetro','TA no inv.'];
+const TPL = {
+  iot:{n:'General balanceada con IOT', para:'Cirugía programada del adulto', cx:'Colecistectomía laparoscópica', dat:'M 54 a · 82 kg · ASA II', tec:'General balanceada', va:'Intubación',
+    on:[...BASE,'Respirador','Capnógrafo','Termómetro','Relaj. N. musc.','Protec. ocular','Protec. decúbitos','Cob. térmica','Preox. 3 min','Int. oro T','C/manguito','Mecánica','Reinhalación c/canister'],
+    vals:[['Tubo N°','7,5 c/manguito'],['VT · FR','520 ml · 12'],['PEEP · FiO₂','5 · 50 %'],['Vía A','18 G antebrazo izq.'],['Posición','DD'],['Hidratación','Ringer lactato']],
+    dr:[['Midazolam','2 mg'],['Fentanilo','50 µg'],['Propofol','160 mg'],['Rocuronio','10 mg'],['Sevoflurano','2 %'],['Cefazolina','2 g'],['Dexametasona','8 mg'],['Ondansetrón','4 mg'],['Dipirona','2 g','al'],['Sugammadex','200 mg'],['Efedrina','5 mg'],['Atropina','0,5 mg']],
+    lista:['Monitoreo estándar + capnografía','Preoxigenación, IOT con manguito','Mecánica con canister, VT por peso ideal','Inducción, relajante, profilaxis ATB']},
+  ml:{n:'General con máscara laríngea', para:'Cirugía corta, sin riesgo de aspiración', cx:'Hernioplastia inguinal', dat:'M 41 a · 78 kg · ASA I', tec:'General con máscara laríngea', va:'Máscara laríngea',
+    on:[...BASE,'Respirador','Capnógrafo','Protec. ocular','Preox. 3 min','Masc. laríngea','Asistida','Reinhalación c/canister'],
+    vals:[['ML N°','4 · 2ª generación'],['Ventilación','Asistida'],['FiO₂','50 %'],['Vía A','20 G'],['Posición','DD'],['Hidratación','Ringer lactato']],
+    dr:[['Fentanilo','100 µg'],['Propofol','180 mg'],['Sevoflurano','2 %'],['Dexametasona','8 mg'],['Ondansetrón','4 mg'],['Ketorolac','30 mg'],['Dipirona','2 g','al'],['Efedrina','5 mg']],
+    lista:['Monitoreo estándar + capnografía','Máscara laríngea de 2ª generación','Espontánea o asistida','Sin relajante']},
+  tiva:{n:'TIVA', para:'Endovenosa total, sin inhalatorios', cx:'Timpanoplastia', dat:'F 36 a · 60 kg · ASA I', tec:'Endovenosa total (TIVA)', va:'Intubación',
+    on:[...BASE,'Respirador','Capnógrafo','Termómetro','Relaj. N. musc.','Protec. ocular','Cob. térmica','Preox. 3 min','Int. oro T','C/manguito','Mecánica'],
+    vals:[['Tubo N°','7,0 c/manguito'],['VT · FR','400 ml · 12'],['Propofol','BIC 6 mg/kg/h'],['Remifentanilo','BIC 0,15 µg/kg/min'],['Posición','DD, cabeza rotada'],['Hidratación','Ringer lactato']],
+    dr:[['Propofol','120 mg'],['Remifentanilo','BIC'],['Rocuronio','35 mg'],['Dexametasona','8 mg'],['Ondansetrón','4 mg'],['Dipirona','2 g','al'],['Morfina','3 mg']],
+    lista:['Bombas de infusión, sin halogenados','IOT con manguito','Monitoreo de relajación','Profilaxis de náuseas']},
+  sir:{n:'Urgencia con secuencia rápida', para:'Estómago lleno, guardia', cx:'Apendicectomía de urgencia', dat:'M 23 a · 70 kg · ASA I E · NN hasta completar', tec:'General con secuencia rápida', va:'Intubación',
+    on:[...BASE,'Respirador','Capnógrafo','Protec. ocular','Preox. 3 min','Int. oro T','C/manguito','Mecánica','Reinhalación c/canister','S. naso gást.'],
+    vals:[['Carácter','Urgencia (recargo tildado)'],['Tubo N°','7,5 c/manguito'],['VT · FR','450 ml · 14'],['Aspiración','Lista'],['Posición','DD'],['Hidratación','Ringer lactato']],
+    dr:[['Fentanilo','100 µg'],['Propofol','140 mg'],['Succinilcolina','100 mg'],['Rocuronio','85 mg'],['Sevoflurano','2 %'],['Cefazolina','2 g'],['Metronidazol','500 mg'],['Dipirona','2 g','al'],['Efedrina','5 mg']],
+    lista:['Marca urgencia y recargo del nomenclador','Preoxigenación y aspiración lista','Inducción rápida, IOT con manguito','Se puede abrir con paciente NN']},
+  raqui:{n:'Raquídea', para:'Cesárea, traumatología, urología', cx:'Cesárea programada', dat:'F 31 a · 76 kg · ASA II', tec:'Regional · intratecal', va:'Punción', regional:true, obst:true,
+    on:[...BASE,'Cánula nasal','Espontánea','Cob. térmica'],
+    vals:[['Aguja N°','25 G'],['Tipo','Punta de lápiz'],['Punción','L3-L4, sentada'],['Drogas','Bupivacaína hiperbárica + fentanilo'],['Posición','DD, desplazamiento uterino'],['Hidratación','Cocarga Ringer']],
+    dr:[['Bupivacaína 0,5 % hiperb.','10 mg'],['Fentanilo intratecal','20 µg'],['Fenilefrina','100 µg'],['Efedrina','5 mg'],['Oxitocina','5 UI'],['Cefazolina','2 g'],['Ondansetrón','4 mg'],['Dipirona','2 g','al']],
+    lista:['Bloque regional de la hoja precargado','Cánula nasal, ventilación espontánea','Vasopresores a mano','Abre el bloque parto / cesárea']},
+  parto:{n:'Analgesia de parto', para:'Peridural con catéter', cx:'Trabajo de parto', dat:'F 27 a · 72 kg · ASA II', tec:'Regional · peridural con catéter', va:'Punción', regional:true, obst:true, parto:true,
+    on:['Monitores','Alarmas','Oxímetro','TA no inv.','Aire amb.','Espontánea'],
+    vals:[['Aguja N°','Tuohy 18 G'],['Catéter N°','20 G · 4 cm en espacio'],['Punción','L2-L3'],['Drogas','Bupivacaína 0,1 % + fentanilo'],['Posición','Sentada'],['Hidratación','Ringer lactato']],
+    dr:[['Lidocaína 2 % (dosis prueba)','3 ml'],['Bupivacaína 0,1 %','10 ml'],['Fentanilo peridural','50 µg'],['Refuerzo','8 ml'],['Efedrina','5 mg'],['Dipirona','2 g','al']],
+    lista:['Abre el bloque de partoanalgesia de la hoja','Dilatación, plano, bolsa, oxitocina','Catéter y refuerzos con hora','Recién nacido y Apgar al cierre']},
+  sed:{n:'Sedación / cuidado monitorizado', para:'Endoscopía, procedimientos cortos', cx:'Videocolonoscopía', dat:'M 62 a · 88 kg · ASA II', tec:'Sedación', va:'Inicio sedación',
+    on:[...BASE,'Capnógrafo','Cánula nasal','Espontánea'],
+    vals:[['O₂','Cánula 3 l/min'],['Ventilación','Espontánea'],['Vía A','22 G'],['Posición','DLI'],['Profundidad','Moderada'],['Hidratación','Solución fisiológica']],
+    dr:[['Propofol','30 mg'],['Propofol refuerzo','20 mg'],['Fentanilo','50 µg'],['Midazolam','1 mg'],['Dipirona','2 g','al'],['Atropina','0,5 mg']],
+    lista:['Monitoreo básico + capnografía','Cánula nasal, espontánea','Refuerzos de propofol con un toque','Sin respirador']},
+  bloq:{n:'Bloqueo ecoguiado + sedación', para:'Miembro superior o inferior', cx:'Osteosíntesis de radio', dat:'F 58 a · 66 kg · ASA II', tec:'Regional · plexual', va:'Punción', regional:true,
+    on:[...BASE,'Capnógrafo','Cánula nasal','Espontánea','Protec. decúbitos'],
+    vals:[['Bloqueo','Plexo braquial supraclavicular'],['Aguja','22 G 50 mm ecogénica'],['Guía','Ecografía'],['Drogas','Bupivacaína 0,5 % 20 ml'],['Posición','DD, brazo en mesa'],['Hidratación','Ringer lactato']],
+    dr:[['Bupivacaína 0,5 %','20 ml'],['Lidocaína 2 %','5 ml'],['Dexametasona perineural','4 mg'],['Midazolam','1 mg'],['Propofol BIC','25 µg/kg/min'],['Cefazolina','2 g'],['Dipirona','2 g','al']],
+    lista:['Bloque regional de la hoja precargado','Tipo de bloqueo y aguja con un toque','Sedación leve opcional','Tope de dosis de anestésico local por peso']}
+};
+
+/* ---------------- estado de ejemplo ---------------- */
+const V0 = [[485,146,88,86,97,null],[490,142,86,84,98,null],[495,104,60,70,100,34],[500,98,58,66,100,35],[505,108,64,68,99,36],[510,112,66,70,99,36],[515,132,78,82,99,37],[520,126,76,78,99,36],[525,122,72,76,99,36],[530,120,72,74,99,35],[535,118,70,74,99,35],[540,120,72,75,99,35]];
+const S = {
+  tab:'durante', tpl:'iot', clock:545,
+  hitos:{ingreso:485, ia:492, va:495, io:511},
+  vit:V0.map(r=>({t:r[0],tas:r[1],tad:r[2],fc:r[3],spo2:r[4],etco2:r[5]})),
+  drugs:[[488,'Midazolam','2 mg'],[492,'Fentanilo','150 µg'],[492,'Propofol','160 mg'],[493,'Rocuronio','50 mg'],[495,'Sevoflurano','2 %'],[500,'Cefazolina','2 g'],[505,'Dexametasona','8 mg']],
+  cur:{tas:120,tad:72,fc:75,spo2:99,etco2:35},
+  checks:null, pos:'DD', hidr:1000, diur:200, perd:150, eventos:null, destino:null, firmada:false
+};
+S.checks = new Set(TPL.iot.on);
+
+const HITOS = [['ingreso','→','Ingreso'],['ia','✕','Inicio anestesia'],['va','↧',null],['io','⊙','Inicio operación'],['fo','⊡','Fin operación'],['fa','⊗','Fin anestesia'],['eg','←','Egreso']];
+
+let toastT;
+function toast(msg, warn){
+  const t=$('#toast'); t.textContent=msg; t.className='toast show'+(warn?' warn':'');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.className='toast'+(warn?' warn':''),2600);
+}
+
+/* ---------------- grafico (telefono y hoja) ---------------- */
+function chartSVG(paper){
+  const W = paper?690:320, H = paper?250:168, L = paper?44:28, R=6, T = paper?18:16, B = paper?20:16;
+  const t0=480, t1=Math.max(600, Math.ceil((S.clock+10)/15)*15);
+  const x=t=>L+(t-t0)/(t1-t0)*(W-L-R), y=v=>T+(220-v)/(220-40)*(H-T-B);
+  const ink = paper?'#26408b':'#8ea6bd', grid = paper?'#b7c2e0':'#1f3a57', fc = paper?'#26408b':'#2dd4bf', ta = paper?'#26408b':'#fb7185', md=paper?'#26408b':'#fbbf24';
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico de tensión arterial y frecuencia cardíaca">`;
+  const step = paper?10:20;
+  for(let v=40; v<=220; v+=step){ s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="${grid}" stroke-width="${v%40===0?0.8:0.4}"/>`;
+    if(v%40===0) s+=`<text x="${L-4}" y="${y(v)+3}" text-anchor="end" font-size="${paper?10:8}" fill="${ink}" font-family="IBM Plex Mono,monospace">${v}</text>`; }
+  for(let t=t0; t<=t1; t+= (paper?5:15)){ const major = t%15===0;
+    s+=`<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H-B}" stroke="${grid}" stroke-width="${major?0.8:0.4}"/>`;
+    if(t%30===0) s+=`<text x="${x(t)}" y="${H-4}" text-anchor="middle" font-size="${paper?10:8}" fill="${ink}" font-family="IBM Plex Mono,monospace">${hhmm(t)}</text>`; }
+  const hg = {ia:'✕', io:'⊙', fa:'⊗'};
+  for(const k in hg){ const t=S.hitos[k]; if(t==null) continue;
+    s+=`<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H-B}" stroke="${ink}" stroke-dasharray="2 3" stroke-width="0.8"/><text x="${x(t)}" y="${T-4}" text-anchor="middle" font-size="${paper?12:10}" fill="${paper?ink:'#e6f0f8'}">${hg[k]}</text>`; }
+  const pts = k => S.vit.map(v=>`${x(v.t)},${y(v[k])}`).join(' ');
+  if(!paper){ s+=`<polyline points="${pts('tas')}" fill="none" stroke="${ta}" stroke-opacity=".35" stroke-width="1"/><polyline points="${pts('tad')}" fill="none" stroke="${ta}" stroke-opacity=".35" stroke-width="1"/><polyline points="${pts('fc')}" fill="none" stroke="${fc}" stroke-opacity=".35" stroke-width="1"/>`; }
+  const z = paper?3.2:2.6;
+  S.vit.forEach(v=>{
+    const X=x(v.t), m=Math.round((v.tas+2*v.tad)/3);
+    s+=`<path d="M${X-z} ${y(v.tas)-z} L${X} ${y(v.tas)+z} L${X+z} ${y(v.tas)-z}" fill="none" stroke="${ta}" stroke-width="1.3"/>`;
+    s+=`<path d="M${X-z} ${y(v.tad)+z} L${X} ${y(v.tad)-z} L${X+z} ${y(v.tad)+z}" fill="none" stroke="${ta}" stroke-width="1.3"/>`;
+    s+=`<circle cx="${X}" cy="${y(v.fc)}" r="${paper?2.2:2}" fill="${fc}"/>`;
+    if(paper) s+=`<path d="M${X-2.4} ${y(m)-2.4} L${X+2.4} ${y(m)+2.4} M${X+2.4} ${y(m)-2.4} L${X-2.4} ${y(m)+2.4}" stroke="${md}" stroke-width="1"/>`;
+  });
+  if(!paper) s+=`<line x1="${x(S.clock)}" x2="${x(S.clock)}" y1="${T}" y2="${H-B}" stroke="#2dd4bf" stroke-width="1.2"/>`;
+  return s+'</svg>';
+}
+
+/* ---------------- pantallas del telefono ---------------- */
+function faltantes(){
+  const f=[];
+  if(S.hitos.ia==null) f.push('Inicio de anestesia');
+  if(S.hitos.fa==null) f.push('Fin de anestesia');
+  if(!S.drugs.length) f.push('Drogas');
+  if(S.eventos==null) f.push('Eventos adversos (sí / no)');
+  if(!S.destino) f.push('Destino');
+  return f;
+}
+const P = {
+  plantilla(){
+    return `<div class="blk"><div class="lb"><span>Plantilla del acto</span><span>8</span></div><div class="tpl-list">`+
+      Object.entries(TPL).map(([k,t])=>`<button class="tpl ${S.tpl===k?'on':''}" data-tpl="${k}"><i class="dot"></i><b>${t.n}</b><span>${t.para}</span></button>`).join('')+
+      `</div></div><div class="blk"><div class="lb"><span>Además</span></div><div class="chips"><span class="ch">+ Mis plantillas</span><span class="ch">Sin plantilla</span></div></div>`;
+  },
+  preparar(){
+    const t=TPL[S.tpl];
+    let h = GRUPOS.map(([g,items])=>`<div class="blk"><div class="lb"><span>${g}</span><span>${items.filter(i=>S.checks.has(i)).length}/${items.length}</span></div><div class="chips">`+
+      items.map(i=>`<button class="ch ${S.checks.has(i)?'on':''}" data-chk="${i}">${i}</button>`).join('')+`</div></div>`).join('');
+    h += `<div class="blk"><div class="lb"><span>${t.regional?'Anestesia regional':'Valores'}</span><span>de la plantilla</span></div><div class="vals">`+
+      t.vals.map(([a,b])=>`<div class="val"><span>${a}</span><b>${b}</b></div>`).join('')+`</div></div>`;
+    if(t.parto) h += `<div class="blk"><div class="lb"><span>Partoanalgesia</span></div><div class="vals"><div class="val"><span>Ingresa con</span><b>5 cm</b></div><div class="val"><span>Plano</span><b>II</b></div><div class="val"><span>Bolsa</span><b>Íntegra</b></div><div class="val"><span>Oxitocina</span><b>Sí · goteo</b></div></div></div>`;
+    return h;
+  },
+  durante(){
+    const t=TPL[S.tpl];
+    let h = `<div class="blk"><div class="lb"><span>Hitos · tocar guarda la hora</span></div><div class="hitos">`+
+      HITOS.map(([k,g,n])=>`<button class="hito ${S.hitos[k]!=null?'on':''}" data-hito="${k}"><span class="g">${g}</span><span class="n">${n||t.va}</span><span class="t">${S.hitos[k]!=null?hhmm(S.hitos[k]):'tocar'}</span></button>`).join('')+
+      `<button class="hito" data-hito="pos"><span class="g">⤢</span><span class="n">Posición</span><span class="t" style="color:#e6f0f8">${S.pos}</span></button></div></div>`;
+    h += `<div class="chart-ph">${chartSVG(false)}</div>`;
+    const vv=[['tas','TAS'],['tad','TAD'],['fc','FC'],['spo2','SpO₂'],['etco2','EtCO₂']];
+    h += `<div class="blk"><div class="lb"><span>Signos · próximo ${hhmm(S.clock)}</span><span>v ^ •</span></div><div class="vit">`+
+      vv.map(([k,n])=>`<div class="v"><span>${n}</span><b>${S.cur[k]}</b><div class="pm"><button data-dv="${k}" data-d="-1" aria-label="bajar ${n}">−</button><button data-dv="${k}" data-d="1" aria-label="subir ${n}">+</button></div></div>`).join('')+
+      `</div><button class="reg" id="btnReg">Registrar ${hhmm(S.clock)}<small>si no cambió nada, es solo este toque</small></button></div>`;
+    h += `<div class="blk"><div class="lb"><span>Drogas frecuentes · ${t.n}</span></div><div class="chips">`+
+      t.dr.map(([n,d,al])=>`<button class="ch ${al?'warn':''}" data-drug="${n}|${d}|${al||''}">${n}<small>${d}</small></button>`).join('')+`<button class="ch">+ Otra</button></div></div>`;
+    h += `<div class="blk"><div class="lb"><span>Droga / hora</span><span>${S.drugs.length}</span></div><div class="log">`+
+      S.drugs.slice(-5).reverse().map(([m,n,d])=>`<div><b>${hhmm(m)}</b><span>${n} ${d}</span></div>`).join('')+`</div></div>`;
+    return h;
+  },
+  cerrar(){
+    const t=TPL[S.tpl], hi=S.hitos;
+    const dur=(a,b)=> (a!=null&&b!=null)? `${Math.floor((b-a)/60)} h ${String((b-a)%60).padStart(2,'0')} min` : 'falta';
+    const f=faltantes();
+    let h = `<div class="res"><div><span>Técnica</span><b>${t.tec}</b></div><div><span>Anestesia</span><b>${dur(hi.ia,hi.fa)}</b></div><div><span>Cirugía</span><b>${dur(hi.io,hi.fo)}</b></div><div><span>Drogas registradas</span><b>${S.drugs.length}</b></div><div><span>Signos registrados</span><b>${S.vit.length}</b></div></div>`;
+    h += `<div class="blk"><div class="lb"><span>Balance</span><span>propuesto, se confirma</span></div>`+
+      [['hidr','Hidratación · Ringer',100,' ml'],['diur','Diuresis',50,' ml'],['perd','Pérdida sanguínea',50,' ml']].map(([k,n,st,u])=>`<div class="stp"><span>${n}</span><div class="ctl"><button data-st="${k}" data-d="-${st}" aria-label="menos">−</button><b>${S[k]}${u}</b><button data-st="${k}" data-d="${st}" aria-label="más">+</button></div></div>`).join('')+`</div>`;
+    if(t.obst) h += `<div class="blk"><div class="lb"><span>Recién nacido</span></div><div class="vals"><div class="val"><span>Hora · sexo</span><b>09:22 · F</b></div><div class="val"><span>Apgar 1′ / 5′</span><b>8 / 9</b></div></div></div>`;
+    h += `<div class="blk"><div class="lb"><span>Eventos adversos</span></div><div class="chips"><button class="ch ${S.eventos===false?'on':''}" data-ev="no">Sin eventos</button><button class="ch ${S.eventos===true?'on':''}" data-ev="si">Hubo eventos…</button></div></div>`;
+    h += `<div class="blk"><div class="lb"><span>Destino</span></div><div class="chips">`+['URPA','Habitación','UTI','Alta ambulatoria'].map(d=>`<button class="ch ${S.destino===d?'on':''}" data-dest="${d}">${d}</button>`).join('')+`</div></div>`;
+    h += f.length ? `<div class="falta">Para firmar falta: ${f.join(' · ')}</div>` : `<div class="falta listo">${S.firmada?'Ficha firmada. La hoja está lista para imprimir.':'Está todo lo obligatorio. Lo demás se puede completar después.'}</div>`;
+    h += `<button class="firmar" id="btnFirmar" ${f.length||S.firmada?'disabled':''}>${S.firmada?'Firmada ✓':'Firmar e imprimir hoja'}</button>`;
+    return h;
+  }
+};
+
+function render(){
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===S.tab));
+  document.querySelectorAll('.ver').forEach(b=>b.setAttribute('aria-pressed', b.dataset.go===S.tab));
+  const t=TPL[S.tpl];
+  $('#caso').textContent=t.cx; $('#casoDat').textContent='Paciente de ejemplo · '+t.dat;
+  $('#reloj').textContent=hhmm(S.clock);
+  $('#phBody').innerHTML=P[S.tab]();
+  renderHoja();
+}
+
+/* ---------------- eventos del telefono ---------------- */
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button'); if(b){S.tab=b.dataset.tab; render(); $('#phBody').scrollTop=0;}});
+document.querySelectorAll('.ver').forEach(b=>b.addEventListener('click',()=>{S.tab=b.dataset.go; render(); $('#phBody').scrollTop=0;
+  if(window.innerWidth<1020) document.querySelector('.top-phone').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}));
+$('#phBody').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return; const d=b.dataset;
+  if(d.tpl){ S.tpl=d.tpl; S.checks=new Set(TPL[d.tpl].on); toast('Plantilla «'+TPL[d.tpl].n+'»: controles, vía aérea y drogas precargados.'); }
+  else if(d.chk){ S.checks.has(d.chk)?S.checks.delete(d.chk):S.checks.add(d.chk); }
+  else if(d.hito){
+    if(d.hito==='pos'){ const o=['DD','DV','DLD','DLI','L','T','F']; S.pos=o[(o.indexOf(S.pos)+1)%o.length]; toast('Posición: '+S.pos+' · '+hhmm(S.clock)); }
+    else if(S.hitos[d.hito]!=null){ delete S.hitos[d.hito]; toast('Hito borrado.'); }
+    else { S.hitos[d.hito]=S.clock; toast(b.querySelector('.n').textContent+' · '+hhmm(S.clock)); }
+  }
+  else if(d.dv){ const lim={tas:[40,220],tad:[20,160],fc:[30,200],spo2:[70,100],etco2:[15,70]}[d.dv]; const st=(d.dv==='tas'||d.dv==='tad')?5:(d.dv==='fc'?2:1);
+    S.cur[d.dv]=Math.min(lim[1],Math.max(lim[0],S.cur[d.dv]+st*(+d.d))); }
+  else if(b.id==='btnReg'){ S.vit.push({t:S.clock,...S.cur}); toast('Signos registrados · '+hhmm(S.clock)); S.clock+=5; }
+  else if(d.drug){ const [n,dose,al]=d.drug.split('|');
+    if(al){ toast('No se registró: '+n+'. El paciente tiene alergia a dipirona registrada en la valoración.', true); return; }
+    S.drugs.push([S.clock,n,dose]); toast(n+' '+dose+' · '+hhmm(S.clock)); }
+  else if(d.st){ S[d.st]=Math.max(0,S[d.st]+(+d.d)); }
+  else if(d.ev){ S.eventos = d.ev==='si'; if(S.eventos) toast('Se abriría la lista de eventos, ordenada por probabilidad para este paciente.'); }
+  else if(d.dest){ S.destino=d.dest; }
+  else if(b.id==='btnFirmar'){ S.firmada=true; toast('Ficha firmada. Hoja lista para imprimir (maqueta).'); }
+  else return;
+  const sc=$('#phBody').scrollTop; render(); $('#phBody').scrollTop=sc;
+});
+
+/* ---------------- hoja impresa ---------------- */
+function renderHoja(){
+  const t=TPL[S.tpl], dat=t.dat.split(' · '), sx=dat[0].split(' ');
+  const box = (on,txt)=>`<span>${on?'☒':'☐'} ${txt}</span>`;
+  const urg = S.tpl==='sir';
+  const drs = S.drugs.slice(0,15); const rows=[];
+  for(let i=0;i<5;i++){ rows.push('<tr>'+[0,1,2].map(c=>{const d=drs[i+c*5]; return `<td>${d?hhmm(d[0])+'  '+d[1]+' '+d[2]:''}</td>`;}).join('')+'</tr>'); }
+  $('#hoja').innerHTML = `<div class="vert">FICHA DE ANESTESIA N° <span style="font-family:var(--mono);font-size:13px">A-000123</span></div>
+  <div style="padding-left:18px">
+    <div class="fila" style="justify-content:space-between"><div style="display:grid;gap:3px;flex:1">
+      <div class="campo">Nombre: <i>Paciente de ejemplo</i></div>
+      <div class="campo">Cirugía: <i>${t.cx}</i></div>
+      <div class="campo">Anestesiólogo: <i>Socio AFAAR (usuario que firma)</i></div>
+      <div class="campo">Cirujanos: <i>Equipo de cirugía</i></div>
+      <div class="fila"><div class="campo">Hora de ingreso: <i>${S.hitos.ingreso!=null?hhmm(S.hitos.ingreso):''}</i></div><div class="campo">Edad: <i>${sx[1]} ${sx[2]}</i></div><div class="campo">Sexo: <i>${sx[0]}</i></div><div class="campo">O. social: <i>OSEF</i></div></div>
+    </div>
+    <div style="display:grid;gap:2px;font-size:11px;text-transform:uppercase">
+      <div class="campo">Fecha <i>11/09/2026</i></div>
+      <div style="display:grid;grid-template-columns:auto auto;gap:1px 14px;margin-top:4px">
+        <span style="text-decoration:underline">Ingresa de:</span><span style="text-decoration:underline">Ingresa de:</span>
+        ${box(!urg&&S.tpl!=='parto','Ambulatorio')}${box(!urg,'Programada')}
+        ${box(S.tpl==='parto','Habitación')}${box(false,'No programada')}
+        ${box(urg,'Guardia')}${box(urg,'Urgencia')}
+        ${box(false,'UTI')}${box(false,'Emergencia')}
+      </div></div></div>
+    <div class="caja"><strong>Control · monitoreo · vía aérea · ventilación</strong>${GRUPOS.flatMap(g=>g[1]).map(i=>box(S.checks.has(i),i)).join('')}</div>
+    <div class="caja" style="grid-template-columns:repeat(3,1fr)"><strong>Técnica anestésica: ${t.tec}</strong>${t.vals.map(([a,b])=>`<span>${a}: <span style="font-family:var(--mono);text-transform:none;color:#1a2b5e">${b}</span></span>`).join('')}</div>
+    <table class="drogas"><tbody><tr><td colspan="3" style="font-family:'Times New Roman',serif;color:var(--paper-ink);font-size:11px">DROGA / HORA</td></tr>${rows.join('')}</tbody></table>
+    ${chartSVG(true)}
+    <div class="caja" style="grid-template-columns:repeat(4,1fr)"><span>Posición: <b style="font-family:var(--mono);font-weight:500;color:#1a2b5e">${S.pos}</b></span><span>Hidratación: <b style="font-family:var(--mono);font-weight:500;color:#1a2b5e">${S.hidr} ml</b></span><span>Diuresis: <b style="font-family:var(--mono);font-weight:500;color:#1a2b5e">${S.diur} ml</b></span><span>Pérdida sanguínea: <b style="font-family:var(--mono);font-weight:500;color:#1a2b5e">${S.perd} ml</b></span></div>
+    <div class="pie"><span>Observaciones: <span class="firma">${S.eventos===false?'Sin eventos adversos.':S.eventos?'Ver eventos registrados.':''} ${S.destino?'Pasa a '+S.destino+'.':''}</span></span><span>Firma y N° de matrícula: <span class="firma">${S.firmada?'firmado digitalmente · MP 0000':'—'}</span></span></div>
+  </div>`;
+}
+
+/* ---------------- tabla hoja -> telefono ---------------- */
+const MAPA = [
+  ['Nombre, edad, sexo, obra social','auto','Vienen de la <b>valoración o de la precarga</b> del paciente. En urgencia sin datos, se abre como NN.'],
+  ['Cirugía, cirujanos','auto','La cirugía viene de la valoración. Los cirujanos, de una <b>lista con los frecuentes</b> de cada institución.'],
+  ['Fecha, hora de ingreso','auto','La pone el toque en <b>Ingreso</b>.'],
+  ['Ingresa de (ambulatorio, habitación, guardia, UTI)','toque','Un toque. Si hubo valoración programada, ya viene marcado.'],
+  ['Programada / no programada / urgencia / emergencia','toque','Un toque. Urgencia y emergencia <b>tildan solas el recargo</b> del nomenclador.'],
+  ['Control: equipo anest., respirador, monitores, alarmas','plant','Tildado por la plantilla.'],
+  ['Monitoreo: ECG, oxímetro, capnógrafo, TA, PVC, termómetro','plant','Tildado por la plantilla. TA invasiva y PVC, un toque si se agregan.'],
+  ['Relaj. n. musc., sondas, protecciones, cob. térmica','plant','Tildado por la plantilla.'],
+  ['Técnica anestésica','plant','Sale de la plantilla elegida.'],
+  ['A.R.M.: V.T., F.R., P. pico, P.E.E.P.','plant','Propuestos por la plantilla; el <b>V.T. se calcula por peso ideal</b>.'],
+  ['Vías: A, B, subclavia, yugular, arterial, cánula N°','toque','Un toque por vía y calibre de una lista.'],
+  ['Anestesia regional: aguja, tipo, punción, drogas, dosis, catéter','plant','Precargado por las plantillas regionales. Se escribe solo el nivel si difiere.'],
+  ['Vía aérea, tubo N°, manguito, máscara laríngea N°','plant','De la plantilla. El número se cambia con un toque.'],
+  ['Ventilación y oxígeno: FiO₂, flujo, N₂O','plant','De la plantilla.'],
+  ['Droga / hora','toque','Toque en la droga frecuente: queda con <b>hora y dosis</b>. Dosis por kilo sugerida.'],
+  ['Gráfico: TAS v, TAD ^, FC •, PVC ▲, media x','toque','<b>Registrar</b> cada 5 minutos. Si no cambió nada, un solo toque. Se dibuja con los mismos símbolos.'],
+  ['Inicio anest. ✕, inicio operac. ⊙, fin anestesia ⊗','auto','Son los <b>hitos</b>: el toque guarda la hora y la marca en el gráfico.'],
+  ['Posición del paciente (DD, DV, DLD, DLI, L, T, F)','plant','La plantilla propone la de la cirugía; un toque si cambia.'],
+  ['Oximetría del pulso, capnografía','toque','Se registran junto con los signos.'],
+  ['Hidratación','auto','La app <b>propone el plan de fluidos</b> por peso y ayuno, como ya hace hoy. Se confirma.'],
+  ['Diuresis, pérdida sanguínea','toque','Al cerrar, con más y menos.'],
+  ['ATB','auto','La profilaxis sugerida por cirugía queda con hora al tocarla.'],
+  ['Partoanalgesia y parto / cesárea (dilatación, bolsa, RN, Apgar)','plant','El bloque aparece <b>solo con las plantillas obstétricas</b>.'],
+  ['Observaciones','escribe','Texto libre u opcional. Se puede dictar con el micrófono del teclado.'],
+  ['Firma y N° de matrícula','auto','Firma del usuario que cerró la ficha.']
+];
+const KL = {auto:['k-auto','LLEGA SOLO'],plant:['k-plant','PLANTILLA'],toque:['k-toque','UN TOQUE'],escribe:['k-escribe','SE ESCRIBE']};
+$('#mapaBody').innerHTML = MAPA.map(([h,k,c])=>`<tr><td class="hoja">${h}</td><td class="tipo"><span class="k ${KL[k][0]}">${KL[k][1]}</span></td><td class="como">${c}</td></tr>`).join('');
+const cnt = k => MAPA.filter(r=>r[1]===k).length;
+$('#conteo').innerHTML = `<div><b>${MAPA.length}</b><span>renglones de la hoja</span></div>`+Object.entries(KL).map(([k,[c,l]])=>`<div><b>${cnt(k)}</b><span class="k ${c}" style="justify-self:start">${l}</span></div>`).join('');
+
+/* ---------------- tarjetas de plantillas ---------------- */
+$('#plantillas').innerHTML = Object.entries(TPL).map(([k,t])=>`<div class="pl"><h3>${t.n}</h3><span class="para">${t.para}</span><ul>${t.lista.map(l=>`<li>${l}</li>`).join('')}</ul><button class="ver probar" data-probar="${k}">Probar en el teléfono</button></div>`).join('');
+document.querySelectorAll('[data-probar]').forEach(b=>b.addEventListener('click',()=>{
+  S.tpl=b.dataset.probar; S.checks=new Set(TPL[S.tpl].on); S.tab='preparar'; render(); $('#phBody').scrollTop=0;
+  document.querySelector('.top-phone').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth', block:'start'});
+}));
+
+/* ---------------- minimo obligatorio ---------------- */
+const MIN = [
+  ['Identidad del paciente','Apellido, nombre y DNI. En urgencia se admite NN mientras dura el acto; para firmar hay que completarlo.',['legal']],
+  ['Consentimiento o su excepción','Firmado en la valoración, o constancia de urgencia vital o de revocación (Ley 26.529).',['legal']],
+  ['Cirugía y carácter','Qué se operó y si fue programada, urgencia o emergencia.',['facturación','estadística']],
+  ['Técnica anestésica','La que salió de la plantilla o la que se cambió durante el acto.',['facturación','estadística']],
+  ['Inicio y fin de anestesia','Los dos hitos con hora. Sin ellos no hay duración para facturar.',['legal','facturación']],
+  ['Drogas con dosis y hora','Por lo menos las de inducción o las del bloqueo.',['legal']],
+  ['Signos vitales','TA, FC y SpO₂ a intervalos regulares. A debatir: cada 5 minutos (estándar ASA) o cada 15 en actos cortos y estables.',['legal','debate']],
+  ['Eventos adversos: sí o no','Una respuesta explícita. «Sin eventos» también es un dato.',['seguridad','estadística']],
+  ['Destino al salir','URPA, habitación, UTI o alta ambulatoria.',['seguridad']],
+  ['Firma y matrícula','Del anestesiólogo que cierra la ficha.',['legal']],
+  ['Balance: hidratación, diuresis y pérdida','A debatir: obligatorio solo en cirugías mayores, o en todas.',['debate']]
+];
+$('#minimo').innerHTML = MIN.map(([t,d,tags])=>`<div class="min"><b>${t}</b><span class="porque">${tags.map(g=>`<span class="tag ${g==='debate'?'debate':''}">${g==='debate'?'a debatir':g}</span>`).join('')}</span><small>${d}</small></div>`).join('');
+
+render();
+})();
+</script>
+
+</body>
+</html>
