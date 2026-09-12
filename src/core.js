@@ -741,10 +741,65 @@ function iniciarNube(){
     /* El pase primero, la suscripcion despues: si se escuchara antes de
        tener pase, con las reglas cerradas la primera lectura rebotaria. */
     identificarseEnLaNube().then(suscribirColecciones);
+    vigilarRelojDelEquipo();
   }catch(e){
     console.warn('Firebase', e);
     toast('No se pudo conectar con la nube. Trabajando en local.', 'warn');
   }
+}
+
+/* ---- El reloj de este equipo ----
+   Todas las horas de la ficha -inicio de anestesia, incision, cada droga-
+   salen del reloj del dispositivo. No hay otra fuente posible: en quirofano
+   puede no haber senal y la app tiene que seguir registrando igual. El
+   problema es que un reloj mal puesto no se nota, y esas horas despues pesan
+   en una auditoria y en la facturacion por tiempo.
+
+   Firebase publica en '.info/serverTimeOffset' los milisegundos que hay que
+   sumarle al reloj local para llegar al del servidor. Con eso alcanza para
+   avisar. Tres decisiones:
+
+   - Avisa, no corrige. Cambiar la hora del telefono es cosa de su dueno y se
+     hace en los ajustes del sistema; la app no puede ni debe tocarla.
+   - Una sola vez por sesion. El dato llega apenas hay conexion y se repite
+     cada reconexion: un cartel por cada tunel de ascensor seria insoportable
+     y terminaria ignorandose justo el dia que importa.
+   - Sin conexion no dice nada y todo sigue funcionando: no hay con que
+     comparar, y trabajar sin senal es lo normal aca. */
+const DESFASAJE_AVISA_MS = 120000;      /* 2 minutos */
+let relojAvisado = false;
+
+function vigilarRelojDelEquipo(){
+  if(!fbDb) return;
+  try{
+    fbDb.ref('.info/serverTimeOffset').on('value', s => {
+      const off = Number(s.val());
+      if(relojAvisado || !isFinite(off) || Math.abs(off) < DESFASAJE_AVISA_MS) return;
+      relojAvisado = true;
+      avisarRelojDesfasado(off);
+    }, () => {});
+  }catch(e){ console.warn('reloj', e); }
+}
+
+function avisarRelojDesfasado(off){
+  const hh = d => String(d.getHours()).padStart(2,'0') + ':' +
+                  String(d.getMinutes()).padStart(2,'0');
+  const min = Math.round(Math.abs(off) / 60000);
+  const sentido = off > 0 ? 'atrasado' : 'adelantado';
+  const txt = 'El reloj de este equipo está ' + min + ' minuto' + (min === 1 ? '' : 's') +
+              ' ' + sentido + '. Corregilo en los ajustes antes de registrar el acto.';
+  /* Sin ventana a mano -el cartel puede llegar antes que la pantalla- queda
+     el aviso corto, que es mejor que perder el dato. */
+  if(!$('#modal')){ toast(txt, 'err'); return; }
+  abrirModal('Revisá la hora de este equipo',
+    '<div class="aviso warn">' + ico('reloj') + '<div><b>' + esc(txt) + '</b><br>' +
+      'Son las ' + hh(new Date(Date.now() + off)) + ' y este equipo marca las ' +
+      hh(new Date()) + '.<br>Las horas de la ficha —inicio de anestesia, incisión, ' +
+      'cada droga— se guardan con el reloj de este equipo, así que una hora mal ' +
+      'puesta queda firmada en el acto y en la facturación por tiempo.<br>' +
+      '<span class="mini">La app no cambia la hora sola: se corrige en los ajustes ' +
+      'del teléfono. Este aviso aparece una vez por sesión.</span></div></div>',
+    '<button class="btn pri" data-cerrar>Entendido</button>');
 }
 
 /* ---- Pase de acceso a la nube ----
