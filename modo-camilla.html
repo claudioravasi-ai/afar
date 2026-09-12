@@ -511,8 +511,16 @@ function chartSVG(paper){
   filas.forEach(([rot,k,yy])=>{
     s+=`<text x="2" y="${yy}" text-anchor="start" font-size="${fz}" fill="${ink}" font-family="IBM Plex Mono,monospace">${rot}</text>`;
     if(paper) s+=`<line x1="${L}" x2="${W-R}" y1="${yy+4}" y2="${yy+4}" stroke="${grid}" stroke-width="0.4"/>`;
-    S.vit.forEach(v=>{ if(v.t%15!==0 || v[k]==null) return;
-      s+=`<text x="${x(v.t)}" y="${yy}" text-anchor="middle" font-size="${fz}" fill="${paper?'#1a2b5e':'#e6f0f8'}" font-family="IBM Plex Mono,monospace">${v[k]}</text>`; });
+    /* Se escriben todos los registros que entren sin pisarse. Se recorre del
+       ultimo al primero para que el valor recien tomado se dibuje siempre:
+       antes se escribian solo los minutos redondos y el que acababa de
+       registrarse no aparecia, como si no se hubiera guardado. */
+    const hueco = paper?16:17, puestos=[];
+    S.vit.slice().reverse().forEach(v=>{ if(v[k]==null) return;
+      const X=x(v.t);
+      if(puestos.some(q=>Math.abs(q-X)<hueco)) return;
+      puestos.push(X);
+      s+=`<text x="${X}" y="${yy}" text-anchor="middle" font-size="${fz}" fill="${paper?'#1a2b5e':'#e6f0f8'}" font-family="IBM Plex Mono,monospace">${v[k]}</text>`; });
   });
   return s+'</svg>';
 }
@@ -547,9 +555,9 @@ const P = {
     let h = `<div class="blk"><div class="lb"><span>Hitos · tocar guarda la hora</span></div><div class="hitos">`+
       HITOS.map(([k,g,n])=>`<button class="hito ${S.hitos[k]!=null?'on':''}" data-hito="${k}"><span class="g">${g}</span><span class="n">${n||t.va}</span><span class="t">${S.hitos[k]!=null?hhmm(S.hitos[k]):'tocar'}</span></button>`).join('')+
       `<button class="hito" data-hito="pos"><span class="g">⤢</span><span class="n">Posición</span><span class="t" style="color:#e6f0f8">${S.pos}</span></button></div></div>`;
-    h += `<div class="chart-ph">${chartSVG(false)}<div class="leg"><span><b style="color:var(--p-rose)">v</b> TAS</span><span><b style="color:var(--p-rose)">^</b> TAD</span><span><b style="color:var(--p-aqua)">•</b> FC</span><span>SpO₂ y EtCO₂ en números, debajo</span></div></div>`;
+    h += `<div class="chart-ph">${chartSVG(false)}<div class="leg"><span><b style="color:var(--p-rose)">v</b> TAS</span><span><b style="color:var(--p-rose)">^</b> TAD</span><span><b style="color:var(--p-aqua)">•</b> FC</span><span>SpO₂ y EtCO₂ en números, debajo del gráfico</span></div></div>`;
     const vv=[['tas','TAS'],['tad','TAD'],['fc','FC'],['spo2','SpO₂'],['etco2','EtCO₂']];
-    h += `<div class="blk"><div class="lb"><span>Signos · próximo ${hhmm(S.clock)}</span><span>cada 5 min</span></div><div class="vit">`+
+    h += `<div class="blk"><div class="lb"><span>Signos · próximo ${hhmm(S.clock)}</span><span>los 5 juntos</span></div><div class="vit">`+
       vv.map(([k,n])=>`<div class="v"><span>${n}</span><b>${S.cur[k]}</b><div class="pm"><button data-dv="${k}" data-d="-1" aria-label="bajar ${n}">−</button><button data-dv="${k}" data-d="1" aria-label="subir ${n}">+</button></div></div>`).join('')+
       `</div><button class="reg" id="btnReg">Registrar ${hhmm(S.clock)}<small>si no cambió nada, es solo este toque</small></button></div>`;
     h += `<div class="blk"><div class="lb"><span>Drogas frecuentes · ${t.n}</span></div><div class="chips">`+
