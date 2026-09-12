@@ -208,6 +208,8 @@ footer{padding:28px 0 56px;border-top:1px solid var(--rule);color:var(--ink-3);f
 .hito.on .t{color:var(--p-aqua)}
 .chart-ph{background:var(--p-s);border-radius:12px;padding:6px 6px 2px}
 .chart-ph svg{width:100%;height:auto;display:block}
+.leg{display:flex;flex-wrap:wrap;gap:4px 12px;padding:4px 6px 6px;font-size:11px;color:var(--p-dim)}
+.leg b{font-family:var(--mono);font-size:12px}
 .vit{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .v{background:var(--p-s);border-radius:10px;padding:5px 2px 4px;display:grid;justify-items:center;gap:1px}
 .v span{font-size:10.5px;color:var(--p-dim);font-weight:600}
@@ -472,20 +474,25 @@ function toast(msg, warn){
 
 /* ---------------- grafico (telefono y hoja) ---------------- */
 function chartSVG(paper){
-  const W = paper?690:320, H = paper?250:168, L = paper?44:28, R=6, T = paper?18:16, B = paper?20:16;
+  const W = paper?690:320, L = paper?46:32, R=6, T = paper?18:16;
+  const GH = paper?250:168;            /* alto del area del grafico */
+  const RB = paper?36:32;              /* dos renglones: SpO2 y EtCO2, como en la hoja */
+  const B  = paper?20:16;              /* franja de las horas */
+  const H  = GH + RB;
   const t0=480, t1=Math.max(600, Math.ceil((S.clock+10)/15)*15);
-  const x=t=>L+(t-t0)/(t1-t0)*(W-L-R), y=v=>T+(220-v)/(220-40)*(H-T-B);
+  const x=t=>L+(t-t0)/(t1-t0)*(W-L-R), y=v=>T+(220-v)/(220-40)*(GH-T-B);
   const ink = paper?'#26408b':'#8ea6bd', grid = paper?'#b7c2e0':'#1f3a57', fc = paper?'#26408b':'#2dd4bf', ta = paper?'#26408b':'#fb7185', md=paper?'#26408b':'#fbbf24';
-  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico de tensión arterial y frecuencia cardíaca">`;
+  const fz = paper?10:8;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico de tensión arterial y frecuencia cardíaca, con oximetría y capnografía debajo">`;
   const step = paper?10:20;
   for(let v=40; v<=220; v+=step){ s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="${grid}" stroke-width="${v%40===0?0.8:0.4}"/>`;
-    if(v%40===0) s+=`<text x="${L-4}" y="${y(v)+3}" text-anchor="end" font-size="${paper?10:8}" fill="${ink}" font-family="IBM Plex Mono,monospace">${v}</text>`; }
+    if(v%40===0) s+=`<text x="${L-4}" y="${y(v)+3}" text-anchor="end" font-size="${fz}" fill="${ink}" font-family="IBM Plex Mono,monospace">${v}</text>`; }
   for(let t=t0; t<=t1; t+= (paper?5:15)){ const major = t%15===0;
-    s+=`<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H-B}" stroke="${grid}" stroke-width="${major?0.8:0.4}"/>`;
-    if(t%30===0) s+=`<text x="${x(t)}" y="${H-4}" text-anchor="middle" font-size="${paper?10:8}" fill="${ink}" font-family="IBM Plex Mono,monospace">${hhmm(t)}</text>`; }
+    s+=`<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${GH-B}" stroke="${grid}" stroke-width="${major?0.8:0.4}"/>`;
+    if(t%30===0) s+=`<text x="${x(t)}" y="${GH-4}" text-anchor="middle" font-size="${fz}" fill="${ink}" font-family="IBM Plex Mono,monospace">${hhmm(t)}</text>`; }
   const hg = {ia:'✕', io:'⊙', fa:'⊗'};
   for(const k in hg){ const t=S.hitos[k]; if(t==null) continue;
-    s+=`<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H-B}" stroke="${ink}" stroke-dasharray="2 3" stroke-width="0.8"/><text x="${x(t)}" y="${T-4}" text-anchor="middle" font-size="${paper?12:10}" fill="${paper?ink:'#e6f0f8'}">${hg[k]}</text>`; }
+    s+=`<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${GH-B}" stroke="${ink}" stroke-dasharray="2 3" stroke-width="0.8"/><text x="${x(t)}" y="${T-4}" text-anchor="middle" font-size="${paper?12:10}" fill="${paper?ink:'#e6f0f8'}">${hg[k]}</text>`; }
   const pts = k => S.vit.map(v=>`${x(v.t)},${y(v[k])}`).join(' ');
   if(!paper){ s+=`<polyline points="${pts('tas')}" fill="none" stroke="${ta}" stroke-opacity=".35" stroke-width="1"/><polyline points="${pts('tad')}" fill="none" stroke="${ta}" stroke-opacity=".35" stroke-width="1"/><polyline points="${pts('fc')}" fill="none" stroke="${fc}" stroke-opacity=".35" stroke-width="1"/>`; }
   const z = paper?3.2:2.6;
@@ -496,7 +503,17 @@ function chartSVG(paper){
     s+=`<circle cx="${X}" cy="${y(v.fc)}" r="${paper?2.2:2}" fill="${fc}"/>`;
     if(paper) s+=`<path d="M${X-2.4} ${y(m)-2.4} L${X+2.4} ${y(m)+2.4} M${X+2.4} ${y(m)-2.4} L${X-2.4} ${y(m)+2.4}" stroke="${md}" stroke-width="1"/>`;
   });
-  if(!paper) s+=`<line x1="${x(S.clock)}" x2="${x(S.clock)}" y1="${T}" y2="${H-B}" stroke="#2dd4bf" stroke-width="1.2"/>`;
+  if(!paper) s+=`<line x1="${x(S.clock)}" x2="${x(S.clock)}" y1="${T}" y2="${GH-B}" stroke="#2dd4bf" stroke-width="1.2"/>`;
+  /* Los dos renglones de numeros de la hoja: no van en el grafico, van debajo.
+     Se escriben cada 15 minutos para que entren en la pantalla del telefono. */
+  const filas = [[paper?'SpO₂ %':'SpO₂','spo2', GH + (paper?14:13)], [paper?'EtCO₂ mmHg':'EtCO₂','etco2', GH + (paper?31:28)]];
+  s+=`<line x1="${L}" x2="${W-R}" y1="${GH+2}" y2="${GH+2}" stroke="${grid}" stroke-width="0.8"/>`;
+  filas.forEach(([rot,k,yy])=>{
+    s+=`<text x="2" y="${yy}" text-anchor="start" font-size="${fz}" fill="${ink}" font-family="IBM Plex Mono,monospace">${rot}</text>`;
+    if(paper) s+=`<line x1="${L}" x2="${W-R}" y1="${yy+4}" y2="${yy+4}" stroke="${grid}" stroke-width="0.4"/>`;
+    S.vit.forEach(v=>{ if(v.t%15!==0 || v[k]==null) return;
+      s+=`<text x="${x(v.t)}" y="${yy}" text-anchor="middle" font-size="${fz}" fill="${paper?'#1a2b5e':'#e6f0f8'}" font-family="IBM Plex Mono,monospace">${v[k]}</text>`; });
+  });
   return s+'</svg>';
 }
 
@@ -530,9 +547,9 @@ const P = {
     let h = `<div class="blk"><div class="lb"><span>Hitos · tocar guarda la hora</span></div><div class="hitos">`+
       HITOS.map(([k,g,n])=>`<button class="hito ${S.hitos[k]!=null?'on':''}" data-hito="${k}"><span class="g">${g}</span><span class="n">${n||t.va}</span><span class="t">${S.hitos[k]!=null?hhmm(S.hitos[k]):'tocar'}</span></button>`).join('')+
       `<button class="hito" data-hito="pos"><span class="g">⤢</span><span class="n">Posición</span><span class="t" style="color:#e6f0f8">${S.pos}</span></button></div></div>`;
-    h += `<div class="chart-ph">${chartSVG(false)}</div>`;
+    h += `<div class="chart-ph">${chartSVG(false)}<div class="leg"><span><b style="color:var(--p-rose)">v</b> TAS</span><span><b style="color:var(--p-rose)">^</b> TAD</span><span><b style="color:var(--p-aqua)">•</b> FC</span><span>SpO₂ y EtCO₂ en números, debajo</span></div></div>`;
     const vv=[['tas','TAS'],['tad','TAD'],['fc','FC'],['spo2','SpO₂'],['etco2','EtCO₂']];
-    h += `<div class="blk"><div class="lb"><span>Signos · próximo ${hhmm(S.clock)}</span><span>v ^ •</span></div><div class="vit">`+
+    h += `<div class="blk"><div class="lb"><span>Signos · próximo ${hhmm(S.clock)}</span><span>cada 5 min</span></div><div class="vit">`+
       vv.map(([k,n])=>`<div class="v"><span>${n}</span><b>${S.cur[k]}</b><div class="pm"><button data-dv="${k}" data-d="-1" aria-label="bajar ${n}">−</button><button data-dv="${k}" data-d="1" aria-label="subir ${n}">+</button></div></div>`).join('')+
       `</div><button class="reg" id="btnReg">Registrar ${hhmm(S.clock)}<small>si no cambió nada, es solo este toque</small></button></div>`;
     h += `<div class="blk"><div class="lb"><span>Drogas frecuentes · ${t.n}</span></div><div class="chips">`+
