@@ -127,12 +127,30 @@ function pintarPasoAnestesia(f){
         : '<br><span class="mini">Cargá antes la cirugía y el diagnóstico en el paso Paciente.</span>')+
     '</div></div>';
 
+  /* MODO CAMILLA: la pantalla del acto por defecto, igual a la maqueta del
+     teléfono. Escribe en el mismo acto. Ver camilla.js */
+  if(vistaActoEsCamilla()){
+    $('#fiCuerpo').innerHTML = tarjetaVal + avisoConsent +
+      '<div id="actoCuerpo"></div><div class="autoguarda-acto no-print" id="acAviso"></div>';
+    $('#actoCuerpo').innerHTML = htmlCamilla(f);
+    cablearCamilla(f);
+    if(tarjetaVal) cablearValoracionExterna(f);
+    if($('#acConsentAhora')) $('#acConsentAhora').onclick = () => abrirConsentimientoModal(f);
+    if(!sinDueno) cablearAutoguardadoActo();
+    if(typeof refrescarFaltantes === 'function') refrescarFaltantes();
+    return;
+  }
+
   $('#fiCuerpo').innerHTML = tarjetaVal + avisoConsent +
     '<div class="acto-solapas no-print">'+ SOLAPAS_ACTO.map(s =>
       '<button type="button" class="'+(solapaActo===s[0]?'on':'')+'" data-asolapa="'+s[0]+'">'+
         ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
         esc(s[2])+(cuenta[s[0]] ? '<span class="badge">'+cuenta[s[0]]+'</span>' : '')+
-      '</button>').join('') +'</div>'+
+      '</button>').join('') +
+      '<button type="button" id="acACamilla" data-lectura>'+ico('monitor')
+        .replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
+        'Modo camilla</button>'+
+    '</div>'+
     '<div id="actoCuerpo"></div>'+
     '<div class="autoguarda-acto no-print" id="acAviso"></div>';
 
@@ -143,6 +161,12 @@ function pintarPasoAnestesia(f){
     pintarPasoAnestesia(fichaActual);
   });
 
+  if($('#acACamilla')) $('#acACamilla').onclick = () => {
+    fichaActual.acto = leerPasoAnestesia();
+    autoguardarActo(true);
+    fijarVistaActo('camilla');
+    pintarPasoAnestesia(fichaActual);
+  };
   const c = $('#actoCuerpo');
   if(solapaActo === 'resumen'){ c.innerHTML = htmlActoResumen(f); cablearActoResumen(f); }
   else if(solapaActo === 'drogas'){ c.innerHTML = htmlActoDrogas(f); cablearActoDrogas(f); }
@@ -847,6 +871,7 @@ function abrirDroga(nombre, indiceEdicion){
     fichaActual.acto.drogas.sort((a,b) => (a.hora||'') < (b.hora||'') ? -1 : 1);
     cerrarModal();
     pintarPasoAnestesia(fichaActual);
+    autoguardarActo(true);          /* un botón no dispara input ni change */
     toast(editando ? 'Dosis actualizada.' : fa.n+' registrado.', 'ok');
   };
 }
@@ -930,9 +955,13 @@ function htmlActoVitales(f){
 
   htmlVitalesNormales(f)+
 
-  '<button class="btn pri grande" id="svNuevo">'+ico('mas')+' Registrar control</button>'+
-  '<div class="ayuda">Usá este botón cuando los signos vitales <b>estén alterados</b> o quieras '+
-    'cargar un control a mano. Para el control horario sin novedad, el botón verde de arriba.</div>'+
+  '<div class="btn-row sv-botones">'+
+    '<button class="btn pri grande" id="svNuevo">'+ico('mas')+' Registrar control</button>'+
+    '<button class="btn aqua grande" id="svTrazar">'+ico('editar')+' Dibujar las curvas</button>'+
+  '</div>'+
+  '<div class="ayuda"><b>Registrar control</b>: número a número, cuando algo se sale de lo normal. '+
+    '<b>Dibujar las curvas</b>: con el dedo, el lápiz o el mouse, cuando tengas un momento —también '+
+    'al final del acto—; la app lee la curva cada 5, 10 o 15 minutos.</div>'+
 
   (ult ? '<div class="card ultimo-control"><h3>'+ico('monitor')+'Último control · '+esc(ult.hora||'')+'</h3>'+
     '<div class="vitales-grid">'+ COLS_VITALES.map(c =>
@@ -950,10 +979,12 @@ function htmlActoVitales(f){
           '<br><span class="col-def">'+esc(c.d)+'</span>'+
           (c.um?'<br><span class="mini">'+c.um+'</span>':'')+'</th>').join('')+
         '<th></th></tr></thead><tbody>'+
-        ctrls.map(c => '<tr data-ctrl="'+esc(c.id)+'"'+(c.preset?' class="auto"':'')+'>'+
+        ctrls.map(c => '<tr data-ctrl="'+esc(c.id)+'"'+(c.preset || (c.trazo||[]).length ?' class="auto"':'')+'>'+
           '<td><b>'+esc(c.hora||'—')+'</b>'+
             (c.preset ? '<span class="marca" title="Cargado con el preseteado de valores '+
-              'normales para este paciente">NORMAL</span>' : '')+'</td>'+
+              'normales para este paciente">NORMAL</span>' : '')+
+            ((c.trazo||[]).length ? '<span class="marca" title="Valores leídos de la curva dibujada: '+
+              esc(c.trazo.map(k => (tzParam(k) || {}).t || k).join(', '))+'">TRAZO</span>' : '')+'</td>'+
           COLS_VITALES.map(col => '<td class="num">'+esc(valorVital(c, col.k) || '—')+'</td>').join('')+
           '<td><button type="button" class="ico-btn danger" data-svdel="'+esc(c.id)+'">'+ico('borrar')+'</button></td>'+
         '</tr>').join('')+
@@ -1088,6 +1119,9 @@ function cablearVitalesNormales(f){
     });
     fichaActual.acto.controles.sort((a,b) => (a.hora||'') < (b.hora||'') ? -1 : 1);
     pintarPasoAnestesia(fichaActual);
+    /* Un botón no dispara «input» ni «change»: sin esto el control quedaba
+       sin grabar hasta tocar otro campo o cambiar de solapa. */
+    autoguardarActo(true);
     toast(n === 1 ? 'Control normal registrado.' : n+' controles normales registrados.', 'ok');
   };
 
@@ -1149,7 +1183,9 @@ function cablearVitalesNormales(f){
 
 function valorVital(c, k){
   if(!c) return '';
-  if(k === 'ta')  return (c.tas && c.tad) ? c.tas+'/'+c.tad : '';
+  /* Con el trazo puede haber sistólica sin diastólica (o al revés): se
+     muestra lo que hay en vez de esconder las dos. */
+  if(k === 'ta')  return (c.tas || c.tad) ? (c.tas || '—')+'/'+(c.tad || '—') : '';
   if(k === 'pam') return pamDe(c);
   return c[k] === undefined || c[k] === '' ? '' : String(c[k]);
 }
@@ -1183,6 +1219,7 @@ function alertasVitales(ctrls){
 function cablearActoVitales(f){
   cablearVitalesNormales(f);
   $('#svNuevo').onclick = () => abrirControl(null);
+  if($('#svTrazar')) $('#svTrazar').onclick = abrirTrazoVitales;
   $$('#actoCuerpo [data-ctrl]').forEach(tr => tr.onclick = e => {
     if(e.target.closest('[data-svdel]')) return;
     abrirControl(tr.dataset.ctrl);
@@ -1193,6 +1230,7 @@ function cablearActoVitales(f){
     fichaActual.acto.controles = (fichaActual.acto.controles||[])
       .filter(c => c.id !== b.dataset.svdel);
     pintarPasoAnestesia(fichaActual);
+    autoguardarActo(true);
   });
   if($('#svGrafico')) $('#svGrafico').onclick = abrirGraficoVitales;
 }
@@ -1300,6 +1338,11 @@ function abrirControl(id){
       tof: textoTOF({ tofC, tofR }),
       obs: val('svObs')
     };
+    /* Si el control venía del trazo, la marca TRAZO se queda sólo en los
+       valores que no se tocaron: lo que se corrigió a mano pasa a ser tipeado. */
+    const tz = (c.trazo || []).filter(k => String(c[k] || '') === String(reg[k] || ''));
+    if(tz.length) reg.trazo = tz;
+    if(c.origen) reg.origen = c.origen;
     if(!reg.hora) return toast('Cargá la hora del control.', 'err');
     fichaActual.acto = leerPasoAnestesia();
     fichaActual.acto.controles = fichaActual.acto.controles || [];
@@ -1309,6 +1352,7 @@ function abrirControl(id){
     fichaActual.acto.controles.sort((a,b) => (a.hora||'') < (b.hora||'') ? -1 : 1);
     cerrarModal();
     pintarPasoAnestesia(fichaActual);
+    autoguardarActo(true);
     toast('Control registrado.', 'ok');
   };
 }
@@ -1808,6 +1852,7 @@ function abrirEvento(id, tipoSugerido){
     fichaActual.acto.sinEventos = false;
     cerrarModal();
     pintarPasoAnestesia(fichaActual);
+    autoguardarActo(true);
     toast('Evento registrado.', 'ok');
   };
 }

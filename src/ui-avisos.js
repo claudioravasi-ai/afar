@@ -194,7 +194,8 @@ function avisarBajaInminente(f, b){
   base.bajaProgramada = Object.assign({}, b, { avisado: new Date().toISOString() });
   escribir('fichas', f.id, base);
 
-  if(typeof sonidoAvisosOn === 'function' && sonidoAvisosOn()) tocarAlarmaBaja();
+  /* La baja de una incompleta avisa con sonido siempre: la pidió quien la cargó */
+  if(b.alarmaMin || (typeof sonidoAvisosOn === 'function' && sonidoAvisosOn())) tocarAlarmaBaja();
 
   abrirModal('La ficha se va a borrar sola',
     '<div class="aviso danger">'+ico('alerta')+'<div><b>Faltan '+min+' minuto'+(min===1?'':'s')+
@@ -220,7 +221,7 @@ function revisarBajasProgramadas(){
     /* La alarma es para quien la pidió: es quien puede detenerla y quien se
        equivocó. La coordinación la ve en la ficha, sin alarma. */
     const mia = SESION && b.pedidaPor === SESION.uid;
-    if(mia && min <= MINUTOS_ALARMA_BAJA && !b.avisado &&
+    if(mia && min <= (b.alarmaMin || MINUTOS_ALARMA_BAJA) && !b.avisado &&
        !($('#modal') && $('#modal').classList.contains('on')))
       avisarBajaInminente(f, b);
   });
@@ -447,17 +448,17 @@ function calcularAvisos(){
         titulo:'Sin responder hace ' + hs + ' h — ' + h.asunto,
         detalle: nombreParticipante(u.uid) + ' escribió y todavía no contestaste.' +
                  '\n«' + String(u.texto||'').slice(0,160) + '»',
-        accion: () => abrirHilo(h.id) });
+        accion: () => abrirHilo(h.id), desde: u.cuando });
     } else if(miReclamoSinRespuesta(h)){
       av.push({ nivel:'warn', icono:'reloj', orden:2,
         titulo:'Tu reclamo lleva ' + hs + ' h sin respuesta — ' + h.asunto,
         detalle:'Nadie contestó desde tu último mensaje. Podés insistir o darlo por resuelto.',
-        accion: () => abrirHilo(h.id) });
+        accion: () => abrirHilo(h.id), desde: u.cuando });
     } else if(hiloNoLeido(h)){
       av.push({ nivel:'info', icono:'correo', orden:3,
         titulo:'Mensaje nuevo — ' + h.asunto,
         detalle: nombreParticipante(u.uid) + ': «' + String(u.texto||'').slice(0,160) + '»',
-        accion: () => abrirHilo(h.id) });
+        accion: () => abrirHilo(h.id), desde: u.cuando });
     }
   });
 
@@ -685,6 +686,7 @@ function calcularAvisos(){
       accion: abrirSincronizacion });
   }
 
+  if(typeof avisosExtra === 'function') avisosExtra(av, fichas);
   return av.sort((a,b) => a.orden - b.orden);
 }
 
@@ -695,6 +697,7 @@ function conteoAvisos(){
 
 /* --------------------------------------------------- Panel de avisos -- */
 function abrirAvisos(){
+  if(typeof marcarAvisosLeidos === 'function') marcarAvisosLeidos();
   const av = calcularAvisos();
   const cuerpo = av.length
     ? av.map((a,i) =>

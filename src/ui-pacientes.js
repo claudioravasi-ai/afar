@@ -26,22 +26,34 @@ let alcancePac = 'mios';     /* mios | padron | precargas */
    intervenga. El selector de paciente del paso 1 tambien ve el padron
    entero, por la misma razon.
    ========================================================================= */
+/* Desde las tres etapas un paciente puede existir sin ficha todavía: el que
+   se cargó en la etapa 1, o al que se le fotografió la ficha en papel. Quien
+   lo cargó ya leyó su historia, así que cuenta como interviniente; si no, no
+   lo encontraba en «Mis pacientes» ni podía abrir el PDF que acababa de subir. */
+function cargueYo(p){
+  return !!SESION && !!p && (p.ownerUid === SESION.uid ||
+    (p.fichasExternas || []).some(x => x.porUid === SESION.uid) ||
+    lista('consultas').some(c => c.pacienteId === p.id && c.ownerUid === SESION.uid));
+}
 function pacientesMios(){
   if(esCoordinador()) return misPacientes();
   const ids = {};
   misFichas().forEach(f => { if(f.pacienteId) ids[f.pacienteId] = true; });
-  return misPacientes().filter(p => ids[p.id]);
+  return misPacientes().filter(p => ids[p.id] || cargueYo(p));
 }
 function intervineEn(p){
   if(esCoordinador()) return true;
-  return misFichas().some(f => f.pacienteId === p.id);
+  return cargueYo(p) || misFichas().some(f => f.pacienteId === p.id);
 }
 
 function vistaPacientes(){
   const cont = $('#vPacientes');
   const padron = misPacientes();
   const propios = pacientesMios();
-  const todos = (alcancePac === 'padron' ? padron : propios).sort((a,b) =>
+  /* Los pacientes cargados sólo para una consulta no quirúrgica no se listan: aparecen al buscarlos */
+  const buscando = !!norm(filtroPac).trim();
+  const todos = (alcancePac === 'padron' ? padron : propios)
+    .filter(p => buscando || !(typeof esSoloConsulta === 'function' && esSoloConsulta(p))).sort((a,b) =>
     (a.apellido+a.nombre).localeCompare(b.apellido+b.nombre, 'es'));
   const q = norm(filtroPac).trim();
   /* cada palabra tipeada debe aparecer en algún dato del paciente, así
@@ -120,6 +132,7 @@ function vistaPacientes(){
                  ({F:' · femenino',M:' · masculino',X:' · X'}[p.sexo] || '')+
                  (p.localidad ? ' · '+esc(p.localidad) : ''))+'</span></div>'+
         '<div class="der">'+
+          (typeof esSoloConsulta === 'function' && esSoloConsulta(p) ? '<span class="tag info">consulta no quirúrgica</span> ' : '')+
           (mio
             ? (alergias.length ? '<span class="tag danger" title="'+esc(alergias.join(' · '))+'">Alergias</span> ' : '')+
               '<span class="tag'+(fichas.length?' aqua':'')+'">'+fichas.length+' ficha'+(fichas.length===1?'':'s')+'</span>'+
@@ -340,7 +353,7 @@ function abrirPacienteDelPadron(id){
 /* =========================================================================
    ALTA / EDICION - historia completa en cuatro solapas
    ========================================================================= */
-function editarPaciente(id, alGuardar){
+function editarPaciente(id, alGuardar, volver){
   const base = id ? JSON.parse(JSON.stringify(DB.pacientes[id] || {})) : {};
   pacEdit = Object.assign({
     antecedentes:[], antQuirurgicos:[], antAnestesicos:[], antFamiliares:[],
@@ -348,6 +361,7 @@ function editarPaciente(id, alGuardar){
   }, base);
   pacEdit.__id = id || null;
   pacEdit.__alGuardar = alGuardar || null;
+  pacEdit.__volver = volver || null;          /* adónde lleva «Cancelar» o la cruz */
   solapaPac = 'fil';
   pintarEditorPaciente();
 }
@@ -374,11 +388,20 @@ function pintarEditorPaciente(){
       '</button>').join('') +'</div>'+
     '<div id="pacCuerpo"></div>',
     '<button class="btn ghost" data-cerrar>Cancelar</button>'+
+    /* Etapa 1: con nombre, apellido, DNI y correo ya se le puede pedir al
+       paciente que complete el resto desde su casa. Sólo en el alta. */
+    /* «Guardar y enviarle la ficha» se quitó: la invitación no graba al paciente
+       hasta que él termina. Se manda desde 1 · Paciente. */
     '<button class="btn pri" id="paGuardar">'+ico('check')+' Guardar</button>', '980px');
+  if(p.__volver) alVolverModal(p.__volver);
 
   $$('#modal [data-psolapa]').forEach(b => b.onclick = () => {
     leerSolapaPaciente(); solapaPac = b.dataset.psolapa; pintarEditorPaciente();
   });
+  if($('#paGuardarMail')) $('#paGuardarMail').onclick = () => {
+    pacEdit.__enviarMail = true;
+    guardarPacienteEditado();
+  };
 
   const c = $('#pacCuerpo');
   if(solapaPac === 'fil'){ c.innerHTML = htmlPacFiliatorios(p); cablearPacFiliatorios(); }
@@ -403,6 +426,10 @@ function htmlPacFiliatorios(p){
       campoFecha('paNac','Fecha de nacimiento', p.fechaNac)+
     '</div>'+
     '<div id="paAvisoDni"></div>'+
+    (p.fechaNacEstimada && p.fechaNac === p.fechaNacEstimada
+      ? '<div class="aviso warn">'+ico('calendario')+'<div><b>Fecha de nacimiento estimada</b> a '+
+        'partir de la edad declarada en la urgencia. Corregila con el documento.</div></div>'
+      : '')+
     '<div class="grid c4">'+
       campoSel('paSexo','Sexo', [{v:'',t:'—'},{v:'F',t:'Femenino'},{v:'M',t:'Masculino'},{v:'X',t:'X / No binario'}], p.sexo)+
       campoNum('paPeso','Peso (kg)', p.peso, 'inputmode="decimal"')+
@@ -888,6 +915,10 @@ function guardarPacienteEditado(){
   leerSolapaPaciente();
   const p = pacEdit;
   const id = p.__id;
+  /* Se consume acá: si la validación de abajo frena el guardado, el próximo
+     «Guardar» común no tiene que mandar ningún mail. */
+  const enviarMail = !!p.__enviarMail;
+  delete p.__enviarMail;
   if(!p.apellido || !p.nombre){
     solapaPac = 'fil'; pintarEditorPaciente();
     return toast('Apellido y nombre son obligatorios.', 'err');
@@ -917,7 +948,7 @@ function guardarPacienteEditado(){
 
   const nid = id || uid('pac');
   const alGuardar = p.__alGuardar;
-  delete p.__id; delete p.__alGuardar;
+  delete p.__id; delete p.__alGuardar; delete p.__volver;
   const reg = Object.assign({}, p, {
     id:nid, ownerUid: p.ownerUid || SESION.uid,
     creado: p.creado || new Date().toISOString(),
@@ -932,11 +963,13 @@ function guardarPacienteEditado(){
     auditar('paciente-identificado',
       'NN de urgencia identificado como ' + reg.apellido + ', ' + reg.nombre);
   }
+  if(reg.fechaNacEstimada && reg.fechaNac !== reg.fechaNacEstimada) delete reg.fechaNacEstimada;
   escribir('pacientes', nid, reg);
   auditar(id?'paciente-editar':'paciente-alta', reg.apellido+', '+reg.nombre);
   cerrarModal();
   toast(id ? 'Historia del paciente actualizada.' : 'Paciente creado.', 'ok');
   if(vistaActual === 'pacientes') vistaPacientes();
+  if(enviarMail){ setTimeout(() => enviarFichaDesdeEtapa1(nid), 200); return; }
   if(alGuardar) alGuardar(nid);
   else if(!id) setTimeout(() => abrirPaciente(nid), 200);
 }
@@ -1034,6 +1067,8 @@ function abrirPaciente(id){
     fila('Actividad física', h.actividad || '—')+
   '</div>'+
 
+  htmlFichasExternas(p)+
+
   '<h3 class="sec-t">Fichas anestésicas ('+fichas.length+')</h3>'+
   (nubeOK && !periodoCargado('2000-01-01')
     ? '<div class="aviso info mb8">'+ico('nube')+'<div>Se listan las fichas de los últimos 90 días '+
@@ -1062,6 +1097,7 @@ function abrirPaciente(id){
     : '<p class="mini">Todavía no hay fichas para este paciente.</p>');
 
   abrirModal('Paciente', cuerpo,
+    (p.telefono ? '<button class="btn ghost" id="pdWa" title="WhatsApp al paciente">'+ICO_WHATSAPP+' WhatsApp</button>' : '')+
     '<button class="btn ghost" id="pdEditar">'+ico('editar')+' Editar historia</button>'+
     '<button class="btn pri" id="pdNuevaFicha">'+ico('mas')+' Nueva ficha</button>', '980px');
 
@@ -1073,6 +1109,8 @@ function abrirPaciente(id){
       else toast('No se pudo traer el historial. Revisá la conexión.', 'err');
     });
   };
+  cablearFichasExternas(id);
+  if($('#pdWa')) $('#pdWa').onclick = () => abrirWhatsAppPaciente(p);
   $('#pdEditar').onclick = () => { cerrarModal(); setTimeout(() => editarPaciente(id), 180); };
   $('#pdNuevaFicha').onclick = () => { cerrarModal(); setTimeout(() => abrirFicha(null, id), 180); };
   $$('#modal .item[data-ficha]').forEach(it => {
@@ -1102,7 +1140,9 @@ function etiquetaEstadoFicha(f){
     esc((b.alcance === 'acto' ? 'El acto anestésico' : 'La ficha completa')+
         ' se elimina sola. Motivo: '+(b.motivo || '—'))+'">'+ico('alerta')+
     'Se borra en '+esc(textoCuentaBaja(minutosParaLaBaja(b)))+'</span>';
-  if(f.estado === 'cerrada')   return '<span class="tag ok">'+ico('check')+'Finalizada</span>';
+  if(f.estado === 'cerrada')   return (esActorFicha(f) && !(f.hon || {}).modalidad)
+    ? '<span class="tag warn">'+ico('check')+'Finalizada · honorarios pendientes</span>'
+    : '<span class="tag ok">'+ico('check')+'Finalizada</span>';
   if(f.estado === 'realizada'){
     if(!fechaCirugiaDe(f))     return '<span class="tag info">Valoración cerrada</span>';
     return (f.acto||{}).finAnestesia

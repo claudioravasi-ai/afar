@@ -16,7 +16,8 @@ const LS_NUBE_LOG = 'afar_nube_log_v1';
 /* ---------------------------------------------------------------- Estado */
 const DB = {
   usuarios:{}, pacientes:{}, fichas:{}, instituciones:{}, obrasSociales:{},
-  catalogoExtra:{}, config:{}, auditoria:{}, mensajes:{}, fiscal:{}, envios:{}
+  catalogoExtra:{}, config:{}, auditoria:{}, mensajes:{}, fiscal:{}, envios:{},
+  consultas:{}          /* interconsultas no quirúrgicas: ver consultas.js */
 };
 const COLECCIONES = Object.keys(DB);
 
@@ -300,8 +301,27 @@ function abrirModalEncima(volver, abrir){
   finally{ apilandoModal = false; }
 }
 
+/* =========================================================================
+   CERRAR ES VOLVER
+   -------------------------------------------------------------------------
+   Pedido de la asociación: quien entra a una ventana sólo para mirar tiene
+   que poder salir y quedar donde estaba. En las ventanas la cruz y
+   «Cancelar» hacen de «Volver» —no se agrega otro botón—, y si la ventana se
+   abrió desde otra, la que la abrió registra con alVolverModal() adónde
+   regresar. El cierre por código (al elegir una opción que sigue de largo)
+   no vuelve: usa cerrarModal() a secas.
+   ========================================================================= */
+let MODAL_VOLVER = null;
+function alVolverModal(fn){ MODAL_VOLVER = typeof fn === 'function' ? fn : null; }
+function cerrarModalPorUsuario(){
+  const v = MODAL_VOLVER;
+  cerrarModal();
+  if(v) setTimeout(v, 120);
+}
+
 function abrirModal(titulo, cuerpoHTML, botones, ancho){
   const m = $('#modal');
+  MODAL_VOLVER = null;
   /* Un modal que se abre por su cuenta empieza una pila nueva */
   if(!apilandoModal) PILA_MODAL = [];
   m.innerHTML =
@@ -312,7 +332,7 @@ function abrirModal(titulo, cuerpoHTML, botones, ancho){
       (botones ? '<div class="modal-foot">'+botones+'</div>' : '')+
     '</div>';
   m.classList.add('on');
-  m.onclick = e => { if(e.target === m || e.target.closest('[data-cerrar]')) cerrarModal(); };
+  m.onclick = e => { if(e.target === m || e.target.closest('[data-cerrar]')) cerrarModalPorUsuario(); };
   return m;
 }
 /* =========================================================================
@@ -339,6 +359,7 @@ function modalSinSalida(){
 
 function cerrarModal(){
   modalObligatorio = false;
+  MODAL_VOLVER = null;
   const m = $('#modal'); m.classList.remove('on'); m.innerHTML = '';
   const volver = PILA_MODAL.pop();
   if(volver) volver();

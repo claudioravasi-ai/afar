@@ -46,6 +46,12 @@
         <div class="ctx" id="tbCtx"></div>
       </div>
       <div class="spacer"></div>
+      <!-- Spotify: sólo el logo. Titila suave en «momento de relax». Ver inicio-extra.js -->
+      <button class="icon-btn spotify-btn" id="btnSpotify" title="Spotify" aria-label="Abrir Spotify">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1DB954"/>
+          <path d="M6.6 9.2c3.6-1.1 7.7-.8 10.9 1M7.2 12.3c3-.8 6.2-.5 8.8.9M7.8 15.2c2.4-.6 4.8-.4 6.8.7"
+                fill="none" stroke="#06110a" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
       <button class="chip-nube" id="chipNube" title="Estado de la sincronización">
         <span class="dot"></span><span id="chipNubeTxt">Local</span>
       </button>
@@ -70,6 +76,9 @@
   <div class="layout">
     <nav class="sidebar" id="sidebar"></nav>
     <main>
+      <!-- «← Volver a …»: vive fuera de las vistas para no borrarse cuando
+           una pantalla se repinta. Ver pintarBarraVolver() en app.js -->
+      <div id="barraVolver" class="barra-volver no-print" style="display:none"></div>
       <section class="vista on" id="vPanel"></section>
       <section class="vista" id="vPacientes"></section>
       <!-- Solo el enlace del portal de precarga: direccion, QR, cartel y

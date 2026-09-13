@@ -237,7 +237,7 @@ function enviarDocumentacionPaciente(f){
   if(!consentimientoCompleto(f))
     return toast('Falta completar el punto 11: el consentimiento informado.', 'warn');
   if(!f.valoracionGuardada)
-    return toast('Guardá primero la valoración con el botón «Guardar valoración».', 'warn');
+    return toast('Guardá primero la valoración con el botón «Cerrar y guardar».', 'warn');
 
   /* El correo se pide acá y se guarda en la historia, en vez de apagar el
      botón y mandar a la persona a otra pantalla. */

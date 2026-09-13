@@ -94,8 +94,19 @@ function refPrecargaFoto(token){
 }
 
 function tokenDeLaUrlPrecarga(){
-  const m = String(location.hash || '').match(/^#pre=([a-z0-9]{20,64})$/i);
+  const m = String(location.hash || '').match(/^#pre=([a-z0-9]{20,64})(?:&d=[A-Za-z0-9_-]+)?$/i);
   return m ? m[1] : '';
+}
+/* Los datos que trae el enlace de una invitación del anestesiólogo (ver
+   enviarInvitacionPrecarga en etapas.js). No hay nada en la base hasta que el
+   paciente finaliza. */
+function invitacionDeLaUrl(){
+  const m = String(location.hash || '').match(/&d=([A-Za-z0-9_-]+)$/);
+  if(!m) return null;
+  try{
+    const b = m[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4)))));
+  }catch(e){ return null; }
 }
 
 function esModoPrecarga(){
@@ -134,6 +145,18 @@ function arrancarPrecarga(){
     .then(() => refPrecarga(token).once('value'))
     .then(sn => {
       const d = sn.val();
+      const inv = invitacionDeLaUrl();
+      if(!d && inv){
+        if(inv.v && inv.v < hoyISO()) return errorPrecarga('Este enlace venció el ' + fFecha(inv.v) +
+          '. Pídale a su anestesiólogo/a que le mande uno nuevo.');
+        precargaActual = { token, dni:inv.dni || '', email:inv.e || '', estado:'borrador', invitacion:true,
+          creado:new Date().toISOString(), vence:inv.v || fechaMasDias(hoyISO(), PRECARGA_DIAS),
+          invitadoPor:inv.p || '', datos:{ apellido:inv.a || '', nombre:inv.n || '', dni:inv.dni || '', email:inv.e || '' } };
+        precargaTicket = null; precargaTicketGuardado = null;
+        precargaSel = { antecedentes:[], quirurgicos:[], anestesicos:[], familiares:[], medicacion:[], alergias:[] };
+        precargaPaso = 'datos';
+        return pintarPrecarga();
+      }
       if(!d) return errorPrecarga('Este enlace no es válido o ya fue dado de baja. '+
         'Podés empezar de nuevo desde la página de precarga.');
       if(d.vence && d.vence < hoyISO()) return errorPrecarga('Este enlace venció el ' +
@@ -453,6 +476,8 @@ function leerPrecargaTurno(){
    mitad, vuelve con el mismo enlace y encuentra lo cargado. */
 function guardarBorradorPrecarga(){
   if(!precargaActual || !fbDb) return Promise.resolve();
+  /* La invitación no deja nada en la base hasta que el paciente finaliza */
+  if(precargaActual.invitacion) return Promise.resolve();
   const p = [refPrecarga(precargaActual.token).update({
     datos: precargaActual.datos || {},
     salud: precargaActual.salud || {},
@@ -492,8 +517,13 @@ function finalizarPrecarga(){
       'cambian el manejo de su anestesia.</p>',
     () => {
       toast('Enviando…');
+      const inv = !!precargaActual.invitacion;
       guardarBorradorPrecarga().then(() =>
-      refPrecarga(precargaActual.token).update({
+      refPrecarga(precargaActual.token)[inv ? 'set' : 'update'](Object.assign(inv ? {
+        token: precargaActual.token, dni: (precargaActual.datos || {}).dni || precargaActual.dni || '',
+        email: (precargaActual.datos || {}).email || precargaActual.email || '',
+        creado: precargaActual.creado, vence: precargaActual.vence, invitadoPor: precargaActual.invitadoPor || ''
+      } : {}, {
         datos: precargaActual.datos || {},
         salud: precargaActual.salud || {},
         turno: t,
@@ -506,8 +536,9 @@ function finalizarPrecarga(){
         estado: 'enviada',
         enviada: new Date().toISOString(),
         purga: fechaMasDias(t.fecha, PRECARGA_PURGA)
-      }))
-      .then(() => { precargaActual.estado = 'enviada'; precargaPaso = 'fin'; pintarPrecarga(); })
+      })))
+      .then(() => (inv && precargaTicket ? refPrecargaFoto(precargaActual.token).set(precargaTicket) : null))
+      .then(() => { precargaActual.estado = 'enviada'; precargaActual.invitacion = false; precargaPaso = 'fin'; pintarPrecarga(); })
       .catch(e => {
         console.warn('finalizar precarga', e);
         toast('No se pudo enviar. Revisá la conexión y probá otra vez.', 'err');

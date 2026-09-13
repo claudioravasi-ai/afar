@@ -41,6 +41,8 @@ JS_FILES = [
     'ui-valoracion.js',
     'ui-ficha.js',
     'ui-intra.js',
+    'trazo-vitales.js',
+    'camilla.js',
     'ui-stats.js',
     'ui-facturacion.js',
     'ui-coordinador.js',
@@ -56,6 +58,10 @@ JS_FILES = [
     'precarga.js',
     'pase.js',
     'ui-envios.js',
+    'envio-lote.js',
+    'consultas.js',
+    'etapas.js',
+    'inicio-extra.js',
     'app.js',
 ]
 

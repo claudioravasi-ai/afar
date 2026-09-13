@@ -195,7 +195,10 @@ function enviarFichaEnBlancoAlPaciente(f){
       auditar('prellenado-enviado',
         'Ficha en blanco enviada a ' + p.email + ' (ficha ' + f.id + ')');
       toast('Enviado a ' + p.email + '. El paso Paciente queda marcado como pendiente.', 'ok');
-      pintarFicha();
+      /* Se puede mandar desde la etapa 1 del inicio, sin ninguna ficha en
+         pantalla: ahí no hay nada que repintar y pintarFicha() fallaría. */
+      if(vistaActual === 'ficha' && fichaActual && fichaActual.id === f.id) pintarFicha();
+      else if(vistaActual === 'panel') vistaPanel();
       escucharPrellenado(f);
     });
 }

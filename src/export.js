@@ -287,6 +287,7 @@ function documentoFicha(f, opts){
     par('Accesos vasculares', pl.accesos)+
     par('Profilaxis antibiótica', pl.atb === 'Otro' ? pl.atbOtro : pl.atb)+
     par('Tromboprofilaxis', pl.tev) + par('Profilaxis de NVPO', pl.nvpo)+
+    par('Premedicación', pl.premedicacion) + par('Premedicación: dosis, vía y horario', pl.premedicacionDetalle)+
 
     par('Previsión transfusional', pl.transfusion) + par('Destino postoperatorio', pl.destino)+
     par('Indicaciones al paciente', pl.indicaciones) + par('Observaciones', pl.observaciones)))+
@@ -432,6 +433,7 @@ function documentoActo(f){
                salen marcados tambien en el papel: quien lea la historia tiene
                que poder distinguir el valor tipeado del preseteado. */
             (c.preset ? ' <span style="font-size:8px;letter-spacing:.4px">NORMAL</span>' : '')+
+            ((c.trazo || []).length ? ' <span style="font-size:8px;letter-spacing:.4px">TRAZO</span>' : '')+
           '</td>'+
           '<td>'+esc(valorVital(c,'ta')||'—')+'</td>'+
           '<td>'+esc(valorVital(c,'pam')||'—')+'</td>'+
@@ -443,6 +445,9 @@ function documentoActo(f){
           ? '<p style="font-size:9.5px">Los controles marcados <b>NORMAL</b> se cargaron con el '+
             'preseteado de valores normales calculado para este paciente y confirmados por el '+
             'anestesiólogo actuante.</p>' : '')+
+        (ctrls.some(c => (c.trazo || []).length)
+          ? '<p style="font-size:9.5px">Los controles marcados <b>TRAZO</b> tienen valores leídos de la '+
+            'curva dibujada a mano por el anestesiólogo actuante sobre la grilla horaria del acto.</p>' : '')+
         (ctrls.some(c => c.tofSitio)
           ? '<p style="font-size:9.5px">TOF medido en: '+
             esc(Array.from(new Set(ctrls.map(c => c.tofSitio).filter(Boolean))).join(' · '))+
@@ -625,7 +630,7 @@ function docPacienteConsentimiento(f){
 
     ((co.items||[]).length ? seccion('Declaraciones del paciente',
       '<div class="declaraciones">'+ (co.items||[]).map(i =>
-        '<div>'+(i.indexOf('RECHAZA') === 0 ? '<b style="color:#a11">☒ '+esc(i)+'</b>'
+        '<div>'+(i.indexOf('RECHAZA') === 0 || i.indexOf('NO ACEPTA') === 0 ? '<b style="color:#a11">☒ '+esc(i)+'</b>'
                                             : '☒ '+esc(i))+'</div>').join('') +'</div>') : '')+
 
     seccion('Otorgamiento',
@@ -634,7 +639,7 @@ function docPacienteConsentimiento(f){
       par('Aclaraciones', co.observaciones)+
       par('Lugar y fecha', (nombreInstitucion(f.institucion)||'')+', '+
         fFechaLarga(co.fecha || fechaValoracionDe(f))+(co.hora ? ' — '+co.hora+' h' : ''))+
-      ((co.quien||'').indexOf('revocado') >= 0
+      (/revocado|no acepta/i.test(co.quien||'')
         ? '<div style="border:2px solid #a11;color:#a11;padding:8px;text-align:center;'+
           'font-weight:bold;margin-top:8px">CONSENTIMIENTO REVOCADO POR EL PACIENTE — '+
           'NO SE DEBE REALIZAR EL ACTO ANESTÉSICO</div>' : ''))+
@@ -954,4 +959,22 @@ function imprimirFacturacion(l, mes, tot, porOS, porInst){
     esc((u.apellido||'')+', '+(u.nombre||''))+'<br>M.P. '+esc(matriculaTxt(u.matriculaProvincial,'M.P.'))+'</div></div>';
   imprimir(html);
   auditar('export-pdf', 'Facturación '+mes);
+}
+
+
+/* Ficha completa en Word CON el consentimiento informado (pedido del 13-09-2026) */
+function exportarFichaCompletaWord(f){
+  const p = DB.pacientes[f.pacienteId] || {};
+  const consent = docPacienteConsentimiento(f);
+  const m = String(consent).match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" '+
+    'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'+
+    '<head><meta charset="utf-8"><title>Ficha anestésica completa</title>'+
+    '<style>@page{size:A4;margin:1.6cm}'+CSS_DOC+'</style></head><body>'+
+    documentoFicha(f)+
+    '<br clear="all" style="page-break-before:always">'+
+    (m ? m[1] : consent)+'</body></html>';
+  descargar('Ficha-completa-' + (p.apellido || 'paciente').replace(/\s+/g, '') + '-' + (f.fecha || hoyISO()) + '.doc',
+    '\ufeff' + html, 'application/msword;charset=utf-8');
+  auditar('export-word', 'ficha completa con consentimiento ' + f.id);
 }

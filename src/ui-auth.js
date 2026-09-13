@@ -239,7 +239,7 @@ async function enviarRegistro(){
 
 /* --------------------------------------------------------- Sesion ------ */
 function abrirSesion(u, rol){
-  SESION = { uid:u, rol };
+  SESION = { uid:u, rol, desde:new Date().toISOString() };
   USUARIO = DB.usuarios[u];
   localStorage.setItem(LS_SES, JSON.stringify(SESION));
   auditar('ingreso', 'Ingreso al portal ' + rol);
@@ -325,7 +325,8 @@ function vistaPerfil(){
       campoTxt('pfMatNac','Matrícula nacional', u.matriculaNacional)+
       campoTxt('pfMatProv','Matrícula provincial', u.matriculaProvincial)+
     '</div>'+
-    campoTxt('pfTitulo','Título / especialidad', u.titulo)+
+    '<div class="grid c2">'+campoTxt('pfTitulo','Título / especialidad', u.titulo)+
+      campoSel('pfTrato','Trato (lo usa la app al hablarte)', ['','Doctora','Doctor'], u.trato||'')+'</div>'+
     '<div class="grid c2">'+
       campoTxt('pfTel','Teléfono', u.telefono)+
       campoTxt('pfEmail','Correo electrónico', u.email, true)+
@@ -405,6 +406,7 @@ function vistaPerfil(){
     Object.assign(u, {
       apellido:g('pfApellido'), nombre:g('pfNombre'), dni:g('pfDni'), fechaNac:g('pfNac'),
       matriculaNacional:g('pfMatNac'), matriculaProvincial:g('pfMatProv'), titulo:g('pfTitulo'),
+      trato: $('#pfTrato') ? $('#pfTrato').value : (u.trato || ''),
       telefono:g('pfTel'), cuit:g('pfCuit'), condicionIva:$('#pfIva').value, domicilio:g('pfDomicilio'),
       /* Sin la tarjeta en pantalla se conserva lo que ya tenia guardado */
       instituciones: $('#pfInsts')
@@ -418,12 +420,12 @@ function vistaPerfil(){
     pintarEncabezado();
     toast('Perfil actualizado.', 'ok');
   };
-  $('#pfSalir').onclick = () => confirmar('Cerrar sesión',
-    '¿Querés salir del portal? Los datos quedan guardados.', cerrarSesion, 'Cerrar sesión');
+  $('#pfSalir').onclick = pedirSalida;
 
   /* El menú se cablea acá: pintarNavegacion() corre antes de que exista */
   $$('#vPerfil [data-ajuste]').forEach(b => b.onclick = () => irA(b.dataset.ajuste));
   $$('#vPerfil [data-compartir]').forEach(b => b.onclick = abrirCompartirIngreso);
+  $$('#vPerfil [data-envlote]').forEach(b => b.onclick = abrirEnvioLote);
 }
 
 /* Las secciones que salieron de la barra inferior para que quede igual al
@@ -461,12 +463,19 @@ function menuAjustes(){
         '<span class="n"><span class="ir">›</span></span>'+
       '</button>'
     : '';
+  const lote = (!esInvitado() && !esContable())
+    ? '<button class="fila-estado" data-envlote="1">'+
+        '<span class="ic">'+ico('enviar')+'</span>'+
+        '<span class="tx">Enviar a contaduría</span>'+
+        '<span class="n"><span class="ir">›</span></span>'+
+      '</button>'
+    : '';
   return '<div class="filas-estado">'+ filas.map(f =>
     '<button class="fila-estado'+(f[3] ? ' warn' : '')+'" data-ajuste="'+f[0]+'">'+
       '<span class="ic">'+ico(f[1])+'</span>'+
       '<span class="tx">'+esc(f[2])+'</span>'+
       '<span class="n">'+(f[3] || '<span class="ir">›</span>')+'</span>'+
-    '</button>').join('') + compartir + '</div>';
+    '</button>').join('') + lote + compartir + '</div>';
 }
 
 function verComprobante(u){

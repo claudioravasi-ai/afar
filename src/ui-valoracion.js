@@ -1359,9 +1359,7 @@ function htmlValoracion(f){
     '</div>')+
 
   /* -------- 12, 13 y 14. Plan, profilaxis y actuante -------- */
-  htmlPlan(f)+
-
-  htmlEnvioValoracion(f);
+  htmlPlan(f);
 }
 
 /* =========================================================================
@@ -1417,6 +1415,15 @@ function htmlPlan(f){
         ? '<br><span class="mini">Esta ficha tiene un esquema cargado de antes: aparece propuesto '+
           'en Recuperación para confirmarlo o cambiarlo.</span>' : '')+
       '</div></div>'+
+    /* Premedicación: pedida por la asociación (13-09-2026). Sólo el fármaco o
+       la conducta; la dosis, la vía y el horario se escriben al lado, porque
+       dependen del paciente y no se proponen solas. */
+    '<label class="mini strong mt14" style="display:block">Premedicación</label>'+
+    chksHTML('plPremed', ['Sin premedicación','Midazolam','Clonidina','Dexmedetomidina',
+      'Gabapentina / pregabalina','Anti-H2 o inhibidor de la bomba de protones','Metoclopramida',
+      'Profilaxis alérgica (antihistamínico + corticoide)','Broncodilatador inhalado',
+      'Anestésico tópico (EMLA) en pediatría'], pl.premedicacion)+
+    campoTxt('plPremedDet','Premedicación: dosis, vía y horario', pl.premedicacionDetalle)+
     '<div class="grid c2">'+
       campoSel('plDestino','Destino postoperatorio previsto', [''].concat(DESTINOS_POP), pl.destino)+
       campoSel('plTransfusion','Previsión transfusional',
@@ -1529,7 +1536,7 @@ function htmlConsentimiento(f, abierto){
 
     '<div class="grid c2 mt14">'+
       '<div class="campo"><label>Quién firma <span class="req">*</span></label>'+
-        '<select id="coQuien">'+ CONSENT_QUIEN.map(o =>
+        '<select id="coQuien">'+ CONSENT_QUIEN.concat(c.quien && CONSENT_QUIEN.indexOf(c.quien) < 0 ? [c.quien] : []).map(o =>
           '<option value="'+esc(o)+'"'+(c.quien===o?' selected':'')+'>'+
           esc(o || '— Seleccionar —')+'</option>').join('') +'</select></div>'+
       campoTxt('coFirmante','Nombre y DNI del firmante',
@@ -1537,8 +1544,10 @@ function htmlConsentimiento(f, abierto){
     '</div>'+
     '<div id="coAvisoQuien"></div>'+
 
-    '<label class="mini strong mt14" style="display:block">Declaraciones del paciente</label>'+
-    chksHTML('coItems', CONSENT_ITEMS, c.items)+
+    /* Las declaraciones ya no se tildan: van por defecto en el consentimiento
+       y sólo cambian con «Quién firma» (rechaza transfusión, no acepta la anestesia). */
+    '<div class="aviso info mt8" id="coDecl">'+ico('info')+'<div><b>El paciente declara:</b> '+
+      esc(itemsConsentimiento(c.quien).join(' · '))+'.</div></div>'+
     '<div id="coAvisoTransf"></div>'+
 
     '<div id="coFirmas"'+(sinFirma ? ' class="oculto"' : '')+'>'+
@@ -1572,7 +1581,7 @@ function leerConsentimiento(f){
   const quien = val('coQuien');
   const hayAlgo = quien || coFirmaPac || coFirmaAnest || val('coObs');
   return {
-    quien, firmante: val('coFirmante'), items: leerChks('coItems'),
+    quien, firmante: val('coFirmante'), items: itemsConsentimiento(quien),
     observaciones: val('coObs'),
     firmaPaciente: coFirmaPac, firmaAnestesiologo: coFirmaAnest,
     /* la fecha del consentimiento es la del dia en que se firmo, no la de
@@ -1588,7 +1597,6 @@ function cablearConsentimiento(f){
   coFirmaPac   = c.firmaPaciente || '';
   coFirmaAnest = c.firmaAnestesiologo || (USUARIO ? USUARIO.firmaDataUrl : '') || '';
 
-  cablearChks('coItems');
 
   /* Aceptar y rechazar la transfusión a la vez es una contradicción que no
      puede quedar en un documento que se firma. */
@@ -1610,6 +1618,15 @@ function cablearConsentimiento(f){
     const q = $('#coQuien').value;
     const sin = consentSinFirma(q);
     $('#coFirmas').classList.toggle('oculto', sin);
+    if($('#coDecl')) $('#coDecl').innerHTML = ico('info')+'<div><b>El paciente declara:</b> '+
+      esc(itemsConsentimiento(q).join(' · '))+'.</div>';
+    if(/no acepta la anestesia/i.test(q)) return $('#coAvisoQuien').innerHTML =
+      '<div class="aviso danger mt8">'+ico('alerta')+'<div><b>El paciente no acepta la anestesia.</b> '+
+      'Queda documentado con su firma y <b>no se debe realizar el acto anestésico</b>.</div></div>';
+    if(/rechaza transfusi/i.test(q)) return $('#coAvisoQuien').innerHTML =
+      '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>El paciente rechaza la transfusión de '+
+      'hemoderivados.</b> Queda asentado en el consentimiento y destacado en la ficha. Preveé las '+
+      'alternativas de ahorro de sangre en el punto 9.</div></div>';
     $('#coAvisoQuien').innerHTML = !q
       ? ''
       : q === 'No firmado — urgencia vital (art. 9 Ley 26.529)'
@@ -1708,6 +1725,7 @@ function leerPlan(){
     monitoreoEstandar: leerChks('plMonEst'), monitoreoAvanzado: leerChks('plMonAv'),
     accesos: val('plAccesos'), atb: val('plATB'), atbOtro: val('plATBOtro'),
     tev: val('plTEV'), nvpo: leerChks('plNVPO'),
+    premedicacion: leerChks('plPremed'), premedicacionDetalle: val('plPremedDet'),
     /* La analgesia ya no se edita en el punto 9. Se conserva lo que tenga la
        ficha para no perder nada de lo cargado antes de la mudanza: el paso
        Recuperacion lo lee como propuesta. */
@@ -1829,7 +1847,7 @@ function cablearValoracion(f){
 
   /* --- checkboxes con estilo --- */
   ['vaOtros','ayRiesgo','ayProfilaxis'].forEach(cablearChks);
-  ['plTecnica','plVA','plMonEst','plMonAv','plNVPO'].forEach(cablearChks);
+  ['plTecnica','plVA','plMonEst','plMonAv','plNVPO','plPremed'].forEach(cablearChks);
   $$('#vFicha .chk').forEach(l => {
     l.onclick = () => setTimeout(() => l.classList.toggle('sel', l.querySelector('input').checked), 0);
   });
@@ -1987,7 +2005,6 @@ function cablearValoracion(f){
   cablearValoracionExpres(f);   /* tarjeta exprés, autocompletado y plantillas */
   cablearAsignacionActo();      /* punto 10 */
   cablearConsentimiento(f);     /* punto 11 */
-  cablearEnvioValoracion(f);    /* envío de la valoración a contaduría */
 
   recalcular();
 }

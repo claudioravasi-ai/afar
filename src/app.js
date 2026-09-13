@@ -179,9 +179,43 @@ function cablearMenuLateral(){
   });
 }
 
-function irA(v){
+/* =========================================================================
+   VOLVER A LA PANTALLA ANTERIOR
+   -------------------------------------------------------------------------
+   Cada cambio de pantalla deja anotada la anterior. Arriba de cada página hay
+   un solo «← Volver a …» que regresa ahí, para el que entró a mirar algo y se
+   quiere ir sin tocar nada. No aparece en el Inicio ni en la ficha, que tiene
+   su propio «Volver» porque antes de salir guarda lo que haya en pantalla.
+   ========================================================================= */
+let HISTORIAL_VISTAS = [];
+
+function volverVista(){
+  let v = HISTORIAL_VISTAS.pop();
+  while(v && (v === vistaActual || !puedeVerVista(v) || (v === 'ficha' && !fichaActual)))
+    v = HISTORIAL_VISTAS.pop();
+  irA(v || vistaInicial(), { volviendo:true });
+  if(vistaActual === 'ficha' && fichaActual) pintarFicha();
+}
+
+function pintarBarraVolver(){
+  const b = $('#barraVolver');
+  if(!b) return;
+  const previa = HISTORIAL_VISTAS.filter(v => v !== vistaActual && puedeVerVista(v)).pop();
+  if(!previa || vistaActual === 'ficha' || vistaActual === vistaInicial()){ b.style.display = 'none'; return; }
+  const nom = previa === 'ficha' ? 'la ficha' : ((NAV.find(n => n.id === previa) || {}).txt || 'la pantalla anterior');
+  b.style.display = '';
+  b.innerHTML = '<button type="button" class="btn ghost chico" id="btnVolverVista">'+ico('atras')+
+    ' Volver a '+esc(nom)+'</button>';
+  $('#btnVolverVista').onclick = volverVista;
+}
+
+function irA(v, opc){
   /* Guarda de acceso: nadie entra a una vista que su rol no habilita */
   if(!puedeVerVista(v)) v = vistaInicial();
+  if(!(opc && opc.volviendo) && vistaActual && vistaActual !== v){
+    HISTORIAL_VISTAS.push(vistaActual);
+    if(HISTORIAL_VISTAS.length > 30) HISTORIAL_VISTAS.shift();
+  }
   vistaActual = v;
   $$('.vista').forEach(x => x.classList.remove('on'));
   const el = $('#v' + v.charAt(0).toUpperCase() + v.slice(1));
@@ -190,6 +224,7 @@ function irA(v){
   pintarNavegacion();
   refrescarVistaActual();
   pintarBadgeAvisos();
+  pintarBarraVolver();
 }
 
 function refrescarVistaActual(){
@@ -260,7 +295,8 @@ function vistaPanel(){
   const dia = todas.filter(f => fechaCirugiaDe(f) === hoy || fechaValoracionDe(f) === hoy);
   const delMes = todas.filter(f => mesDe(fechaDeFicha(f)) === mes);
   const semana = todas.filter(f => fechaDeFicha(f) && semanaISO(fechaDeFicha(f)) === semanaISO(hoy));
-  const borradores = todas.filter(f => (f.estado || 'borrador') === 'borrador');
+  /* «Borradores» pasó a «Incompletas»: lo que quedó a medio cargar. Ver inicio-extra.js */
+  const incompletas = misIncompletas();
   const finalizadas = todas.filter(f => f.estado === 'cerrada');
   const sinFirmar = todas.filter(f => { const cx = fechaCirugiaDe(f);
     return cx && cx < hoy && f.estado !== 'cerrada' && (f.acto || {}).finCirugia; });
@@ -300,34 +336,30 @@ function vistaPanel(){
         (institucionActiva()===i.id?' selected':'')+'>'+
         esc(i.nombre.split('"')[0].trim())+' · '+esc(i.ciudad)+'</option>').join('')+
       '</select></div>'+
-    '<div class="ayuda">Se precarga en cada ficha nueva. Podés cambiarla dentro de la ficha.</div>'+
+    '<div class="ayuda">Se precarga en cada ficha nueva. ¿No está la tuya? '+
+      '<button type="button" class="btn ghost chico" id="pnNuevaInst">'+ico('mas')+' Agregar institución</button></div>'+
   '</div>'+
 
-  /* ------------------------- accesos del flujo ------------------------- */
-  '<button class="acceso pri" id="pnValoracion">'+ico('mas')+
-    '<span><b>Nueva valoración preanestésica</b>'+
-    '<i>Paciente, antecedentes, escalas de riesgo y plan</i></span></button>'+
-  '<button class="acceso" id="pnFicha">'+ico('mas')+
-    '<span><b>Nueva ficha anestésica</b>'+
-    '<i>Registro del acto: drogas, signos vitales, balance y eventos</i></span></button>'+
+  /* --------------- las tres etapas: paciente, prequirúrgico, quirófano ---------------
+     Reemplazan a los dos accesos de antes («Nueva valoración» y «Nueva ficha
+     anestésica»), que siguen vivos adentro de las etapas 2 y 3. Ver etapas.js */
+  htmlEtapasPanel()+
 
   /* ----------------------- estado de mis fichas ------------------------ */
   '<div class="filas-estado">'+
     filaEstado('Hoy','pacientes','Mis pacientes de hoy', dia.length)+
-    filaEstado('Borr','ficha','Borradores', borradores.length, borradores.length?'warn':'')+
+    filaEstado('Borr','ficha','Incompletas', incompletas.length, incompletas.length?'warn':'')+
     filaEstado('Fin','check','Finalizadas', finalizadas.length, 'ok')+
     (sinFirmar.length ? filaEstado('Firm','firma','Pendientes de firma', sinFirmar.length, 'danger') : '')+
     (honPend.length ? filaEstado('Hon','dinero','Honorarios que dejaste para después',
       honPend.length, 'danger') : '')+
   '</div>'+
 
-  tarjetaAvisosPanel()+
+  htmlRenglonAvisos()+
 
-  '<div class="grid c3 mb8 mt20">'+
-    kpi('Esta semana', semana.length, 'azul', ico('stats'), '')+
-    kpi('Este mes', delMes.length, 'azul', ico('ficha'), nombreMes(mes))+
-    kpi('Pacientes', misPacientes().length, 'aqua', ico('pacientes'), 'en el padrón')+
-  '</div>'+
+  /* Las tres ventanas de estadísticas viven ahora sólo en Estadísticas: acá
+     queda un renglón con lo que sí se mira todos los días. */
+  htmlRenglonAnestesias()+
 
   '<h3 style="font-size:14px;margin:20px 0 10px">Accesos rápidos</h3>'+
   '<div class="tiles">'+
@@ -365,10 +397,9 @@ function vistaPanel(){
   ((misFichas().length === 0) ? '<div class="card mt20"><h3>'+ico('info')+'Cómo empezar</h3>'+
     '<ol class="mini" style="padding-left:19px;line-height:2">'+
     '<li>Completá tu perfil: matrícula, CUIT y firma digital.</li>'+
-    '<li>Cargá un paciente con sus datos filiatorios y sus antecedentes.</li>'+
-    '<li>Abrí una valoración preanestésica: las escalas se calculan solas.</li>'+
-    '<li>El día de la cirugía, registrá el acto: drogas, signos vitales, balance y eventos.</li>'+
-    '<li>Cerrá con la recuperación, firmá y descargá el documento.</li>'+
+    '<li><b>1 · Paciente</b>: cargalo, mandale la ficha por mail o fotografiá la que trae en papel.</li>'+
+    '<li><b>2 · Prequirúrgico</b>: la valoración preanestésica; las escalas se calculan solas.</li>'+
+    '<li><b>3 · Quirófano</b>: el acto —drogas, signos vitales, balance y eventos—, la recuperación y la firma.</li>'+
     '</ol></div>' : '')+
 
   '<div class="mt20 txt-c"><svg class="ecg-line" viewBox="0 0 400 22" preserveAspectRatio="none">'+
@@ -381,8 +412,9 @@ function vistaPanel(){
   ir('pnFicha',      () => nuevaFichaEnInstitucion('anestesia'));
   ir('peHoy',  () => { filtroFichas = Object.assign({}, filtroFichas, { texto:'', estado:'' });
                        irA('fichas'); });
-  ir('peBorr', () => { filtroFichas = Object.assign({}, filtroFichas, { estado:'borrador' });
-                       irA('fichas'); });
+  ir('peBorr', abrirIncompletas);
+  ir('pnAnest', abrirAnestesiasSemana);
+  ir('pnNuevaInst', () => abrirAltaInstitucion(id => { fijarInstitucion(id); vistaPanel(); }));
   ir('peFin',  () => { filtroFichas = Object.assign({}, filtroFichas, { estado:'cerrada' });
                        irA('fichas'); });
   ir('peFirm', () => { filtroFichas = Object.assign({}, filtroFichas, { estado:'realizada' });
@@ -401,7 +433,8 @@ function vistaPanel(){
   ir('tlIrPerfil', () => irA('perfil'));
   ir('tlIrAvisos', abrirAvisos);
   ir('demoBorrar', confirmarBorrarDemo);
-  cablearAvisosPanel();
+  cablearEtapasPanel();
+  cablearRenglonAvisos();
   $$('#vPanel .item[data-fic]').forEach(i => i.onclick = () => abrirFicha(i.dataset.fic));
 }
 
@@ -450,7 +483,8 @@ function arrancarApp(){
      encabezado y este no arranque pegado al techo. Ver pase.js */
   if(typeof arrancarRelojPase === 'function') arrancarRelojPase();
   pintarEncabezado();
-  irA(vistaInicial());
+  HISTORIAL_VISTAS = [];
+  irA(vistaInicial(), { volviendo:true });
   if(verDatosClinicos()){
     /* La bandeja de precargados se queda escuchando desde el ingreso: asi el
        contador de la solapa está al dia sin que nadie entre a mirar. Solo
@@ -466,6 +500,9 @@ function arrancarApp(){
        minutos del final y borrado. Ver ui-ficha.js y ui-avisos.js. */
     iniciarRelojBajas();
   }
+  /* Spotify y el aviso de actualización a las 24 h. Ver inicio-extra.js */
+  iniciarRelax();
+  iniciarVigiaActualizacion();
   /* Un tono corto si hay algo esperando: avisos, recordatorios o mensajes sin
      ver. Entrar es un gesto del usuario, asi que el navegador deja sonar; si
      igual lo bloquea, queda armado para el primer toque. */
@@ -578,14 +615,14 @@ function iniciar(){
     aplicarTema(document.documentElement.dataset.tema === 'oscuro' ? 'claro' : 'oscuro');
   $('#btnAvisos').onclick = abrirAvisos;
   $('#chipNube').onclick = abrirSincronizacion;
-  $('#btnSalir').onclick = () => confirmar('Cerrar sesión',
-    '¿Querés salir del portal? Los datos quedan guardados.', cerrarSesion, 'Cerrar sesión');
+  $('#btnSalir').onclick = pedirSalida;
+  $('#btnSpotify').onclick = tocarSpotify;
 
   if(restaurarSesion()) arrancarApp();
 
   /* atajo: escape cierra modales */
   document.addEventListener('keydown', e => {
-    if(e.key === 'Escape' && !modalObligatorio) cerrarModal();
+    if(e.key === 'Escape' && !modalObligatorio && $('#modal').classList.contains('on')) cerrarModalPorUsuario();
   });
 
   /* service worker (sólo si se sirve por http) */

@@ -26,7 +26,7 @@ const PASOS_FICHA = [
   { k:'preanestesia', ico:'valoracion', t:'Preanestesia', sub:'Valoración y plan' },
   { k:'anestesia',    ico:'jeringa',    t:'Anestesia',    sub:'Registro intraoperatorio' },
   { k:'recuperacion', ico:'corazon',    t:'Recuperación', sub:'Aldrete, dolor y destino' },
-  { k:'firma',        ico:'firma',      t:'Firmar',       sub:'Cierre del registro' }
+  { k:'firma',        ico:'firma',      t:'Finalizar',    sub:'Cierre del registro' }
 ];
 
 /* =========================================================================
@@ -114,6 +114,8 @@ function cambiarPeriodoFichas(k){
 }
 
 function vistaFichas(){
+  /* Historial tiene dos ventanas: fichas anestésicas y consultas no quirúrgicas */
+  if(typeof historialVista !== 'undefined' && historialVista === 'consultas') return vistaHistorialConsultas();
   const cont = $('#vFichas');
   /* Tres alcances y ninguno mas: lo mio, lo que comparto con un colega y lo
      que esta libre para tomar. Ver la ficha de un paciente en el que nunca
@@ -137,6 +139,7 @@ function vistaFichas(){
   if(filtroFichas.estado)      l = l.filter(f => (f.estado||'borrador') === filtroFichas.estado);
 
   cont.innerHTML = ''+
+  (typeof htmlVentanasHistorial === 'function' ? htmlVentanasHistorial() : '')+
   '<div class="vista-head"><div><h1>Fichas anestésicas</h1>'+
     '<p>'+l.length+' de '+universo.length+' fichas</p></div>'+
     '<div class="acciones"><button class="btn pri" id="btnNuevaFicha">'+ico('mas')+' Nueva ficha</button></div></div>'+
@@ -259,6 +262,7 @@ function vistaFichas(){
   $('#fInst').onchange = e => { filtroFichas.institucion = e.target.value; vistaFichas(); };
   $('#fEstado').onchange = e => { filtroFichas.estado = e.target.value; vistaFichas(); };
   $$('#vFichas .item').forEach(it => it.onclick = () => abrirFicha(it.dataset.f));
+  if(typeof cablearVentanasHistorial === 'function') cablearVentanasHistorial();
 }
 
 /* =========================================================================
@@ -841,8 +845,8 @@ function estadoPaso(f, k){
          : (a.tecnicas||[]).length ? 'alerta' : 'medio';
   }
   if(k === 'recuperacion'){
-    if(!r.hora && !r.aldreteTotal && !r.destino) return 'pend';
-    return r.aldreteCompleto && r.destino ? 'ok' : 'alerta';
+    if(!r.hora && !r.aldreteTotal) return 'pend';
+    return r.aldreteCompleto ? 'ok' : 'alerta';            /* el destino se pide en Finalizar */
   }
   if(k === 'firma'){
     if((f.firma||{}).firmado) return 'ok';
@@ -927,8 +931,18 @@ function faltaDelConsentimiento(f){
    Preanestesia. Y en Firmar no vuelve a aparecer porque ya se le entrego al
    paciente con la valoracion: repetirlo ahi no agrega nada.
    ========================================================================= */
-const PASO_GUARDA  = { preanestesia:true, firma:true };
+/* Finalizar ya no guarda desde la barra: su «Cerrar y guardar» va al pie de todo */
+const PASO_GUARDA  = { preanestesia:true };
 const PASO_EXTRAS  = { preanestesia:'valoracion', firma:'acto' };
+
+/* En la valoración propia, «Siguiente» aparece recién después de «Cerrar y
+   guardar»: primero se guarda y se ven los pendientes, después se sigue. */
+function siguienteVisible(f){
+  if(pasoFicha !== 'preanestesia') return true;
+  const g = DB.fichas[f.id];
+  if(!puedeEditarSeccion(g || f, 'valoracion')) return true;
+  return !!(g && g.valoracionGuardada);
+}
 
 /* =========================================================================
    PANTALLA
@@ -944,7 +958,7 @@ function pintarFicha(){
 
   cont.innerHTML = ''+
   '<div class="fi-top no-print">'+
-    '<button class="btn ghost chico" id="fiVolver">'+ico('atras')+' Fichas</button>'+
+    '<button class="btn ghost chico" id="fiVolver">'+ico('atras')+' Volver</button>'+
     '<div class="fi-top-txt">'+
       '<h1>'+(p ? esc(p.apellido+', '+p.nombre) : 'Ficha sin paciente')+'</h1>'+
       '<p>'+(p && p.dni ? 'DNI/HC '+esc(p.hc || p.dni)+' · ' : '')+
@@ -957,11 +971,18 @@ function pintarFicha(){
             .replace('<svg','<svg style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"')+
           esc(rotuloIntervencion(f))+'</p>' : '')+
     '</div>'+
+    (p && p.telefono ? '<button type="button" class="icon-btn wa-btn" id="fiWa" data-lectura title="WhatsApp al paciente">'+ICO_WHATSAPP+'</button>' : '')+
     etiquetaEstadoFicha(f)+
   '</div>'+
 
   /* ------- barra de pasos, igual que el flujo de trabajo del manual ------- */
-  '<div class="stepper no-print">'+ PASOS_FICHA.map((s,i) => {
+  /* ------- las tres etapas: 1 Paciente · 2 Prequirúrgico · 3 Quirófano -------
+     Pedido de la asociación para sacar ruido: arriba sólo las tres etapas, y
+     abajo sólo los pasos de la etapa en la que se está. En Paciente no se ven
+     Anestesia, Recuperación ni Firmar, y así con cada una. Ver etapas.js */
+  htmlEtapasFicha(f)+
+  (etapaDePaso(pasoFicha) !== 3 ? '' :
+  '<div class="stepper no-print">'+ PASOS_FICHA.filter(s => etapaDePaso(s.k) === 3).map((s,i,vis) => {
     const est = estadoPaso(f, s.k);
     /* El recorrido depende de por dónde nació la ficha. Ver pasoHabilitado() */
     const trabado = !pasoHabilitado(f, s.k);
@@ -974,12 +995,9 @@ function pintarFicha(){
       '<span class="dot">'+(est==='ok' ? ico('check') : est==='alerta' ? ico('alerta') : ico(s.ico))+'</span>'+
       '<span class="lbl">'+esc(s.t)+'</span>'+
       '<span class="est '+est+'">'+esc(ROTULO_ESTADO[est])+'</span>'+
-      /* Debajo de PACIENTE, si se le mandó la ficha por mail, el estado de
-         ese pedido: pendiente, completada o vencida. Ver paciente-portal.js */
-      (s.k === 'paciente' ? selloPrellenado(f) : '')+
-      (i < PASOS_FICHA.length-1 ? '<span class="linea"></span>' : '')+
+      (i < vis.length-1 ? '<span class="linea"></span>' : '')+
       '</button>';
-  }).join('') +'</div>'+
+  }).join('') +'</div>')+
   /* El conmutador existe para poder LEER la sección del colega: quien valoró
      necesita ver el acto y quien anestesia necesita leer el prequirúrgico.
      Cuando las dos secciones son de la misma persona no separa nada, así que
@@ -990,7 +1008,8 @@ function pintarFicha(){
         '<button type="button" data-modo="'+m.k+'"'+(m.k===modoFicha?' class="on"':'')+'>'+
         esc(m.t)+'</button>').join('') +'</div>')+
   '<div class="paso-cabecera no-print">'+
-    '<div><b>Paso '+(idx+1)+' de '+PASOS_FICHA.length+'</b> · '+esc(PASOS_FICHA[idx].sub)+'</div>'+
+    '<div><b>Etapa '+etapaDePaso(pasoFicha)+' · '+esc(ETAPAS[etapaDePaso(pasoFicha)-1].nom)+'</b> · '+
+      (etapaDePaso(pasoFicha) === 3 ? 'paso '+(idx-1)+' de 3 · ' : '')+esc(PASOS_FICHA[idx].sub)+'</div>'+
     '<div class="barra"><span style="width:'+Math.round((idx+1)/PASOS_FICHA.length*100)+'%"></span></div>'+
   '</div>'+
 
@@ -1014,7 +1033,7 @@ function pintarFicha(){
      en cuanto el acto queda desbloqueado, que es cuando sirve. */
   (soloActo ? bannerFichaAjena(f)
             : '<div id="fiFaltantesBox">'+
-              (actoDesbloqueado(f) ? bannerFaltantes(f, pasoFicha) : '')+'</div>' +
+              (actoDesbloqueado(f) ? bannerFaltantesEtapa(f, pasoFicha) : '')+'</div>' +
               htmlVolverDeFaltante()+
               bannerSeccion(guardada || f))+
 
@@ -1038,8 +1057,7 @@ function pintarFicha(){
     /* Un botón de guardar sobre una sección que no se puede tocar no guarda
        nada: es un botón muerto en el medio de la pantalla. */
     (PASO_GUARDA[pasoFicha] && puedeEditarSeccion(guardada || f, seccionDePaso(pasoFicha))
-      ? '<button class="btn pri grande" id="fiGuardar">'+ico('check')+' Guardar '+
-        (pasoFicha === 'preanestesia' ? 'valoración' : 'y cerrar')+'</button>'
+      ? '<button class="btn pri grande" id="fiGuardar">'+ico('check')+' Cerrar y guardar</button>'
       : '<span></span>')+
     /* Mismo criterio que «Anterior»: si el paso siguiente está cerrado, el
        botón saltearía el recorrido. En el arranque del acto no hay nada que
@@ -1052,7 +1070,7 @@ function pintarFicha(){
        sea él quien complete sus antecedentes—. Al pie de la valoración queda
        al lado de la tarjeta que muestra esa misma historia, que es lo que el
        paciente va a completar. Ver htmlPedidoAlPaciente(). */
-    (pasoVecino(1) && pasoHabilitado(f, pasoVecino(1))
+    (pasoVecino(1) && pasoHabilitado(f, pasoVecino(1)) && siguienteVisible(f)
       ? '<button class="btn '+(PASO_GUARDA[pasoFicha] ? 'ghost' : 'pri grande')+'" id="fiSiguiente">'+
         'Siguiente '+ico('flecha').replace('<svg','<svg style="transform:rotate(-90deg)"')+'</button>'
       : '<span></span>')+
@@ -1090,17 +1108,28 @@ function pintarFicha(){
 
   htmlExtrasDePaso(f, soloActo)+
 
-  (DB.fichas[f.id] && pasoFicha === 'firma' ? htmlBajaDeFicha(guardada || f) : '');
+  /* «Cerrar y guardar», debajo de todo, como conclusión de la ficha */
+  (pasoFicha === 'firma' && !firmada && puedeEditarSeccion(guardada || f, 'acto')
+    ? '<button class="btn pri grande full mt14 no-print" id="fiCerrarFinal">'+ico('check')+' Cerrar y guardar</button>'+
+      '<div class="ayuda txt-c no-print">Con todo completo y firmado, la ficha queda <b>FINALIZADA</b>. '+
+      'Si falta algo, queda guardada como <b>incompleta</b> y te dice qué falta.</div>'
+    : '')+
 
-  $('#fiVolver').onclick = () => { guardarPasoActual(); irA('fichas'); vistaFichas(); };
+  (DB.fichas[f.id] && (pasoFicha === 'firma' || pasoFicha === 'preanestesia') ? htmlBajaDeFicha(guardada || f) : '');
+
+  /* Vuelve adonde se estaba antes de abrir la ficha (inicio, pacientes,
+     historial…), guardando antes lo que haya en pantalla, como siempre. */
+  $('#fiVolver').onclick = () => { guardarPasoActual(); volverVista(); };
   /* El banner de ficha ajena vive fuera del cuerpo del paso: su botón se
      cablea acá para que funcione en los cinco pasos, no sólo en el primero. */
+  if($('#fiWa')) $('#fiWa').onclick = () => abrirWhatsAppPaciente(DB.pacientes[f.pacienteId] || {});
   if($('#fiTomar')) $('#fiTomar').onclick = () => tomarActo(f);
   if($('#acTomar')) $('#acTomar').onclick = () => tomarActo(f);
   if($('#fiIdentificar')) $('#fiIdentificar').onclick = () => {
     guardarPasoActual();
     editarPaciente(fichaActual.pacienteId, () => pintarFicha());
   };
+  $$('#vFicha [data-etapa-ficha]').forEach(b => b.onclick = () => irAEtapaFicha(Number(b.dataset.etapaFicha)));
   $$('#vFicha [data-paso]').forEach(b => b.onclick = () => {
     if(b.dataset.trabado){
       toast(motivoPasoCerrado(f, b.dataset.paso), 'warn');
@@ -1123,6 +1152,7 @@ function pintarFicha(){
      paciente toca FINALIZADO, el sello cambia sin recargar nada. */
   if(estadoPrellenado(f) === 'pendiente') escucharPrellenado(f);
   if($('#fiGuardar'))   $('#fiGuardar').onclick = () => guardarPasoConCierre();
+  if($('#fiCerrarFinal')) $('#fiCerrarFinal').onclick = cerrarYGuardarFinal;
   cablearExtrasDePaso();
   cablearBajaDeFicha(guardada || f);
 
@@ -1212,7 +1242,7 @@ function refrescarFaltantes(){
   if(!caja) return;
   const f = fichaEnPantalla();
   if(!actoDesbloqueado(f)){ caja.innerHTML = ''; return; }
-  caja.innerHTML = bannerFaltantes(f, pasoFicha);
+  caja.innerHTML = bannerFaltantesEtapa(f, pasoFicha);
   cablearFaltantes();
   pintarSemaforoPasos(f);
 }
@@ -1220,6 +1250,14 @@ function refrescarFaltantes(){
 /* El semaforo de los cinco pasos también se pinta con lo que hay en
    pantalla: si no, el paso quedaba en ámbar hasta guardar. */
 function pintarSemaforoPasos(f){
+  /* Las tres pestañas de etapa también se recalculan en vivo */
+  $$('#vFicha [data-etapa-ficha]').forEach(b => {
+    const e = estadoEtapa(f, Number(b.dataset.etapaFicha));
+    b.classList.remove('ok','medio','alerta','pend');
+    b.classList.add(e);
+    const t = b.querySelector('.est');
+    if(t){ t.className = 'est ' + e; t.textContent = ROTULO_ESTADO[e] || ''; }
+  });
   $$('#vFicha [data-paso]').forEach(b => {
     const k = b.dataset.paso;
     const e = estadoPaso(f, k);
@@ -1304,17 +1342,16 @@ function htmlExtrasDePaso(f, soloActo){
         ? '<div class="mini">Valoración guardada el '+
           esc(fFechaHora(guardada.valoracionGuardada))+'.</div>'
         : '<div class="aviso warn mt8">'+ico('candado')+'<div><b>Todavía no se puede documentar.</b> '+
-          'Completá la valoración —incluido el punto 11, el consentimiento informado— y tocá '+
-          '<b>«Guardar valoración»</b>. Recién ahí se habilitan estos cuatro botones.</div></div>')+
+          'Tocá <b>«Cerrar y guardar»</b>: recién ahí se habilitan estos botones.</div></div>')+
       /* Los dos botones de descarga bajan SOLO la valoracion: datos del
          paciente, los once puntos y el consentimiento. El registro del
          acto no entra —el dia de la consulta todavia no existe— y el
          honorario que se abre es el de la consulta, sin el del acto. */
       '<div class="btn-row mt8 fi-extras">'+
         '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+
-          ' Honorarios de la consulta</button>'+
-        '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+' Word</button>'+
-        '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+' PDF</button>'+
+          ' Completar honorarios de la consulta</button>'+
+        '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+' Descargar en Word</button>'+
+        '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+' Descargar en PDF</button>'+
         /* El botón NO se apaga por falta de correo. Apagarlo dejaba a la
            persona con un botón muerto y una instrucción -«andá a la historia
            del paciente»- que la saca de la pantalla en la que está. Ahora se
@@ -1346,8 +1383,7 @@ function htmlExtrasDePaso(f, soloActo){
           (INDICACIONES_AL_PACIENTE ? ', más la hoja de indicaciones de ayuno' : '')+
           '. Sin ningún dato de facturación.</div>' : '')+
       (lista ? htmlAvisoHonorario(f, 'consulta') : '')+
-    '</div>'+
-    htmlPedidoAlPaciente(f);
+    '</div>';
   }
 
   /* ------------------- Documentos del ACTO anestesico -------------------- */
@@ -1359,21 +1395,21 @@ function htmlExtrasDePaso(f, soloActo){
       '<div>Guardá el registro para poder exportarlo.</div></div>')+
     '<div class="btn-row mt8 fi-extras">'+
       '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+
-        ' Honorarios del acto</button>'+
-      '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+' Word</button>'+
-      '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+' PDF</button>'+
+        ' Conformar honorarios de la anestesia</button>'+
+      '<button class="btn ghost chico" id="fiWord"'+off+'>'+ico('word')+
+        ' Descargar el acto anestésico en Word</button>'+
+      '<button class="btn ghost chico" id="fiPdf"'+off+'>'+ico('imprimir')+
+        ' Descargar el acto anestésico en PDF</button>'+
       '<button class="btn ghost chico" id="fiWordTodo"'+off+'>'+ico('word')+
-        ' Word · ficha completa</button>'+
+        ' Descargar la ficha completa en Word</button>'+
     '</div>'+
     /* El consentimiento NO vuelve a aparecer acá: se firmó en el punto 11 de
        la Preanestesia y ya se le entregó al paciente con su valoración.
        Repetirlo en el cierre no agrega nada y confunde sobre cuál es el que
        vale. */
-    '<div class="ayuda"><b>Word</b> y <b>PDF</b> bajan el registro del acto y la recuperación, '+
-      'sin repetir la valoración: son dos documentos y dos honorarios distintos. '+
-      '«Ficha completa» baja los dos juntos, para el legajo.<br>'+
-      'El consentimiento informado ya se firmó y se entregó con la valoración prequirúrgica '+
-      '(punto 11).</div>'+
+    '<div class="ayuda">El <b>acto anestésico</b> se baja solo, con la recuperación. La <b>ficha completa</b> '+
+      'lleva los datos del paciente, la valoración prequirúrgica, la anestesia y el consentimiento '+
+      'informado; si el consentimiento no está firmado, se baja igual y te lo recuerda.</div>'+
     (enBase ? htmlAvisoHonorario(f, 'acto') : '')+
   '</div>';
 }
@@ -1476,7 +1512,7 @@ function cablearExtrasDePaso(){
   if($('#fiHonAhora')) $('#fiHonAhora').onclick = () => { guardarPasoActual(); abrirHonorarios(fichaActual, alcance); };
   if($('#fiWord')) $('#fiWord').onclick = () => { guardarPasoActual(); exportarDocWord(fichaActual, parte); };
   if($('#fiPdf'))  $('#fiPdf').onclick  = () => { guardarPasoActual(); imprimirDoc(fichaActual, parte); };
-  if($('#fiWordTodo')) $('#fiWordTodo').onclick = () => { guardarPasoActual(); exportarFichaWord(fichaActual); };
+  if($('#fiWordTodo')) $('#fiWordTodo').onclick = () => { guardarPasoActual(); descargarFichaCompleta(fichaActual); };
   if($('#fiMail')) $('#fiMail').onclick = () => { guardarPasoActual(); enviarDocumentacionPaciente(fichaActual); };
 }
 
@@ -1571,25 +1607,34 @@ function guardarPasoConCierre(){
     if(!f.pacienteId){ pasoFicha = 'paciente'; pintarFicha();
       return toast('Elegí un paciente para poder continuar.', 'err'); }
 
-    /* --- El punto 11 es condicion para dar la valoracion por concluida --- */
-    if(!consentimientoCompleto(f)){
-      const falta = faltaDelConsentimiento(f);
-      pintarFicha();
-      const acc = $('#acConsent');
-      if(acc){ acc.open = true; acc.scrollIntoView({ behavior:'smooth', block:'center' }); }
-      return toast('Falta el punto 11, consentimiento informado: ' + falta + '.', 'err');
-    }
-
+    /* «Cerrar y guardar»: se guarda SIEMPRE. Si quedó algo por completar, lo
+       dice en una ventana; al aceptar, el pendiente queda en la campana y
+       recién ahí aparece «Siguiente». */
     f.fechaValoracion = f.fechaValoracion || (f.v && f.v.riesgo && f.v.riesgo.fecha) || hoyISO();
     f.valoracionGuardada = new Date().toISOString();
     f.valoracionPorUid   = SESION.uid;
-    if((f.estado || 'borrador') === 'borrador') f.estado = 'realizada';
-    guardarFicha(true);
-    auditar('valoracion-cerrar', 'Valoración prequirúrgica concluida y firmada');
-    toast('Valoración prequirúrgica guardada. Ya podés generar y enviar la documentación.', 'ok');
+    const pend = [];
+    if(estadoPaso(f, 'paciente') !== 'ok') pend.push('los datos del paciente y de la cirugía');
+    faltantesDelPaso(f, 'preanestesia').filter(x => x.critico).forEach(x => pend.push(x.t));
+    if(!consentimientoCompleto(f) && !pend.some(t => /consentimiento/i.test(t)))
+      pend.push('el consentimiento informado (' + faltaDelConsentimiento(f) + ')');
+    if(valoracionConcluida(f) && (f.estado || 'borrador') === 'borrador') f.estado = 'realizada';
+    if(pend.length) f.guardadaIncompleta = f.valoracionGuardada; else delete f.guardadaIncompleta;
+    guardarFicha(true, true);
+    auditar('valoracion-cerrar', pend.length ? 'Valoración guardada con pendientes' : 'Valoración prequirúrgica concluida');
     pintarFicha();
-    const caja = $('.doc-caja');
-    if(caja) caja.scrollIntoView({ behavior:'smooth', block:'center' });
+    const verDocs = () => { const c = $('.doc-caja'); if(c) c.scrollIntoView({ behavior:'smooth', block:'center' }); };
+    if(pend.length){
+      abrirModal('Quedaron pendientes en la valoración',
+        '<div class="aviso warn">'+ico('alerta')+'<div><b>La valoración quedó guardada, pero falta:</b><ul style="margin:6px 0 0;padding-left:18px">'+
+          pend.map(t => '<li>'+esc(t)+'</li>').join('')+'</ul>'+
+          '<br>Queda en la campana de avisos hasta que la completes.</div></div>',
+        '<button class="btn pri" id="vpAceptar">Aceptar</button>', '580px');
+      $('#vpAceptar').onclick = () => { cerrarModal(); verDocs(); };
+    } else {
+      toast('Valoración prequirúrgica guardada. Ya podés generar y enviar la documentación.', 'ok');
+      verDocs();
+    }
     return;
   }
 
@@ -1775,6 +1820,10 @@ function guardarFicha(silencioso, sinRepintar){
     const base = migrarFicha(JSON.parse(JSON.stringify(guardada)));
     base.acto = f.acto || {};
     base.recup = f.recup || {};
+    /* Quien anestesió cierra y firma el acto aunque la valoración sea de otro */
+    if(f.firma) base.firma = f.firma;
+    if(f.estado) base.estado = f.estado;
+    if(f.guardadaIncompleta) base.guardadaIncompleta = f.guardadaIncompleta;
     if(esActorFicha(guardada) && f.hon) base.hon = f.hon;   /* su propio honorario */
     base.actoPorUid = SESION.uid;
     base.actoPorNombre = USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '';
@@ -1884,6 +1933,12 @@ function htmlPasoPaciente(f){
   '</div>'+
 
   '<div class="card"><h3>'+ico('calendario')+'Datos de la cirugía</h3>'+
+    /* Interconsulta de un paciente internado, abierta desde la etapa 2 */
+    (f.interconsulta
+      ? '<div class="aviso info" style="margin-top:0">'+ico('hospital')+'<div><b>Interconsulta · '+
+        'paciente internado.</b></div></div>'+
+        campoTxt('qxInterLugar', 'Servicio y cama', f.interconsulta.lugar)
+      : '')+
     /* Si el carácter se declaró al tomar el acto —urgencia o emergencia—, acá
        no se vuelve a preguntar: ya lo dijo la persona hace treinta segundos.
        Se muestra lo que quedó, y se corrige donde corresponde, que es el
@@ -2012,27 +2067,10 @@ function cablearPasoPaciente(f){
     $$('#qxCaracter button').forEach(x => x.classList.remove('on')); b.classList.add('on');
     fichaActual.caracter = b.dataset.v; });
 
-  $('#qxNuevaInst').onclick = () => {
-    abrirModal('Nueva institución',
-      campoTxt('niNombre','Nombre de la institución')+
-      campoSel('niCiudad','Ciudad', ['Ushuaia','Río Grande','Tolhuin','Otra localidad de TDF','Fuera de la provincia'])+
-      campoSel('niTipo','Tipo', ['Público','Privado','Obra social','Fuerzas Armadas','Municipal','Otro']),
-      '<button class="btn ghost" data-cerrar>Cancelar</button>'+
-      '<button class="btn pri" id="niGuardar">Agregar</button>');
-    $('#niGuardar').onclick = () => {
-      const n = $('#niNombre').value.trim();
-      if(!n) return toast('Ingresá el nombre.', 'err');
-      const ya = instituciones().find(o => parecidoPrestador(n, o.nombre) === 'idéntico');
-      if(ya){
-        cerrarModal(); guardarPasoActual(); fichaActual.institucion = ya.id; pintarFicha();
-        return toast('Esa institución ya estaba en la lista.', 'warn');
-      }
-      const id = uid('ins');
-      escribir('instituciones', id, { id, nombre:n, ciudad:$('#niCiudad').value, tipo:$('#niTipo').value });
-      cerrarModal(); guardarPasoActual(); fichaActual.institucion = id; pintarFicha();
-      toast('Institución agregada al catálogo.', 'ok');
-    };
-  };
+  /* La misma alta de institución del inicio, con la escritura corregida. Ver inicio-extra.js */
+  $('#qxNuevaInst').onclick = () => abrirAltaInstitucion(id => {
+    guardarPasoActual(); fichaActual.institucion = id; pintarFicha();
+  });
   $('#qxNuevaOS').onclick = () => {
     abrirModal('Nuevo financiador',
       campoTxt('noNombre','Nombre de la obra social, prepaga o ART')+
@@ -2273,7 +2311,10 @@ function leerPasoPaciente(){
        de siempre para que listados, estadisticas y exportaciones no tengan
        que enterarse de nada. Ver sincronizarProcedimientoPrincipal(). */
     cirugias: cxLista.slice(),
-    lateralidad: val('qxLateralidad')
+    lateralidad: val('qxLateralidad'),
+    interconsulta: $('#qxInterLugar')
+      ? Object.assign({}, fichaActual.interconsulta, { lugar: val('qxInterLugar') })
+      : fichaActual.interconsulta
     /* El equipo quirúrgico se lee en el paso Anestesia (acto.equipo) y la
        designación del actuante en el paso Preanestesia (punto 10). Si se
        leyeran acá, cada vez que se guarda el paso 1 se borrarían. */
@@ -2298,15 +2339,33 @@ function tomarActo(f){
      en el ASA, en la vía aérea, en el plan y en el consentimiento.
      No aplica a la ficha propia que nace por el acto —ahí la valoración se
      resuelve después, y lo que la exige es la firma—. */
-  if(g && deColega && hayValoracion(g) && !valoracionConcluida(g))
-    return confirmar('La valoración todavía no está concluida',
-      'La hizo <b>'+esc(autorFicha(g))+'</b> y le falta <b>'+esc(faltaDeLaValoracion(g))+'</b>.'+
-      '<br><br>No se puede tomar el acto sobre una valoración a medias: lo que se firma después '+
-      'es una historia clínica incompleta. Avisale para que la termine, o abrí una consulta '+
-      'interna dejando constancia.',
-      () => componerHilo(g.ownerUid, 'Valoración sin concluir — ' +
-        ((DB.pacientes[g.pacienteId]||{}).apellido || 'paciente')),
-      'Avisarle');
+  /* EXCEPCION DE URGENCIA (13-09-2026, pedido de la asociación): si la
+     cirugía es urgencia o emergencia —o se declara así en este momento— el
+     acto se toma e inicia igual y la valoración se completa después. Las
+     reglas de cierre son las mismas para todas: sin valoración completa no
+     hay firma. */
+  const aMedias = g && deColega && hayValoracion(g) && !valoracionConcluida(g);
+  const urgente = g && (esNoProgramado(caracterActo(g)) || esNoProgramado(g.caracter));
+  if(aMedias && !urgente && !f.__urgenciaDeclarada){
+    const aviso = () => componerHilo(g.ownerUid, 'Valoración sin concluir — ' +
+      ((DB.pacientes[g.pacienteId]||{}).apellido || 'paciente'));
+    abrirModal('La valoración todavía no está concluida',
+      '<p style="margin:0;line-height:1.6">La hizo <b>'+esc(autorFicha(g))+'</b> y le falta <b>'+
+        esc(faltaDeLaValoracion(g))+'</b>.</p>'+
+      '<p class="mt8" style="line-height:1.6">Si es una cirugía <b>programada</b>, avisale para que la '+
+        'termine: no se toma el acto sobre una valoración a medias.</p>'+
+      '<div class="aviso warn mt8">'+ico('alerta')+'<div><b>Si es una urgencia o una emergencia</b>, '+
+        'tomalo e iniciá. La valoración se completa después y, como en cualquier ficha, '+
+        '<b>no se firma</b> hasta que esté completa.</div></div>',
+      '<button class="btn ghost" id="taAvisar">'+ico('correo')+' Avisarle</button>'+
+      '<button class="btn warn" id="taUrg">Es urgencia</button>'+
+      '<button class="btn danger" id="taEme">Es emergencia</button>', '620px');
+    $('#taAvisar').onclick = () => { cerrarModal(); aviso(); };
+    const declarar = car => { cerrarModal(); f.__urgenciaDeclarada = car; tomarActo(f); };
+    $('#taUrg').onclick = () => declarar('urgencia');
+    $('#taEme').onclick = () => declarar('emergencia');
+    return;
+  }
 
   confirmar('Tomar el acto anestésico',
     '<b>'+esc((USUARIO ? USUARIO.apellido+', '+USUARIO.nombre : 'Vos'))+'</b> queda registrado como '+
@@ -2314,6 +2373,10 @@ function tomarActo(f){
     (pisando
       ? '<b>Ojo:</b> en el punto 10 estaba designado <b>'+esc(nombreActor(g || f))+'</b>. '+
         'Al tomarlo, el acto y su honorario pasan a tu nombre y queda asentado en la auditoría.<br><br>'
+      : '')+
+    (aMedias
+      ? '<b>La valoración de '+esc(autorFicha(g))+' está incompleta</b>: podés registrar el acto, '+
+        'pero la ficha no se firma hasta completarla.<br><br>'
       : '')+
     'El honorario del acto pasa a ser tuyo; la consulta prequirúrgica sigue siendo de '+
     esc(autorFicha(g || f))+'.',
@@ -2333,6 +2396,14 @@ function tomarActo(f){
       base.actoTomado    = new Date().toISOString();
       base.actorExterno  = '';
       base.modificado    = new Date().toISOString();
+      /* Urgencia declarada al tomar un acto con la valoración a medias */
+      const urgDecl = f.__urgenciaDeclarada;
+      delete f.__urgenciaDeclarada; delete base.__urgenciaDeclarada;
+      if(urgDecl){
+        base.acto = Object.assign({}, base.acto || {}, { caracterActo: urgDecl });
+        auditar('acto-urgencia-valoracion-incompleta',
+          nombreCaracter(urgDecl) + ' — acto tomado con la valoración de ' + autorFicha(base) + ' a medias');
+      }
       if(!local) escribir('fichas', base.id, base);
       auditar('ficha-tomar-acto',
         (deColega ? 'Acto de la ficha de ' + autorFicha(base) : 'Acto propio') +
@@ -2415,12 +2486,9 @@ function htmlPasoRecuperacion(f){
     '<div id="reNauseasTxt"></div>'+
   '</div>'+
 
-  '<div class="card"><h3>'+ico('hospital')+'Destino</h3>'+
-    '<div class="campo"><label>Destino del paciente</label>'+
-      '<div class="seg wrap" id="reDestino">'+ DESTINOS_RECUPERACION.map(d =>
-        '<button type="button" data-v="'+esc(d)+'"'+
-        ((r.destino||'Sala de recuperación')===d?' class="on"':'')+'>'+esc(d)+'</button>').join('')+
-      '</div></div>'+
+  /* El destino se eligió en Recuperación y en Firmar a la vez: ahora vive
+     sólo en Finalizar. */
+  '<div class="card"><h3>'+ico('hospital')+'Estado al egreso</h3>'+
     campoSel('reEstado','Estado al egreso',
       ['','Estable, sin complicaciones','Estable con analgesia en curso','Requiere vigilancia estrecha',
        'Complicación resuelta','Traslado a UTI','Óbito intraoperatorio'], r.estado)+
@@ -2621,7 +2689,7 @@ function leerPasoRecuperacion(){
     aldreteCompleto: completo,
     eva: val('reEva'), nauseas: seg('reNauseas'), rescate: val('reRescate'),
     antiemetico: val('reAntiemetico'),
-    destino: seg('reDestino'), estado: val('reEstado'), observaciones: val('reObs'),
+    destino: $('#reDestino') ? seg('reDestino') : ((fichaActual.recup || {}).destino || ''), estado: val('reEstado'), observaciones: val('reObs'),
     /* La analgesia postoperatoria se indica acá, después del destino */
     analgesia: leerChks('reAnalgesia'),
     analgesiaDetalle: val('reAnalgDet'),
@@ -2680,8 +2748,7 @@ function htmlPasoFirma(f){
       '</div>'+
     '</div>'+
     tarjetaResumenAnestesia(f)+
-    htmlParteQuirurgico(f, miActo)+
-    htmlEnvioFicha(f);
+    htmlParteQuirurgico(f, miActo);
 
   /* ---------------- VENTANA 9: resumen de anestesia ---------------- */
   return ''+
@@ -2748,17 +2815,13 @@ function htmlPasoFirma(f){
       '<button class="btn ghost chico" id="fiFirmaLimpiar">Borrar</button>'+
       '<button class="btn ghost chico" id="fiFirmaPerfil">Usar mi firma guardada</button>'+
     '</div>'+
-    '<button class="btn pri grande mt14" id="fiFirmar"'+(trabas.length ? ' disabled' : '')+'>'+
-      ico('check')+' Finalizar y firmar</button>'+
-    (trabas.length ? '<p class="mini mt8">El botón se habilita cuando los cinco puntos del '+
-      'recorrido estén en verde.</p>' : '')+
+    '<p class="mini mt8">La firma se aplica al tocar <b>«Cerrar y guardar»</b>, al pie.</p>'+
   '</div>'+
 
   /* La foja quirúrgica y el envío a contaduría van al final del registro, en
      los dos estados: casi siempre el parte del cirujano llega DESPUÉS de que
      el anestesiólogo firmó su ficha, y tiene que poder adjuntarlo igual. */
   htmlParteQuirurgico(f, miActo)+
-  htmlEnvioFicha(f)+
 
   leyendaEstados();
 }
@@ -2799,7 +2862,6 @@ function leyendaEstados(){
 
 function cablearPasoFirma(f){
   cablearParteQuirurgico(f);
-  cablearEnvioFicha(f);
 
   if($('#fiReabrir')) $('#fiReabrir').onclick = () => confirmar('Reabrir la ficha',
     'La ficha vuelve a quedar editable. Queda registrado en la auditoría quién la reabrió y cuándo.',
@@ -2819,51 +2881,18 @@ function cablearPasoFirma(f){
     $$('#fiDestino button').forEach(x => x.classList.remove('on')); b.classList.add('on'); });
 
   if(!$('#fiFirmaCanvas')) return;
-  let firma = (USUARIO && USUARIO.firmaDataUrl) || '';
-  const c = montarFirma($('#fiFirmaCanvas'), d => firma = d);
+  firmaFinal = (USUARIO && USUARIO.firmaDataUrl) || '';
+  let firma = firmaFinal;
+  const c = montarFirma($('#fiFirmaCanvas'), d => { firma = d; firmaFinal = d; });
   setTimeout(() => { if(firma) c.cargar(firma); }, 150);
-  $('#fiFirmaLimpiar').onclick = () => { c.limpiar(); firma = ''; };
+  $('#fiFirmaLimpiar').onclick = () => { c.limpiar(); firma = ''; firmaFinal = ''; };
   $('#fiFirmaPerfil').onclick = () => {
     if(!USUARIO || !USUARIO.firmaDataUrl) return toast('No tenés firma guardada en Mi perfil.', 'err');
-    c.limpiar(); c.cargar(USUARIO.firmaDataUrl); firma = USUARIO.firmaDataUrl;
+    c.limpiar(); c.cargar(USUARIO.firmaDataUrl); firma = USUARIO.firmaDataUrl; firmaFinal = firma;
   };
   /* Los botones del cartel llevan al paso que falta cerrar */
   $$('#vFicha [data-irpaso]').forEach(b => b.onclick = () => irAPaso(b.dataset.irpaso));
 
-  $('#fiFirmar').onclick = () => {
-    /* El boton ya sale deshabilitado, pero la comprobacion se rehace aca:
-       entre que se pinto la pantalla y el clic pudo cambiar algo. */
-    const trabas = pasosPreviosPendientes(fichaActual);
-    if(trabas.length) return toast('Falta cerrar: ' +
-      trabas.map(t => t.t).join(', ') + '.', 'err');
-    if(!firma) return toast('Firmá antes de finalizar el registro.', 'err');
-    confirmar('Finalizar y firmar',
-      'La ficha queda cerrada y en sólo lectura. Se puede reabrir después, dejando constancia.',
-      () => {
-        const u = USUARIO || {};
-        /* el destino y las observaciones que se ajustaron acá van a la recuperación */
-        const d = $('#fiDestino button.on');
-        fichaActual.recup = Object.assign({}, fichaActual.recup, {
-          destino: d ? d.dataset.v : (fichaActual.recup||{}).destino,
-          observaciones: val('fiObsFinal')
-        });
-        fichaActual.firma = {
-          firmado:true, uid:SESION.uid,
-          nombre:(u.apellido||'')+', '+(u.nombre||''),
-          mp: u.matriculaProvincial || '',
-          fecha: hoyISO(), hora: ahoraHora(), firmaDataUrl: firma
-        };
-        fichaActual.estado = 'cerrada';
-        auditar('ficha-firmar', fichaActual.id);
-        guardarFicha(true);
-        toast('Ficha anestésica completa.', 'ok');
-        /* Firmar es el final del acto médico, pero no el final del trámite:
-           quedan la copia del registro y el honorario. Se preguntan las dos
-           cosas acá, en caliente, que es cuando el anestesiólogo todavía
-           tiene la ficha en la cabeza. */
-        cierreDeFicha(fichaActual);
-      }, 'Finalizar y firmar');
-  };
 }
 
 /* =========================================================================
@@ -3326,7 +3355,9 @@ function htmlBajaDeFicha(f){
   }
 
   const al = alcanceDeBaja(f);
-  if(!al) return '<div class="ayuda mt14 no-print">'+esc(motivoSinBaja(f))+'</div>';
+  /* El botón rojo aparece recién cuando la ficha se cerró y guardó SIN
+     finalizar: antes no hay nada a medio cargar que limpiar. */
+  if(!al || !f.guardadaIncompleta || !fichaIncompleta(f)) return '';
   return '<div class="btn-row mt14 no-print"><button class="btn danger chico" id="fiBorrar">'+
     ico('borrar')+' Eliminar '+(al === 'acto' ? 'mi acto anestésico' : 'esta ficha')+
     '</button></div>'+
@@ -3362,7 +3393,7 @@ function cuandoLocal(iso){
 
 function cablearBajaDeFicha(f){
   if($('#bjDetener')) $('#bjDetener').onclick = () => detenerBaja(f.id);
-  if($('#fiBorrar'))  $('#fiBorrar').onclick  = () => pedirBajaDeFicha(f);
+  if($('#fiBorrar'))  $('#fiBorrar').onclick  = () => pedirBajaIncompleta(f);
 }
 
 /* -------------------------------------------------------------------------
@@ -3426,13 +3457,16 @@ function pedirBajaDeFicha(f){
   };
 }
 
-function programarBaja(f, alcance, motivo){
+function programarBaja(f, alcance, motivo, minutos){
   const base = JSON.parse(JSON.stringify(DB.fichas[f.id] || f));
   const ahora = new Date();
+  /* Las incompletas se borran a los 10 minutos con alarma al último; el resto, a las 2 h */
+  const ms = minutos ? minutos * 60000 : HORAS_BAJA_PROGRAMADA * 3600000;
   base.bajaProgramada = {
     alcance, motivo,
     pedida: ahora.toISOString(),
-    cuando: new Date(ahora.getTime() + HORAS_BAJA_PROGRAMADA * 3600000).toISOString(),
+    cuando: new Date(ahora.getTime() + ms).toISOString(),
+    alarmaMin: minutos ? 1 : 0,
     pedidaPor: SESION.uid,
     pedidaPorNombre: USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '',
     avisado: ''
@@ -3441,10 +3475,10 @@ function programarBaja(f, alcance, motivo){
   if(fichaActual && fichaActual.id === base.id) fichaActual.bajaProgramada = base.bajaProgramada;
   auditar('ficha-baja-programada',
     'Baja de ' + (alcance === 'acto' ? 'el acto anestésico' : 'la ficha') + ' ' + base.id +
-    ' programada para dentro de ' + HORAS_BAJA_PROGRAMADA + ' h. Motivo: ' + motivo);
-  toast('Eliminación programada. Tenés ' + HORAS_BAJA_PROGRAMADA +
-        ' horas para detenerla.', 'warn');
-  pintarFicha();
+    ' programada para dentro de ' + (minutos ? minutos + ' min' : HORAS_BAJA_PROGRAMADA + ' h') + '. Motivo: ' + motivo);
+  toast('Eliminación programada. Tenés ' + (minutos ? minutos + ' minutos' : HORAS_BAJA_PROGRAMADA + ' horas') +
+        ' para detenerla.', 'warn');
+  if(vistaActual === 'ficha' && fichaActual) pintarFicha();
 }
 
 function detenerBaja(fichaId){
@@ -3500,4 +3534,66 @@ function ejecutarBaja(fichaId){
   } else if(vistaActual === 'fichas') vistaFichas();
 
   toast(b.alcance === 'acto' ? 'El acto anestésico se eliminó.' : 'La ficha se eliminó.', 'warn');
+  if(typeof anotarBajaHecha === 'function' && b.alarmaMin)
+    anotarBajaHecha((b.alcance === 'acto' ? 'Acto anestésico' : 'Ficha') + ' de ' + quien + ' · ' + (g.cirugia || 'sin cirugía') + '. El paciente sigue en el padrón.');
+  if(vistaActual === 'panel') vistaPanel();
+  if(typeof pintarBadgeAvisos === 'function') pintarBadgeAvisos();
+}
+
+
+/* =========================================================================
+   CERRAR Y GUARDAR (paso Finalizar)
+   -------------------------------------------------------------------------
+   Un solo botón azul al pie. Si está todo —pasos en verde, destino y firma—
+   la ficha queda FINALIZADA y se pregunta por la descarga y los honorarios.
+   Si falta algo, queda guardada como INCOMPLETA: se dice qué falta, entra en
+   «Incompletas» y en la campana, y recién ahí aparece «Eliminar esta ficha».
+   ========================================================================= */
+let firmaFinal = '';
+function cerrarYGuardarFinal(){
+  const f = fichaActual;
+  if(!f) return;
+  if(typeof soloLectura === 'function' && soloLectura('cerrar la ficha')) return;
+  const d = $('#fiDestino button.on');
+  f.recup = Object.assign({}, f.recup, {
+    destino: d ? d.dataset.v : ((f.recup || {}).destino || ''),
+    observaciones: $('#fiObsFinal') ? val('fiObsFinal') : ((f.recup || {}).observaciones || '')
+  });
+  const falta = pasosPreviosPendientes(f).map(t => t.t);
+  if(!f.recup.destino) falta.push('el destino del paciente');
+  if(!firmaFinal) falta.push('la firma del anestesiólogo');
+  if(falta.length){
+    f.guardadaIncompleta = new Date().toISOString();
+    guardarFicha(true, true);
+    auditar('ficha-guardar-incompleta', 'Falta: ' + falta.join(', '));
+    abrirModal('Ficha guardada como incompleta',
+      '<div class="aviso warn">'+ico('alerta')+'<div><b>Quedó guardada, pero todavía no está finalizada.</b>'+
+        '<br>Falta: '+esc(falta.join(', '))+'.<br><br>Queda en <b>Incompletas</b> y en la campana de avisos '+
+        'hasta que la completes.</div></div>',
+      '<button class="btn pri" id="ciAceptar">Aceptar</button>', '560px');
+    $('#ciAceptar').onclick = () => { cerrarModal(); pintarFicha(); };
+    return;
+  }
+  confirmar('Cerrar y guardar',
+    'La ficha queda <b>FINALIZADA</b>, firmada y en sólo lectura. Se puede reabrir después, dejando constancia.',
+    () => {
+      const u = USUARIO || {};
+      f.firma = { firmado:true, uid:SESION.uid, nombre:(u.apellido || '')+', '+(u.nombre || ''),
+                  mp:u.matriculaProvincial || '', fecha:hoyISO(), hora:ahoraHora(), firmaDataUrl:firmaFinal };
+      f.estado = 'cerrada';
+      delete f.guardadaIncompleta;
+      auditar('ficha-firmar', f.id);
+      guardarFicha(true);
+      toast('Ficha anestésica finalizada.', 'ok');
+      cierreDeFicha(fichaActual);
+    }, 'Finalizar');
+}
+
+/* La ficha completa en Word: paciente, valoración, anestesia y consentimiento */
+function descargarFichaCompleta(f){
+  if(consentimientoCompleto(f) && !consentSinFirma((f.consent || {}).quien))
+    return exportarFichaCompletaWord(f);
+  confirmar('Consentimiento sin firma',
+    'Va a bajar un <b>consentimiento sin firma del paciente</b>. Descárguelo y hágalo firmar luego.',
+    () => exportarFichaCompletaWord(f), 'Descargar igual');
 }

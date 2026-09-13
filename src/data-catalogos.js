@@ -1024,10 +1024,21 @@ const INDICACIONES_AL_PACIENTE = true;
 const CONSENT_QUIEN = [
   '', 'El paciente', 'Representante legal / familiar', 'Paciente y representante',
   'Menor de 16 años: firma su representante legal',
-  'Paciente que rechaza transfusión',
-  'No firmado — urgencia vital (art. 9 Ley 26.529)',
-  'Consentimiento revocado por el paciente'
+  'Paciente que rechaza transfusión y hemoderivados',
+  'El paciente no acepta la anestesia',
+  'No firmado — urgencia vital (art. 9 Ley 26.529)'
 ];
+
+/* Lo que el paciente declara, por defecto dentro del consentimiento. Sólo
+   cambia con «Quién firma»: rechazo de transfusión o de la anestesia. */
+function itemsConsentimiento(quien){
+  const q = String(quien || '');
+  const base = CONSENT_ITEMS.slice(0, 5);
+  if(/no acepta la anestesia|revocado/i.test(q)) return base.slice(0, 3).concat(['NO ACEPTA la anestesia propuesta']);
+  return base.concat(['Acepta la técnica anestésica propuesta',
+    /rechaza transfusi/i.test(q) ? 'RECHAZA transfusión de hemoderivados'
+                                 : 'Acepta transfusión de hemoderivados si fuera indispensable']);
+}
 
 /* ---------- Escala de Aldrete modificada ---------- */
 const ALDRETE = [
