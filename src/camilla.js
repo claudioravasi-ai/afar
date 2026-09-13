@@ -192,15 +192,15 @@ function cmGrafico(a){
   });
   const linea = (k, col) => {
     const p = ctr.filter(q => Number(q.c[k])).map(q => x(q.m)+','+y(Number(q.c[k])));
-    return p.length > 1 ? '<polyline points="'+p.join(' ')+'" fill="none" stroke="'+col+'" stroke-opacity=".35" stroke-width="1"/>' : '';
+    return p.length > 1 ? '<polyline points="'+p.join(' ')+'" fill="none" stroke="'+col+'" stroke-opacity=".6" stroke-width="1.2"/>' : '';
   };
   s += linea('tas', ta) + linea('tad', ta) + linea('fc', fc);
-  const z = 2.6;
+  const z = 3.6;
   ctr.forEach(q => {
     const X = x(q.m), sa = Number(q.c.tas), da = Number(q.c.tad), f = Number(q.c.fc);
-    if(sa) s += '<path d="M'+(X-z)+' '+(y(sa)-z)+' L'+X+' '+(y(sa)+z)+' L'+(X+z)+' '+(y(sa)-z)+'" fill="none" stroke="'+ta+'" stroke-width="1.3"/>';
-    if(da) s += '<path d="M'+(X-z)+' '+(y(da)+z)+' L'+X+' '+(y(da)-z)+' L'+(X+z)+' '+(y(da)+z)+'" fill="none" stroke="'+ta+'" stroke-width="1.3"/>';
-    if(f)  s += '<circle cx="'+X+'" cy="'+y(f)+'" r="2" fill="'+fc+'"/>';
+    if(sa) s += '<path d="M'+(X-z)+' '+(y(sa)-z)+' L'+X+' '+(y(sa)+z)+' L'+(X+z)+' '+(y(sa)-z)+'" fill="none" stroke="'+ta+'" stroke-width="1.8"/>';
+    if(da) s += '<path d="M'+(X-z)+' '+(y(da)+z)+' L'+X+' '+(y(da)-z)+' L'+(X+z)+' '+(y(da)+z)+'" fill="none" stroke="'+ta+'" stroke-width="1.8"/>';
+    if(f)  s += '<circle cx="'+X+'" cy="'+y(f)+'" r="2.8" fill="'+fc+'"/>';
   });
   const xa = x(aj(ahora));
   if(xa >= L && xa <= W - R) s += '<line x1="'+xa+'" x2="'+xa+'" y1="'+T+'" y2="'+(GH-B)+'" stroke="#2dd4bf" stroke-width="1.2"/>';
@@ -272,6 +272,20 @@ function cmPreparar(f){
   return h;
 }
 
+/* Debajo del gráfico, lo que quedó grabado: lo de «Registrar» y lo trazado
+   (marcado TRAZO), los más nuevos arriba. */
+function cmListaSignos(a){
+  const l = (a.controles || []).filter(c => ['tas','tad','fc','spo2','etco2'].some(k => c[k] !== '' && c[k] != null));
+  const v = x => (x === '' || x == null) ? '–' : esc(x);
+  return '<div class="cm-ctl"><div><b>Hora</b><span style="color:var(--p-dim)">TAS/TAD · FC · SpO₂ · EtCO₂</span><i>'+l.length+'</i></div>'+
+    (l.length ? l.slice(-6).reverse().map(c =>
+      '<div><b>'+esc(c.hora || '—')+'</b><span>'+v(c.tas)+'/'+v(c.tad)+' · '+v(c.fc)+' · '+v(c.spo2)+' · '+v(c.etco2)+'</span>'+
+      '<i>'+((c.trazo || []).length ? 'TRAZO' : '')+'</i></div>').join('')
+      : '<div><b>—</b><span class="vacio">Todavía no hay signos registrados.</span><i></i></div>')+
+    (l.length > 6 ? '<div><b></b><span class="vacio">y '+(l.length - 6)+' anteriores</span><i></i></div>' : '')+
+  '</div>';
+}
+
 function cmDurante(f){
   const a = f.acto || {}, c = a.camilla || {}, st = cmEstado(f);
   const t = CM_TPL[c.plantilla];
@@ -290,8 +304,9 @@ function cmDurante(f){
     '<div class="cm-leg"><span><b style="color:#fb7185">v</b> TAS</span>'+
     '<span><b style="color:#fb7185">^</b> TAD</span><span><b style="color:#2dd4bf">•</b> FC</span>'+
     '<span>SpO₂ y EtCO₂ en números</span>'+
-    '<button type="button" class="cm-mini" data-cmtrazo="1">✎ Trazar con el dedo</button></div></div>';
-  h += '<div class="cm-blk"><div class="cm-lb"><span>Signos · ahora <span id="cmAhora">'+ahoraHora()+'</span></span><span>los 5 juntos</span></div><div class="cm-vit">'+
+    '<button type="button" class="cm-mini" data-cmtrazo="1">✎ Trazar con el dedo</button></div>'+
+    cmListaSignos(a)+'</div>';
+  h += '<div class="cm-blk cm-blk-reg"><div class="cm-lb"><span>Signos · ahora <span id="cmAhora">'+ahoraHora()+'</span></span><span>los 5 juntos</span></div><div class="cm-vit">'+
     CM_SIGNOS.map(([k, n]) => '<div class="cm-v"><span>'+n+'</span><b>'+st.cur[k]+'</b><div class="pm">'+
       '<button type="button" data-cmdv="'+k+'" data-d="-1" aria-label="bajar '+n+'">−</button>'+
       '<button type="button" data-cmdv="'+k+'" data-d="1" aria-label="subir '+n+'">+</button></div></div>').join('')+
@@ -391,7 +406,15 @@ function cablearCamilla(f){
     });
   };
   cont.onclick = e => {
-    if(TZS && TZS.inline) return;             /* trazando: el lienzo maneja sus toques */
+    /* Trazando: el lienzo maneja sus toques. Si el lienzo ya no está (se
+       repintó la pantalla), el estado quedó colgado y trababa TODO, incluso
+       «Registrar»: se suelta. Fuera del gráfico se avisa, no se ignora. */
+    if(TZS && TZS.inline){
+      if(!TZS.cv || !document.body.contains(TZS.cv)) TZS = null;
+      else if(e.target.closest('#cmChart')) return;
+      else if(e.target.closest('button')) return toast('Primero guardá o cancelá el trazado del gráfico.', 'warn');
+      else return;
+    }
     const toque = e.target.closest('.cm-chart-toque');
     if(toque && !cont.querySelector('.tz-en-linea')) return abrirTrazoVitales({ en:'#cmChart' });
     const b = e.target.closest('button');
@@ -508,6 +531,7 @@ function cmEditarValor(i){
 function cmRegistrar(){
   const hora = ahoraHora();
   const cur = CM.cur;
+  const yaHabia = ((fichaActual.acto || {}).controles || []).some(c => c.hora === hora);
   cmCambiar(a => {
     a.controles = (a.controles || []).slice();
     const i = a.controles.findIndex(c => c.hora === hora);
@@ -522,7 +546,8 @@ function cmRegistrar(){
     }
     a.controles.sort((x, y) => (x.hora || '') < (y.hora || '') ? -1 : 1);
     if(!a.fechaCirugia) a.fechaCirugia = hoyISO();
-  }, 'Signos registrados · '+hora);
+  }, (yaHabia ? 'Actualizado el control de las ' : 'Signos registrados · ') + hora +
+     ' — TAS '+cur.tas+' / TAD '+cur.tad+' · FC '+cur.fc);
 }
 
 /* Toque en una droga: primero la alergia; después, el vademécum con la dosis

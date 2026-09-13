@@ -1809,7 +1809,7 @@ html[data-tema="oscuro"] .et-tab.e3{--et:#a78bfa}
 .cm-hito.on .g,.cm-hito.on .n{color:var(--p-ink)}
 .cm-hito.on .t{color:var(--p-aqua)}
 .cm-chart{background:var(--p-s);border-radius:12px;padding:6px 6px 2px}
-.cm-chart svg{width:100%;height:auto;display:block}
+.cm-chart-toque > svg{width:100%;height:auto;display:block}
 .cm-leg{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:4px 6px 6px;font-size:11px;color:var(--p-dim)}
 .cm-leg b{font-family:var(--mono);font-size:12px}
 .cm-mini{margin-left:auto;background:var(--p-s2);border:1px solid var(--p-line);border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:600;color:var(--p-aqua)}
@@ -1846,10 +1846,22 @@ html[data-tema="oscuro"] .et-tab.e3{--et:#a78bfa}
   --panel:#0d1c2e;--panel-2:#14283f;--bg-2:#14283f}
 .cm-chart-toque{cursor:crosshair}
 .cm-chart.tz-en-linea{padding:10px}
-.cm-chart.tz-en-linea .ayuda{color:var(--p-dim)}
+.cm-chart.tz-en-linea .ayuda{color:var(--p-dim);font-size:11.5px;line-height:1.35;margin-top:8px;
+  background:none;border:0;padding:0}
 .cm-chart.tz-en-linea input{background:var(--p-s2);color:var(--p-ink);border-color:var(--p-line)}
-.tz-botones{margin-top:10px}
-.tz-botones .btn{flex:1}
+.cm-chart.tz-en-linea .tz-paso{min-width:0;flex:1 1 100%}
+.cm-chart.tz-en-linea .tz-params button{flex:1 1 30%;padding:8px 4px;font-size:13.5px}
+.tz-botones{margin-top:10px;flex-wrap:nowrap}
+.tz-botones .btn{flex:1 1 0;min-width:0;white-space:normal;line-height:1.15;padding:11px 8px}
+.tz-botones .btn svg{width:17px;height:17px}
+.camilla.trazando .cm-blk-reg{display:none}
+/* Lo registrado, debajo del gráfico */
+.cm-ctl{display:grid;gap:3px;padding:2px 6px 6px;font-size:12.5px}
+.cm-ctl div{display:grid;grid-template-columns:44px 1fr auto;gap:6px;align-items:baseline}
+.cm-ctl b{font-family:var(--mono);font-weight:500;color:var(--p-aqua)}
+.cm-ctl span{font-family:var(--mono);color:var(--p-ink);font-variant-numeric:tabular-nums}
+.cm-ctl i{font-style:normal;font-size:10px;letter-spacing:.06em;color:var(--p-amber)}
+.cm-ctl .vacio{color:var(--p-dim);font-family:inherit}
 
 /* =========================================================================
    INICIO: renglones de avisos y anestesias, Spotify y WhatsApp
