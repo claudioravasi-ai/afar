@@ -142,7 +142,8 @@ function vistaFichas(){
   (typeof htmlVentanasHistorial === 'function' ? htmlVentanasHistorial() : '')+
   '<div class="vista-head"><div><h1>Fichas anestésicas</h1>'+
     '<p>'+l.length+' de '+universo.length+' fichas</p></div>'+
-    '<div class="acciones"><button class="btn pri" id="btnNuevaFicha">'+ico('mas')+' Nueva ficha</button></div></div>'+
+    /* Sin «Nueva ficha»: las fichas nacen desde las tres etapas del inicio */
+    '</div>'+
 
   (esCoordinador() ? '' :
     '<div class="seg mb8" id="fAlcance">'+
@@ -252,7 +253,6 @@ function vistaFichas(){
         ? 'Todas las valoraciones de la asociación ya tienen anestesiólogo asignado para el acto.'
         : 'Creá la primera desde «Nueva ficha».')+'</span></div>');
 
-  $('#btnNuevaFicha').onclick = () => abrirFicha(null);
   $('#fBuscar').oninput = debounce(e => { filtroFichas.texto = e.target.value; vistaFichas();
     const i = $('#fBuscar'); if(i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 260);
   $$('#fAlcance button').forEach(b => b.onclick = () => {
@@ -386,6 +386,8 @@ function migrarFicha(f){
 }
 
 function abrirFicha(id, pacienteId){
+  /* Salir de una ficha abriendo otra también cuenta como salir */
+  if(fichaActual && fichaActual.id !== id) marcarSalidaFicha();
   const nueva = !id;
   /* Las fichas de más de 90 días no viven en el dispositivo: se traen de la
      nube en el momento en que alguien las abre. Se pide y se vuelve a entrar. */
@@ -410,6 +412,7 @@ function abrirFicha(id, pacienteId){
   });
   if(pacienteId) fichaActual.pacienteId = pacienteId;
   cxLista = procedimientosDe(fichaActual);
+  __aperturaFicha = { id: fichaActual.id, cuando: new Date().toISOString() };
   /* Se entra por el primer paso de la seccion propia: al que viene a
      anestesiar la ficha de un colega no le sirve arrancar en la
      identificacion del paciente, que no puede tocar. */
@@ -938,6 +941,8 @@ const PASO_EXTRAS  = { preanestesia:'valoracion', firma:'acto' };
 /* En la valoración propia, «Siguiente» aparece recién después de «Cerrar y
    guardar»: primero se guarda y se ven los pendientes, después se sigue. */
 function siguienteVisible(f){
+  /* En Anestesia manda el botón celeste de la pestaña «Cerrar» del Modo Camilla */
+  if(pasoFicha === 'anestesia') return false;
   if(pasoFicha !== 'preanestesia') return true;
   const g = DB.fichas[f.id];
   if(!puedeEditarSeccion(g || f, 'valoracion')) return true;
@@ -1284,6 +1289,10 @@ function cablearFaltantes(){
     if(paso === 'hon') return abrirHonorarios(fichaActual);
 
     if(sol) solapaActo = sol;                 /* solapa del acto anestésico */
+    /* En el Modo Camilla, cada faltante lleva a su pestaña */
+    if(sol && typeof CM !== 'undefined')
+      CM.tab = ({ drogas:'durante', vitales:'durante', balance:'cerrar', eventos:'cerrar',
+                  resumen: anc === 'acFinCx' ? 'durante' : 'preparar' })[sol] || CM.tab;
     if(paso !== pasoFicha){ pasoDeVuelta = pasoFicha; irAPaso(paso); }
     else guardarPasoActual();
     if(sol) pintarPasoAnestesia(fichaActual);
@@ -1387,12 +1396,13 @@ function htmlExtrasDePaso(f, soloActo){
   }
 
   /* ------------------- Documentos del ACTO anestesico -------------------- */
-  const enBase = !!guardada;
+  /* Se habilitan recién con la ficha FINALIZADA con «Cerrar y guardar» */
+  const enBase = !!(guardada && (guardada.firma || {}).firmado);
   const off = enBase ? '' : ' disabled';
   return '<div class="doc-caja no-print">'+
     '<div class="doc-caja-tit">'+ico('ficha')+'<b>Documentación del acto anestésico</b></div>'+
     (enBase ? '' : '<div class="aviso warn mt8">'+ico('candado')+
-      '<div>Guardá el registro para poder exportarlo.</div></div>')+
+      '<div>Se habilitan cuando la ficha esté completa y la cierres con <b>«Cerrar y guardar»</b>.</div></div>')+
     '<div class="btn-row mt8 fi-extras">'+
       '<button class="btn ghost chico" id="fiHon"'+off+'>'+ico('dinero')+
         ' Conformar honorarios de la anestesia</button>'+
@@ -3358,6 +3368,9 @@ function htmlBajaDeFicha(f){
   /* El botón rojo aparece recién cuando la ficha se cerró y guardó SIN
      finalizar: antes no hay nada a medio cargar que limpiar. */
   if(!al || !f.guardadaIncompleta || !fichaIncompleta(f)) return '';
+  /* Mientras se está trabajando en la ficha no se ofrece borrar nada: sólo
+     si en una visita anterior se salió de ella sin completarla. */
+  if(!(__aperturaFicha.id === f.id && String(f.guardadaIncompleta) < __aperturaFicha.cuando)) return '';
   return '<div class="btn-row mt14 no-print"><button class="btn danger chico" id="fiBorrar">'+
     ico('borrar')+' Eliminar '+(al === 'acto' ? 'mi acto anestésico' : 'esta ficha')+
     '</button></div>'+
@@ -3569,7 +3582,7 @@ function cerrarYGuardarFinal(){
     abrirModal('Ficha guardada como incompleta',
       '<div class="aviso warn">'+ico('alerta')+'<div><b>Quedó guardada, pero todavía no está finalizada.</b>'+
         '<br>Falta: '+esc(falta.join(', '))+'.<br><br>Queda en <b>Incompletas</b> y en la campana de avisos '+
-        'hasta que la completes.</div></div>',
+        'hasta que la completes. Si salís sin completarla, al volver a abrirla vas a poder completarla o eliminarla.</div></div>',
       '<button class="btn pri" id="ciAceptar">Aceptar</button>', '560px');
     $('#ciAceptar').onclick = () => { cerrarModal(); pintarFicha(); };
     return;
@@ -3596,4 +3609,22 @@ function descargarFichaCompleta(f){
   confirmar('Consentimiento sin firma',
     'Va a bajar un <b>consentimiento sin firma del paciente</b>. Descárguelo y hágalo firmar luego.',
     () => exportarFichaCompletaWord(f), 'Descargar igual');
+}
+
+
+/* =========================================================================
+   SALIR DE UNA FICHA SIN COMPLETARLA
+   -------------------------------------------------------------------------
+   «Eliminar» aparece sólo para la ficha que alguien dejó incompleta y a la
+   que volvió después. Al salir (Volver, otra pantalla u otra ficha) se anota
+   `guardadaIncompleta`; en la visita siguiente, si esa marca es anterior a la
+   apertura, se ofrece borrar. Mientras se trabaja, no hay nada que borrar.
+   ========================================================================= */
+let __aperturaFicha = { id:'', cuando:'' };
+function marcarSalidaFicha(){
+  if(!fichaActual || !SESION || (typeof esInvitado === 'function' && esInvitado())) return;
+  const g = DB.fichas[fichaActual.id];
+  if(!g || g.guardadaIncompleta || !fichaIncompleta(g)) return;
+  if(!(esAutorFicha(g) || esActorFicha(g))) return;
+  escribir('fichas', g.id, Object.assign({}, g, { guardadaIncompleta: new Date().toISOString() }));
 }

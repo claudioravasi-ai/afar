@@ -147,9 +147,7 @@ function pintarPasoAnestesia(f){
         ico(s[1]).replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
         esc(s[2])+(cuenta[s[0]] ? '<span class="badge">'+cuenta[s[0]]+'</span>' : '')+
       '</button>').join('') +
-      '<button type="button" id="acACamilla" data-lectura>'+ico('monitor')
-        .replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"')+
-        'Modo camilla</button>'+
+
     '</div>'+
     '<div id="actoCuerpo"></div>'+
     '<div class="autoguarda-acto no-print" id="acAviso"></div>';

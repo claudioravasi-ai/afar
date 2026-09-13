@@ -212,6 +212,8 @@ function pintarBarraVolver(){
 function irA(v, opc){
   /* Guarda de acceso: nadie entra a una vista que su rol no habilita */
   if(!puedeVerVista(v)) v = vistaInicial();
+  /* Salir de la ficha sin completarla la deja marcada para poder eliminarla después */
+  if(vistaActual === 'ficha' && v !== 'ficha' && typeof marcarSalidaFicha === 'function') marcarSalidaFicha();
   if(!(opc && opc.volviendo) && vistaActual && vistaActual !== v){
     HISTORIAL_VISTAS.push(vistaActual);
     if(HISTORIAL_VISTAS.length > 30) HISTORIAL_VISTAS.shift();
@@ -363,16 +365,12 @@ function vistaPanel(){
 
   '<h3 style="font-size:14px;margin:20px 0 10px">Accesos rápidos</h3>'+
   '<div class="tiles">'+
-    tile('irPacientes','pacientes','','Pacientes','Historia completa')+
-    tile('irFichas','lista','','Historial','Todas mis fichas')+
     tile('irVademecum','jeringa','aqua','Vademécum','Dosis de adultos y pediatría')+
     tile('irStats','stats','ok','Estadísticas','Día, semana y mes')+
     tile('irFacturacion','dinero','warn','Facturación','Resumen mensual y Excel')+
     tile('irGuias','guias','danger','Guías y protocolos','Vía aérea, LAST, HM')+
     tile('irCalc','calculadora','aqua','Calculadoras','Dosis, fluidos, sangrado')+
-    tile('irAvisos','campana','warn','Avisos','Recordatorios y pendientes')+
-    (esCoordinador() ? tile('irCoord','escudo','danger','Coordinación','Socios y catálogos') : '')+
-    tile('irPerfil','usuario','','Mi perfil','Matrícula, firma y datos')+
+    /* Pacientes, Historial, Avisos, Coordinación y Perfil ya están en la barra y en Ajustes */
   '</div>'+
 
   (proximas.length ? '<h3 style="font-size:14px;margin:22px 0 10px">Próximas cirugías</h3>'+
@@ -408,8 +406,6 @@ function vistaPanel(){
 
   const ir = (id, fn) => { const e = $('#'+id); if(e) e.onclick = fn; };
   $('#pnInst').onchange = e => fijarInstitucion(e.target.value);
-  ir('pnValoracion', () => nuevaFichaEnInstitucion('preanestesia'));
-  ir('pnFicha',      () => nuevaFichaEnInstitucion('anestesia'));
   ir('peHoy',  () => { filtroFichas = Object.assign({}, filtroFichas, { texto:'', estado:'' });
                        irA('fichas'); });
   ir('peBorr', abrirIncompletas);
@@ -422,16 +418,11 @@ function vistaPanel(){
   /* Los honorarios diferidos se abren desde acá sin esperar al cartel de
      las tres horas: el que quiere sacárselos de encima puede hacerlo ya. */
   ir('peHon', () => { marcarCartelHon0(); revisarRecordatorioHonorarios(); });
-  ir('tlIrPacientes', () => irA('pacientes'));
-  ir('tlIrFichas', () => irA('fichas'));
   ir('tlIrVademecum', abrirVademecumSuelto);
   ir('tlIrStats', () => irA('stats'));
   ir('tlIrFacturacion', () => irA('facturacion'));
   ir('tlIrGuias', () => irA('guias'));
   ir('tlIrCalc', abrirCalculadoras);
-  ir('tlIrCoord', () => irA('coordinador'));
-  ir('tlIrPerfil', () => irA('perfil'));
-  ir('tlIrAvisos', abrirAvisos);
   ir('demoBorrar', confirmarBorrarDemo);
   cablearEtapasPanel();
   cablearRenglonAvisos();

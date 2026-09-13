@@ -29,9 +29,9 @@
    ========================================================================= */
 
 const LS_VISTA_ACTO = 'afar_vista_acto_v1';
-function vistaActoEsCamilla(){
-  try{ return (localStorage.getItem(LS_VISTA_ACTO) || 'camilla') === 'camilla'; }catch(e){ return true; }
-}
+/* Desde el 13-09-2026 el Modo Camilla es la ÚNICA pantalla del acto: se quitó
+   «Registro completo», que llevaba a las cinco solapas del registro anterior. */
+function vistaActoEsCamilla(){ return true; }
 function fijarVistaActo(v){ try{ localStorage.setItem(LS_VISTA_ACTO, v); }catch(e){} }
 
 const CM_GRUPOS = [
@@ -236,11 +236,30 @@ function cmVT(f){
   return pi ? Math.round(pi * 7) + ' ml (7 ml/kg p. ideal) · FR 12' : 'falta talla y sexo';
 }
 
+/* Lo que antes sólo se cargaba en las solapas viejas y hace falta para cerrar:
+   fecha de la cirugía, cirujano, carácter del acto, técnica y vía aérea difícil. */
+function cmDatosDelActo(f){
+  const a = f.acto || {}, eq = a.equipo || {};
+  const car = caracterActo(f);
+  return '<div class="cm-blk"><div class="cm-lb"><span>Datos del acto</span></div>'+
+    '<div class="cm-vals">'+
+      '<label class="cm-val"><span>Fecha de la cirugía</span><input type="date" id="acFechaCx" data-cmcampo="fechaCirugia" value="'+esc(a.fechaCirugia || '')+'"></label>'+
+      '<label class="cm-val"><span>Cirujano</span><input type="text" id="acCirujano" data-cmcampo="cirujano" value="'+esc(eq.cirujano || '')+'" placeholder="Apellido"></label>'+
+    '</div>'+
+    '<div class="cm-lb" style="margin-top:4px"><span>Carácter del acto</span></div><div class="cm-chips">'+
+      CARACTERES.map(x => '<button type="button" class="cm-ch'+(car === x.id ? ' on' : '')+'" data-cmcar="'+x.id+'">'+esc(x.n)+'</button>').join('')+'</div>'+
+    '<div class="cm-lb" style="margin-top:4px"><span>Técnica realizada</span></div><div class="cm-chips">'+
+      TECNICAS_FLUJO.map(x => '<button type="button" class="cm-ch'+((a.tecnicas || []).indexOf(x.k) >= 0 ? ' on' : '')+'" data-cmtec="'+x.k+'">'+esc(x.t)+'</button>').join('')+'</div>'+
+    '<div class="cm-lb" style="margin-top:4px"><span>Vía aérea difícil</span></div><div class="cm-chips">'+
+      [['no','No'],['si','Sí']].map(x => '<button type="button" class="cm-ch'+((a.vaDificil || 'no') === x[0] ? ' on' : '')+'" data-cmva="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
+  '</div>';
+}
+
 function cmPreparar(f){
   const a = f.acto || {}, c = a.camilla || {};
   const t = CM_TPL[c.plantilla];
   const checks = c.checks || [];
-  let h = CM_GRUPOS.map(([g, items]) =>
+  let h = cmDatosDelActo(f) + CM_GRUPOS.map(([g, items]) =>
     '<div class="cm-blk"><div class="cm-lb"><span>'+g+'</span><span>'+items.filter(i => checks.indexOf(i) >= 0).length+'/'+items.length+'</span></div>'+
     '<div class="cm-chips">'+ items.map(i => '<button type="button" class="cm-ch'+(checks.indexOf(i)>=0?' on':'')+'" data-cmchk="'+esc(i)+'">'+esc(i)+'</button>').join('') +'</div></div>').join('');
   const vals = (c.vals || []).slice();
@@ -315,8 +334,8 @@ function cmCerrar(f){
     '<button type="button" class="cm-ch'+(evs ? ' on' : '')+'" data-cmev="si">'+(evs ? evs+' evento'+(evs===1?'':'s')+' · agregar' : 'Hubo eventos…')+'</button></div></div>';
   /* El destino se elige sólo en Finalizar */
   h += fl.length ? '<div class="cm-falta">Para firmar falta: '+esc(fl.join(' · '))+'</div>'
-                 : '<div class="cm-falta listo">Está todo lo del acto. Seguí con la recuperación y la firma.</div>';
-  h += '<button type="button" class="cm-firmar" id="cmSeguir">Siguiente: recuperación y firma →</button>';
+                 : '<div class="cm-falta listo">Está todo lo del acto. Seguí con la recuperación y finalizar.</div>';
+  h += '<button type="button" class="cm-firmar" id="cmSeguir">Siguiente: recuperación y finalizar →</button>';
   return h;
 }
 
@@ -347,7 +366,7 @@ function htmlCamilla(f){
       '<button type="button" role="tab" data-cmtab="'+k+'" data-lectura aria-selected="'+(st.tab===k)+'">'+n+'</button>').join('') +'</div>'+
     '<div class="cm-body">'+cuerpo+'</div>'+
   '</div>'+
-  '<div class="cm-pie no-print"><button type="button" class="btn ghost chico" id="cmCompleto" data-lectura>'+ico('lista')+
+  '<div class="cm-pie no-print" style="display:none"><button type="button" class="btn ghost chico" id="cmCompleto" data-lectura>'+ico('lista')+
     ' Registro completo (vademécum, TOF, balance y eventos en detalle)</button></div>';
 }
 
@@ -362,6 +381,15 @@ function cablearCamilla(f){
     ['cmReloj','cmAhora','cmRegHora'].forEach(id => { const e = $('#'+id); if(e) e.textContent = h; });
   }, 20000);
 
+  cont.onchange = e => {
+    const el = e.target.closest('[data-cmcampo]');
+    if(!el) return;
+    const k = el.dataset.cmcampo, v = el.value.trim();
+    cmCambiar(a => {
+      if(k === 'cirujano') a.equipo = Object.assign({}, a.equipo, { cirujano:v });
+      else a[k] = v;
+    });
+  };
   cont.onclick = e => {
     if(TZS && TZS.inline) return;             /* trazando: el lienzo maneja sus toques */
     const toque = e.target.closest('.cm-chart-toque');
@@ -370,7 +398,6 @@ function cablearCamilla(f){
     if(!b || b.disabled) return;
     const d = b.dataset;
     if(d.cmtab){ CM.tab = d.cmtab; pintarPasoAnestesia(fichaActual); window.scrollTo({ top: Math.min(window.scrollY, $('#actoCuerpo').offsetTop), behavior:'auto' }); return; }
-    if(b.id === 'cmCompleto'){ fijarVistaActo('completo'); pintarPasoAnestesia(fichaActual); return; }
 
     if('cmtpl' in d){
       const k = d.cmtpl, t = CM_TPL[k];
@@ -415,6 +442,13 @@ function cablearCamilla(f){
     });
     if(d.cmev === 'no') return cmCambiar(a => { a.sinEventos = true; }, 'Sin eventos adversos.');
     if(d.cmev === 'si') return abrirEvento(null);
+    if(d.cmcar) return cmCambiar(a => { a.caracterActo = d.cmcar; }, 'Carácter del acto: ' + nombreCaracter(d.cmcar) + '.');
+    if(d.cmtec) return cmCambiar(a => {
+      const l = (a.tecnicas || []).slice(), i = l.indexOf(d.cmtec);
+      if(i >= 0) l.splice(i, 1); else l.push(d.cmtec);
+      a.tecnicas = l;
+    });
+    if(d.cmva) return cmCambiar(a => { a.vaDificil = d.cmva; });
     if(d.cmdest) return cmCambiar(a => {
       a.destinoReal = d.cmdest;
       if(fichaActual.recup && !fichaActual.recup.destino) fichaActual.recup.destino = d.cmdest;

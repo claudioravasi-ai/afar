@@ -63,7 +63,11 @@ function actosEnCurso(){
 /* Valoraciones de cualquier socio esperando quien las anestesie. Primero las
    concluidas: sobre una a medias no se puede tomar el acto. */
 function listosParaQuirofano(){
-  return fichasDisponibles().slice().sort((a, b) =>
+  /* Sólo lo que se puede tomar: valoraciones completas, o urgencias (que se
+     toman aunque la valoración esté a medias). Una valoración programada a
+     medias de un colega no es un paciente listo: es trabajo de otro. */
+  return fichasDisponibles().filter(f => valoracionConcluida(f) ||
+      esNoProgramado(caracterActo(f)) || esNoProgramado(f.caracter)).sort((a, b) =>
     (valoracionConcluida(b) ? 1 : 0) - (valoracionConcluida(a) ? 1 : 0) || porModificado(a, b));
 }
 
@@ -72,7 +76,7 @@ function htmlEtapasPanel(){
   const nPre   = typeof precargasPendientes === 'function' ? precargasPendientes().length : 0;
   const nVal   = valoracionesEnCurso().length;
   const nActos = actosEnCurso().length;
-  const nListos = fichasDisponibles().length;
+  const nListos = listosParaQuirofano().length;
   const cuenta = {
     paciente: nPre ? nPre + ' precargado' + (nPre === 1 ? '' : 's') + ' esperando' : '',
     prequirurgico: nVal ? nVal + (nVal === 1 ? ' valoración' : ' valoraciones') + ' en curso' : '',
@@ -827,30 +831,109 @@ function iniciarValoracionPara(pid, extra){
 /* ========================= ETAPA 3 · QUIROFANO ========================= */
 function etapaQuirofano(){
   volverA = etapaQuirofano;
-  const actos = actosEnCurso(), listos = listosParaQuirofano();
+  let q = '';
+  const filtrar = l => {
+    const w = norm(q).trim();
+    if(!w) return l;
+    return l.filter(f => { const p = DB.pacientes[f.pacienteId] || {};
+      return norm([p.apellido, p.nombre, p.dni, f.cirugia, textoProcedimientos(f)].join(' ')).indexOf(w) >= 0; });
+  };
+  const listas = () => {
+    const actos = filtrar(actosEnCurso()), listos = filtrar(listosParaQuirofano());
+    return (actos.length ? '<div class="et-sub">Mis actos en curso ('+actos.length+')</div>'+htmlListaEtapa(actos, 'anestesia') : '')+
+      '<div class="et-sub">Listos para anestesiar ('+listos.length+')</div>'+
+      (listos.length ? htmlListaEtapa(listos, 'anestesia')
+        : '<p class="mini">'+(q ? 'Ningún paciente coincide con la búsqueda.'
+                                : 'No hay valoraciones completas esperando quién las anestesie.')+'</p>');
+  };
   abrirModal('Etapa 3 · Quirófano',
     '<div class="et-ops">'+
       opEtapa('e3Urg', 'alerta', 'Urgencia / emergencia',
         'Sin valoración previa: lo mínimo del paciente y directo al registro.', 'urg')+
+      opEtapa('e3Ahora', 'jeringa', 'Iniciar la anestesia y completar después',
+        'Arranca el registro ya. Los datos del paciente y la valoración se cargan durante la cirugía; la app te lo recuerda.', 'pri')+
     '</div>'+
-    (actos.length
-      ? '<div class="et-sub">Mis actos en curso ('+actos.length+')</div>'+
-        htmlListaEtapa(actos.slice(0, 6), 'anestesia')
-      : '')+
-    '<div class="et-sub">Listos para anestesiar ('+listos.length+')</div>'+
-    (listos.length
-      ? htmlListaEtapa(listos.slice(0, 8), 'anestesia')+
-        (listos.length > 8 ? '<button type="button" class="btn ghost chico mt8" id="e3Todos">Ver los '+
-          listos.length+'</button>' : '')
-      : '<p class="mini">No hay valoraciones esperando quién las anestesie.</p>')+
-    '<div class="et-links"><button type="button" class="btn ghost chico" id="e3Otro">'+ico('buscar')+
-      ' Otro paciente: buscar la valoración y tomar el acto</button></div>', '', '640px');
+    '<div class="campo mt14" style="margin-bottom:0"><input type="search" id="e3Buscar" '+
+      'placeholder="Buscar paciente por apellido, DNI o cirugía" autocomplete="off"></div>'+
+    '<div id="e3Listas">'+ listas() +'</div>'+
+    '<div class="et-links"><button type="button" class="btn ghost chico" id="e3Fuera">'+ico('archivo')+
+      ' Valorado en papel o reintervención</button></div>', '', '640px');
 
   $('#e3Urg').onclick = () => { cerrarModal(); setTimeout(abrirUrgenciaRapida, 160); };
-  $('#e3Otro').onclick = () => { cerrarModal(); nuevaFichaEnInstitucion('anestesia'); };
-  if($('#e3Todos')) $('#e3Todos').onclick = () => {
-    cerrarModal(); filtroFichas.alcance = 'disponibles'; irA('fichas'); };
+  $('#e3Ahora').onclick = () => { cerrarModal(); iniciarAnestesiaCompletarDespues(); };
+  $('#e3Buscar').oninput = debounce(e => {
+    if(!$('#e3Listas')) return;
+    q = e.target.value; $('#e3Listas').innerHTML = listas(); cablearListaEtapa();
+  }, 200);
+  $('#e3Fuera').onclick = () => { cerrarModal(); setTimeout(quirofanoOtrosCasos, 160); };
   cablearListaEtapa();
+}
+
+/* Los dos casos reales que no están en la lista. Reemplazan al recorrido
+   viejo de «Nueva ficha anestésica» (tomar el acto → ventana de motivos →
+   lista de todas las valoraciones), que repetía lo mismo que esta etapa. */
+function quirofanoOtrosCasos(){
+  abrirModal('Paciente que no está en la lista',
+    '<div class="et-ops">'+
+      opEtapa('e3Papel', 'archivo', 'Valorado en papel o en otra institución',
+        'Se registra el acto y se adjunta la foto de la valoración. La ficha no se firma hasta pasarla a la app.')+
+      opEtapa('e3Reint', 'ficha', 'Reintervención',
+        'Paciente internado ya valorado: se trae su valoración anterior para actualizarla.')+
+    '</div>', '', '600px');
+  alVolverModal(etapaQuirofano);
+  volverA = quirofanoOtrosCasos;
+  $('#e3Papel').onclick = () => { cerrarModal(); setTimeout(() => elegirPaciente('Valorado en papel o en otra institución', '',
+    (pid, extra) => abrirActoConValoracion(pid, 'externa', extra, null),
+    { extra: '<div class="grid c2">'+campoTxt('epQuien', 'Quién la hizo (profesional o institución)')+
+               campoFecha('epFechaVal', 'Fecha de esa valoración', hoyISO())+'</div>',
+      leerExtra: () => ({ quien: valEt('epQuien'), fechaVal: valEt('epFechaVal') }) }), 160); };
+  $('#e3Reint').onclick = () => { cerrarModal(); setTimeout(() => elegirPaciente('Reintervención',
+    'Elegí el paciente: aparecen sus valoraciones completas.', pid => elegirValoracionAnterior(pid)), 160); };
+}
+
+function elegirValoracionAnterior(pid){
+  const p = DB.pacientes[pid] || {};
+  const l = fichasValoradasDe(pid);
+  if(!l.length) return toast((p.apellido || 'El paciente') + ' no tiene ninguna valoración completa para traer.', 'warn');
+  abrirModal('¿De qué intervención viene la valoración?',
+    '<p class="mini" style="margin:0 0 10px">'+esc((p.apellido || '')+', '+(p.nombre || ''))+
+      '. El consentimiento no se copia: se firma el de esta intervención.</p>'+
+    '<div class="lista chica">'+ l.map(g => '<div class="item plano" data-orig="'+esc(g.id)+'"><div class="txt"><b>'+
+      esc(textoProcedimientos(g) || g.cirugia || 'sin cirugía')+'</b><span>'+esc(fFecha(fechaDeFicha(g)))+
+      ' · ASA '+esc(((g.v || {}).scores || {}).asa || '—')+' · valoró '+esc(autorFicha(g))+'</span></div>'+
+      '<div class="der">'+flechaDer()+'</div></div>').join('') +'</div>', '', '600px');
+  alVolverModal(quirofanoOtrosCasos);
+  $$('#modal [data-orig]').forEach(it => it.onclick = () => {
+    const g = DB.fichas[it.dataset.orig];
+    cerrarModal();
+    abrirActoConValoracion(pid, 'reintervencion',
+      { fichaOrigen:g.id, origenTxt:(g.cirugia || 'sin cirugía') + ' · ' + fFecha(fechaDeFicha(g)) }, g);
+  });
+}
+
+/* Abre el acto ya tomado, con la valoración declarada (papel) o traída (reintervención) */
+function abrirActoConValoracion(pid, motivo, extra, origen){
+  if(typeof soloLectura === 'function' && soloLectura('abrir un acto')) return;
+  const ahora = new Date().toISOString();
+  const f = nuevaFichaDatos(pid, {
+    viaActo:true, acto:{ fechaCirugia: hoyISO() },
+    asignadoUid: SESION.uid, actoPorUid: SESION.uid,
+    actoPorNombre: USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '',
+    actoTomado: ahora, actorExterno:''
+  });
+  if(origen){
+    copiarValoracionDesde(f, origen);
+    ['institucion','obraSocial','nroAfiliado','especialidad'].forEach(k => { if(!f[k] && origen[k]) f[k] = origen[k]; });
+  }
+  guardarMotivoSinValoracion(f, motivo, extra || {});
+  sincronizarFechas(f);
+  escribir('fichas', f.id, f);
+  auditar('ficha-tomar-acto', 'Acto propio — ' + (motivo === 'externa' ? 'valoración en papel' : 'reintervención'));
+  solapaActo = 'resumen';
+  abrirFichaEnPaso(f.id, 'anestesia');
+  toast(motivo === 'externa'
+    ? 'Registrá el acto. Adjuntá la foto de la valoración en papel.'
+    : 'Valoración traída. Cargá la cirugía de hoy y firmá el consentimiento de esta intervención.', 'ok');
 }
 
 /* =========================================================================
@@ -926,4 +1009,37 @@ function bannerFaltantesEtapa(f, paso){
   return '<details class="falt-urg no-print"><summary>'+ico('info')+
     '<span>Quedan <b>'+n+' dato'+(n === 1 ? '' : 's')+'</b> del paciente y la valoración para '+
     'completar al terminar.</span></summary>'+ bannerFaltantes(f, paso) +'</details>';
+}
+
+
+/* =========================================================================
+   INICIAR LA ANESTESIA Y COMPLETAR DESPUÉS
+   -------------------------------------------------------------------------
+   Pedido del 13-09-2026: arrancar el registro del acto en el segundo cero y
+   cargar los datos del paciente y la valoración mientras transcurre la
+   cirugía. Se abre con un paciente provisional y el acto a tu nombre; la
+   ficha queda marcada `completarDespues` y, mientras falten los datos
+   filiatorios o la valoración, una voz te lo recuerda cada 10 minutos (ver
+   revisarActosSinDatos en inicio-extra.js). La firma exige todo, como siempre.
+   ========================================================================= */
+function iniciarAnestesiaCompletarDespues(){
+  if(typeof soloLectura === 'function' && soloLectura('iniciar un acto')) return;
+  const pid = crearPacienteProvisional();
+  const ahora = new Date().toISOString();
+  const f = nuevaFichaDatos(pid, {
+    viaActo:true, completarDespues: ahora,
+    acto:{ fechaCirugia: hoyISO() },
+    asignadoUid: SESION.uid, actoPorUid: SESION.uid,
+    actoPorNombre: USUARIO ? (USUARIO.apellido + ', ' + USUARIO.nombre) : '',
+    actoTomado: ahora, actorExterno:''
+  });
+  /* «La cargo ahora»: no declara ninguna excepción, así que no aparece la ventana de motivos */
+  guardarMotivoSinValoracion(f, 'ahora', {});
+  sincronizarFechas(f);
+  escribir('fichas', f.id, f);
+  auditar('ficha-tomar-acto', 'Acto iniciado para completar los datos durante la cirugía');
+  solapaActo = 'resumen';
+  if(typeof CM !== 'undefined') CM.tab = 'plantilla';
+  abrirFichaEnPaso(f.id, 'anestesia');
+  toast('Acto iniciado. Completá los datos del paciente y la valoración durante la cirugía: te lo voy a recordar.', 'warn');
 }

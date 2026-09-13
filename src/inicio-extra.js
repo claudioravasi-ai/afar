@@ -79,6 +79,13 @@ function avisosExtra(av, fichas){
         detalle:'Sin la institución la ficha no se puede facturar ni informar.',
         fichaId:f.id, solapa:'paciente' });
     });
+  /* Actos iniciados para completar después, con datos todavía pendientes */
+  actosSinDatos().forEach(f => {
+    av.push({ nivel:'danger', icono:'jeringa', orden:1, desde:f.completarDespues,
+      titulo:'Acto iniciado sin completar datos del paciente y valoración',
+      detalle:'Faltan: ' + faltaDeActoSinDatos(f).join(' y ') + '.', fichaId:f.id,
+      solapa: pacienteProvisional(f) || estadoPaso(f, 'paciente') !== 'ok' ? 'paciente' : 'preanestesia' });
+  });
   /* Fichas incompletas que se eliminaron: la marca queda hasta abrir los avisos */
   bajasHechas().filter(b => b.uid === SESION.uid && !b.leida).forEach(b => {
     av.push({ nivel:'info', icono:'borrar', orden:2, desde:b.cuando,
@@ -374,8 +381,45 @@ function revisarRelax(){
   r.ultimaVoz = new Date().toISOString();
   guardarRelax(r);
 }
+/* =================== ACTO INICIADO, DATOS PENDIENTES ===================
+   Cada 10 minutos, mientras falten los datos filiatorios o la valoración de
+   un acto abierto con «Iniciar la anestesia y completar después», una voz
+   femenina lo recuerda. Se calla sola cuando los dos pasos quedan completos. */
+const MIN_VOZ_SIN_DATOS = 10;
+function faltaDeActoSinDatos(f){
+  const l = [];
+  if(pacienteProvisional(f) || estadoPaso(f, 'paciente') !== 'ok') l.push('los datos filiatorios');
+  if(estadoPaso(f, 'preanestesia') !== 'ok') l.push('la valoración prequirúrgica');
+  return l;
+}
+function actosSinDatos(){
+  if(!SESION || !verDatosClinicos() || esInvitado()) return [];
+  return lista('fichas').filter(f => f.completarDespues && actorFicha(f) === SESION.uid &&
+    !(f.firma || {}).firmado && faltaDeActoSinDatos(f).length);
+}
+function revisarActosSinDatos(){
+  const l = actosSinDatos();
+  if(!l.length) return;
+  let marca = {};
+  try{ marca = JSON.parse(sessionStorage.getItem('afar_voz_sin_datos') || '{}'); }catch(e){}
+  const vence = f => Date.now() - new Date(marca[f.id] || f.completarDespues).getTime() >= MIN_VOZ_SIN_DATOS * 60000;
+  const f = l.find(vence);
+  if(!f) return;
+  const trato = (USUARIO && USUARIO.trato) || 'Doctor';
+  const falta = faltaDeActoSinDatos(f);
+  hablar(trato + ', usted ha iniciado un acto anestésico y no ha completado ' +
+    (falta.length === 2 ? 'los datos filiatorios ni la valoración prequirúrgica'
+                        : falta[0]) + '. Está pendiente.');
+  toast('Acto iniciado: falta completar ' + falta.join(' y ') + '.', 'warn');
+  l.forEach(x => { if(vence(x)) marca[x.id] = new Date().toISOString(); });
+  try{ sessionStorage.setItem('afar_voz_sin_datos', JSON.stringify(marca)); }catch(e){}
+  if(typeof pintarBadgeAvisos === 'function') pintarBadgeAvisos();
+}
+
 function iniciarRelax(){
   clearInterval(window.__relax);
+  clearInterval(window.__sinDatos);
+  window.__sinDatos = setInterval(revisarActosSinDatos, 60000);
   window.__relax = setInterval(revisarRelax, 60000);
   pintarBotonSpotify();
   if('speechSynthesis' in window) speechSynthesis.getVoices();

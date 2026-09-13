@@ -334,7 +334,7 @@ function abrirPacienteDelPadron(id){
        por que: es el respaldo del acceso. */
     auditar('padron-atender',
       'Abre ficha desde el padrón — ' + (p.apellido||'') + ', ' + (p.nombre||''));
-    abrirFicha(null, id);
+    iniciarValoracionPara(id);          /* avisa si ya tiene una valoración abierta */
   };
   if($('#ppDisponibles')) $('#ppDisponibles').onclick = () => {
     cerrarModal();
@@ -1099,7 +1099,7 @@ function abrirPaciente(id){
   abrirModal('Paciente', cuerpo,
     (p.telefono ? '<button class="btn ghost" id="pdWa" title="WhatsApp al paciente">'+ICO_WHATSAPP+' WhatsApp</button>' : '')+
     '<button class="btn ghost" id="pdEditar">'+ico('editar')+' Editar historia</button>'+
-    '<button class="btn pri" id="pdNuevaFicha">'+ico('mas')+' Nueva ficha</button>', '980px');
+    '<button class="btn pri" id="pdNuevaFicha">'+ico('mas')+' Nueva valoración</button>', '980px');
 
   if($('#pdHistorial')) $('#pdHistorial').onclick = () => {
     toast('Trayendo el historial…');
@@ -1112,7 +1112,7 @@ function abrirPaciente(id){
   cablearFichasExternas(id);
   if($('#pdWa')) $('#pdWa').onclick = () => abrirWhatsAppPaciente(p);
   $('#pdEditar').onclick = () => { cerrarModal(); setTimeout(() => editarPaciente(id), 180); };
-  $('#pdNuevaFicha').onclick = () => { cerrarModal(); setTimeout(() => abrirFicha(null, id), 180); };
+  $('#pdNuevaFicha').onclick = () => { cerrarModal(); setTimeout(() => iniciarValoracionPara(id), 180); };
   $$('#modal .item[data-ficha]').forEach(it => {
     it.onclick = () => { const fid = it.dataset.ficha; cerrarModal(); setTimeout(() => abrirFicha(fid), 180); };
   });
